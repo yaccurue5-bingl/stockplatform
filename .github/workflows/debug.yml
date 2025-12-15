@@ -1,0 +1,17 @@
+name: Debug - Check Structure
+
+on: workflow_dispatch
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: List all files
+      run: |
+        echo "=== Root directory ==="
+        ls -la
+        echo "=== Check for React project ==="
+        ls -la stock-platform-ui-new/ || echo "stock-platform-ui-new not found"
+        echo "=== Check package.json ==="
+        cat stock-platform-ui-new/package.json || echo "package.json not found"
