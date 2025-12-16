@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy UI Project to Firebase Hosting
 
 on:
   push:
@@ -7,49 +7,47 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  # GitHub Pages 관련 권한은 이제 필요 없습니다.
+  # pages: write
+  # id-token: write
 
 concurrency:
-  group: pages
+  group: deployment-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
+  build_and_deploy: # deploy job 대신 하나의 job으로 통합
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
-      
+        
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
       
       - name: Install UI Dependencies
-        working-directory: ./stock-platform-ui-new # <--- 스텝 레벨의 옵션
-        run: npm ci # <--- 실행할 명령어
+        working-directory: ./stock-platform-ui-new
+        run: npm ci
+        
       - name: Build UI Project
-        working-directory: ./stock-platform-ui-new # <--- 스텝 레벨의 옵션
-        run: npm run build # <--- 실행할 명령어
+        working-directory: ./stock-platform-ui-new
+        run: npm run build
         env:
           CI: false
-      
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+          
+      # ------------------------------------------------------------------
+      # 🔥 FIREBASE HOSTING 배포 스텝 추가 (핵심)
+      # ------------------------------------------------------------------
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          path: stock-platform-ui-new/build
-  
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          # Firebase 프로젝트 ID (콘솔에서 확인)
+          projectId: stockplatform-fe563 
+          # Firebase 배포에 필요한 서비스 계정 Secret을 사용
+          repoToken: '${{ secrets.GITHUB_TOKEN }}' 
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' # (매우 중요!)
+          # 빌드된 파일이 있는 디렉토리를 지정합니다. (firebase.json에서 설정했으므로 생략 가능하나, 명시적으로 지정할 수도 있습니다.)
+          # public: stock-platform-ui-new/build 
+          # 현재는 firebase.json이 루트에 있으므로 entryPoint는 생략합니다.
