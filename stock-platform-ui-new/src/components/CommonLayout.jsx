@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Globe } from 'lucide-react';
+import { API_BASE_URL, API_ENDPOINTS, fetchAPI } from '../config/api';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL_DISPLAY = API_BASE_URL; // 디버깅용
 
 const Header = () => (
   <header className="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
@@ -24,7 +25,6 @@ const Header = () => (
         <span className="cursor-pointer hover:text-blue-400">Markets</span>
         <span className="cursor-pointer hover:text-blue-400">News</span>
         <span className="cursor-pointer hover:text-blue-400">Screener</span>
-        <button className="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-md transition">Login</button>
       </div>
     </div>
   </header>
@@ -46,14 +46,14 @@ const MarketTicker = () => {
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/market/live`);
-        const result = await response.json();
+        const result = await fetchAPI(API_ENDPOINTS.MARKET_LIVE);
         
         if (result.status === 'success') {
           setMarketData(result.data);
         }
       } catch (error) {
         console.error('Failed to fetch market data:', error);
+        console.log('API URL:', API_BASE_URL_DISPLAY);
       } finally {
         setLoading(false);
       }

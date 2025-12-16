@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ResponsiveContainer, BarChart, XAxis, YAxis, Tooltip, Bar, CartesianGrid, Legend } from 'recharts';
 import { Loader2, AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
-
-const API_BASE_URL = 'http://localhost:8000';
+import { fetchAPI, API_ENDPOINTS } from '../config/api';
 
 const StockDetailPage = () => {
   const navigate = useNavigate();
@@ -23,13 +22,8 @@ const StockDetailPage = () => {
       
       try {
         console.log(`Fetching data for ticker: ${ticker}`);
-        const response = await fetch(`${API_BASE_URL}/api/stock/details/${ticker}`);
+        const data = await fetchAPI(`${API_ENDPOINTS.STOCK_DETAILS}/${ticker}`);
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: Failed to fetch stock data`);
-        }
-        
-        const data = await response.json();
         console.log('Received data:', data);
         setStockData(data);
         
