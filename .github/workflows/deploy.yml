@@ -16,8 +16,6 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      # ... (생략: Checkout, Setup Node, Install Dependencies, Build Project) ...
-      
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Setup Node
@@ -32,10 +30,7 @@ jobs:
         run: npm run build
         env:
           CI: false
-
-      # ------------------------------------------------------------------
-      # 🔥 5. Firebase Hosting으로 배포 (site 파라미터 추가)
-      # ------------------------------------------------------------------
+          
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -43,4 +38,4 @@ jobs:
           repoToken: '${{ secrets.GITHUB_TOKEN }}' 
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_BINGL_WEBSITE }}'
           channelId: live 
-          site: stockplatform-fe563 # 🚨 호스팅 사이트 ID를 명시적으로 지정합니다. (중요!)
+          # site: stockplatform-fe563 # 이 줄을 제거하여 경고를 없앱니다.
