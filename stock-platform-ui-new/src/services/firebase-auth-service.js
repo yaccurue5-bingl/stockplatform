@@ -2,12 +2,13 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GithubAuthProvider, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCBZBEF0f1UH7Z5Pugh-07ZNh7QL-BLCYk",
+  apiKey: "AIzaSyBCZBEF0f1UH7Z5Pugh-O7ZNh7Ql-BLcYk",
   authDomain: "stockplatform-fe563.firebaseapp.com",
   projectId: "stockplatform-fe563",
-  storageBucket: "stockplatform-fe563.appspot.com",
+  storageBucket: "stockplatform-fe563.firebasestorage.app",
   messagingSenderId: "214435441234",
-  appId: "1:214435441234:web:890b265ba78c45c71e4d8b"
+  appId: "1:214435441234:web:890b265ba78c45c71e4d8b",
+  measurementId: "G-7Q2EXW4X3Q"
 };
 
 const app = initializeApp(firebaseConfig);
