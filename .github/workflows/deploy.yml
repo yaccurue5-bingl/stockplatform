@@ -16,30 +16,25 @@ jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     steps:
-      # 1. 저장소 체크아웃
+      # ... (생략: Checkout, Setup Node, Install Dependencies, Build Project) ...
+      
       - name: Checkout Repository
         uses: actions/checkout@v4
-        
-      # 2. Node.js 환경 설정
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
-      # 3. UI 의존성 설치 (stock-platform-ui-new 내부)
       - name: Install UI Dependencies
         working-directory: ./stock-platform-ui-new
         run: npm ci
-        
-      # 4. UI 프로젝트 빌드 (stock-platform-ui-new 내부)
       - name: Build UI Project
         working-directory: ./stock-platform-ui-new
         run: npm run build
         env:
           CI: false
-          
+
       # ------------------------------------------------------------------
-      # 🔥 5. Firebase Hosting으로 배포 (channelId: live 추가)
+      # 🔥 5. Firebase Hosting으로 배포 (site 파라미터 추가)
       # ------------------------------------------------------------------
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
@@ -47,4 +42,5 @@ jobs:
           projectId: stockplatform-fe563 
           repoToken: '${{ secrets.GITHUB_TOKEN }}' 
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_BINGL_WEBSITE }}'
-          channelId: live # 🚨 이 부분을 추가하여 라이브(Live) 사이트로 배포를 지정합니다.
+          channelId: live 
+          site: stockplatform-fe563 # 🚨 호스팅 사이트 ID를 명시적으로 지정합니다. (중요!)
