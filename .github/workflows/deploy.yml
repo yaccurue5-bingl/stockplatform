@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read # 코드를 읽는 권한만 유지
+  contents: read
 
 concurrency:
   group: deployment-${{ github.ref }}
@@ -39,14 +39,12 @@ jobs:
           CI: false
           
       # ------------------------------------------------------------------
-      # 🔥 5. Firebase Hosting으로 배포
+      # 🔥 5. Firebase Hosting으로 배포 (channelId: live 추가)
       # ------------------------------------------------------------------
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          # Firebase 프로젝트 ID (stockplatform-fe563)
           projectId: stockplatform-fe563 
-          # GitHub Actions의 기본 토큰
           repoToken: '${{ secrets.GITHUB_TOKEN }}' 
-          # 🚨 등록하신 Secret 이름(FIREBASE_SERVICE_ACCOUNT_BINGL_WEBSITE)을 참조합니다.
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_BINGL_WEBSITE }}'
+          channelId: live # 🚨 이 부분을 추가하여 라이브(Live) 사이트로 배포를 지정합니다.
