@@ -6,31 +6,32 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  # GitHub Pages 관련 권한은 이제 필요 없습니다.
-  # pages: write
-  # id-token: write
+  contents: read # 코드를 읽는 권한만 유지
 
 concurrency:
   group: deployment-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build_and_deploy: # deploy job 대신 하나의 job으로 통합
+  build_and_deploy:
     runs-on: ubuntu-latest
     steps:
+      # 1. 저장소 체크아웃
       - name: Checkout Repository
         uses: actions/checkout@v4
         
+      # 2. Node.js 환경 설정
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
       
+      # 3. UI 의존성 설치 (stock-platform-ui-new 내부)
       - name: Install UI Dependencies
         working-directory: ./stock-platform-ui-new
         run: npm ci
         
+      # 4. UI 프로젝트 빌드 (stock-platform-ui-new 내부)
       - name: Build UI Project
         working-directory: ./stock-platform-ui-new
         run: npm run build
@@ -38,16 +39,14 @@ jobs:
           CI: false
           
       # ------------------------------------------------------------------
-      # 🔥 FIREBASE HOSTING 배포 스텝 추가 (핵심)
+      # 🔥 5. Firebase Hosting으로 배포
       # ------------------------------------------------------------------
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          # Firebase 프로젝트 ID (콘솔에서 확인)
+          # Firebase 프로젝트 ID (stockplatform-fe563)
           projectId: stockplatform-fe563 
-          # Firebase 배포에 필요한 서비스 계정 Secret을 사용
+          # GitHub Actions의 기본 토큰
           repoToken: '${{ secrets.GITHUB_TOKEN }}' 
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' # (매우 중요!)
-          # 빌드된 파일이 있는 디렉토리를 지정합니다. (firebase.json에서 설정했으므로 생략 가능하나, 명시적으로 지정할 수도 있습니다.)
-          # public: stock-platform-ui-new/build 
-          # 현재는 firebase.json이 루트에 있으므로 entryPoint는 생략합니다.
+          # 🚨 등록하신 Secret 이름(FIREBASE_SERVICE_ACCOUNT_BINGL_WEBSITE)을 참조합니다.
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_BINGL_WEBSITE }}'
