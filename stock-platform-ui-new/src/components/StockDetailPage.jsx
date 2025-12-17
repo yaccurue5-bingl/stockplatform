@@ -1,32 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ResponsiveContainer, BarChart, XAxis, YAxis, Tooltip, Bar, CartesianGrid, Legend } from 'recharts';
-import { Loader2, AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
-import { fetchAPI, API_ENDPOINTS } from '../config/api';
+import { useParams, useNavigate } from 'react-router-dom';
+import { TrendingUp, TrendingDown, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { supabase } from '../supabaseClient';
 
 const StockDetailPage = () => {
-  const navigate = useNavigate();
   const { ticker } = useParams();
-  
+  const navigate = useNavigate();
   const [stockData, setStockData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // API 호출
   useEffect(() => {
-    const fetchStockData = async () => {
-      if (!ticker) return;
-      
-      setLoading(true);
-      setError(null);
-      
+    const fetchDetailData = async () => {
       try {
-        console.log(`Fetching data for ticker: ${ticker}`);
-        const data = await fetchAPI(`${API_ENDPOINTS.STOCK_DETAILS}/${ticker}`);
+        setLoading(true);
+        setError(null);
         
-        console.log('Received data:', data);
+        // .single() 대신 .maybeSingle()을 사용하면 데이터가 없을 때 에러 대신 null을 반환합니다.
+        const { data, error: fetchError } = await supabase
+          .from('stock_details')
+          .select('*')
+          .eq('ticker', ticker)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+        
+        if (!data) {
+          setError(`티커 ${ticker}에 해당하는 상세 데이터가 데이터베이스에 없습니다. 크롤러를 통해 데이터를 먼저 넣어주세요.`);
+          return;
+        }
+        
         setStockData(data);
-        
       } catch (err) {
         console.error('Error fetching stock data:', err);
         setError(err.message);
@@ -35,180 +40,69 @@ const StockDetailPage = () => {
       }
     };
 
-    fetchStockData();
+    if (ticker) fetchDetailData();
   }, [ticker]);
 
-  // 로딩 상태
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
-          <p className="text-gray-600">Loading real-time data for {ticker}...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <Loader2 className="w-10 h-10 animate-spin text-blue-500 mb-4" />
+        <p className="text-gray-500">주식 정보를 불러오는 중입니다...</p>
       </div>
     );
   }
 
-  // 에러 상태
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-red-800 mb-2">Error Loading Data</h2>
-          <p className="text-red-600">{error}</p>
-          <button 
-            onClick={() => navigate('/')} 
-            className="mt-4 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-          >
-            Back to Dashboard
-          </button>
-        </div>
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <h2 className="text-lg font-bold text-red-700 mb-2">데이터 없음</h2>
+        <p className="text-red-600 mb-4">{error}</p>
+        <button onClick={() => navigate('/')} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition">홈으로 돌아가기</button>
       </div>
     );
   }
 
-  if (!stockData) {
-    return (
-      <div className="p-8 text-center text-gray-500">
-        No data available for {ticker}
-      </div>
-    );
-  }
+  if (!stockData) return null;
 
-  const sentiment = stockData.aiInsight?.sentiment || 'neutral';
-  const sentimentColors = {
-    positive: 'text-green-600',
-    negative: 'text-red-600',
-    neutral: 'text-gray-600'
-  };
+  const isUp = stockData.change_amount > 0;
 
   return (
-    <div className="animate-fade-in">
-      <button 
-        onClick={() => navigate('/')} 
-        className="text-sm text-gray-500 hover:text-black mb-4"
-      >
-        ← Back to Dashboard
+    <div className="space-y-6">
+      <button onClick={() => navigate(-1)} className="flex items-center text-gray-600 hover:text-gray-900 transition">
+        <ArrowLeft className="w-4 h-4 mr-1" /> 뒤로가기
       </button>
-      
-      {/* Header Info */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm mb-6">
-        <div className="flex justify-between items-end">
+
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="flex justify-between items-start mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {stockData.companyName}
-              <span className="text-lg text-gray-400 font-normal ml-2">{ticker}</span>
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Last updated: {new Date(stockData.scraped_at).toLocaleString()}
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900">{stockData.name}</h1>
+            <p className="text-gray-500">{stockData.ticker}</p>
           </div>
           <div className="text-right">
-            <div className={`text-2xl font-bold ${sentimentColors[sentiment]}`}>
-              {sentiment === 'positive' && <TrendingUp className="inline w-6 h-6 mr-2" />}
-              {sentiment === 'negative' && <TrendingDown className="inline w-6 h-6 mr-2" />}
-              {sentiment.toUpperCase()}
+            <div className={`text-3xl font-bold ${isUp ? 'text-red-500' : 'text-blue-500'}`}>
+              {Number(stockData.current_price).toLocaleString()}원
+            </div>
+            <div className={`flex items-center justify-end font-medium ${isUp ? 'text-red-500' : 'text-blue-500'}`}>
+              {isUp ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+              {stockData.change_amount.toLocaleString()} ({stockData.change_rate})
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left Column: Chart & AI Insight */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Financial Chart */}
-          <div className="bg-white p-6 rounded-xl border shadow-sm">
-            <h3 className="font-bold text-lg mb-4">Financial Health (Revenue & OP)</h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stockData.financials}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="rev" fill="#cbd5e1" name="Revenue(T)" />
-                  <Bar dataKey="op" fill="#3b82f6" name="Op. Profit(T)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* AI Translated News */}
-          <div className="bg-white p-6 rounded-xl border shadow-sm">
-            <h3 className="font-bold text-lg mb-4">🤖 AI-Translated Latest News</h3>
-            
-            {stockData.aiInsight?.title_en ? (
-              <>
-                <h4 className="text-xl font-semibold text-gray-800 mb-3">
-                  {stockData.aiInsight.title_en}
-                </h4>
-                <p className="text-gray-700 mb-4 leading-relaxed">
-                  {stockData.aiInsight.summary_en}
-                </p>
-                
-                {stockData.aiInsight.key_points && stockData.aiInsight.key_points.length > 0 && (
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h5 className="font-semibold text-blue-900 mb-2">Key Points:</h5>
-                    <ul className="list-disc pl-5 space-y-1 text-blue-800">
-                      {stockData.aiInsight.key_points.map((point, idx) => (
-                        <li key={idx}>{point}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-gray-500 italic">No AI analysis available</p>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Original News */}
-        <div className="space-y-6">
-          
-          {/* Original Korean News */}
-          <div className="bg-white p-6 rounded-xl border shadow-sm">
-            <h3 className="text-sm font-bold text-gray-400 uppercase mb-3">
-              Original News (Korean)
-            </h3>
-            
-            {stockData.scrapedNews?.title_kr ? (
-              <>
-                <h4 className="font-bold text-lg mb-2 text-gray-900">
-                  {stockData.scrapedNews.title_kr}
-                </h4>
-                <p className="text-sm text-gray-600 mb-3">
-                  {stockData.scrapedNews.content_kr}...
-                </p>
-                <a 
-                  href={stockData.scrapedNews.url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-600 text-sm hover:underline"
-                >
-                  Read full article →
-                </a>
-              </>
-            ) : (
-              <p className="text-gray-500 italic">No news available</p>
-            )}
-          </div>
-
-          {/* Analyst View */}
-          {stockData.aiInsight?.analyst_view && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
-              <h3 className="text-sm font-bold text-blue-900 uppercase mb-3">
-                💡 AI Analyst View
-              </h3>
-              <p className="text-blue-800 text-sm leading-relaxed">
-                {stockData.aiInsight.analyst_view}
-              </p>
-            </div>
-          )}
+        {/* 중요: 부모 div에 확실한 높이(h-[400px])를 주어야 차트 에러가 나지 않습니다. */}
+        <div className="h-[400px] w-full mt-8" style={{ minHeight: '400px' }}>
+          <h3 className="text-lg font-semibold mb-4">주가 흐름</h3>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={stockData.chart_data || []}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="time" />
+              <YAxis domain={['auto', 'auto']} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="price" fill={isUp ? "#ef4444" : "#3b82f6"} name="가격" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>

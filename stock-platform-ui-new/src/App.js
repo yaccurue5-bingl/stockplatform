@@ -4,51 +4,27 @@ import CommonLayout from './components/CommonLayout';
 import Dashboard from './components/Dashboard';
 import StockDetailPage from './components/StockDetailPage';
 
-// Firebase 인증 서비스 임포트
-import { 
-  handleRedirectResult, 
-  onAuthChange 
-} from './services/firebase-auth-service';
-
-// 인증 버튼 컴포넌트 임포트
-import AuthButtons from './components/AuthButtons';
+// Supabase 서비스로 교체
+import { onAuthChange } from './services/supabase-auth-service'; 
 
 function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Firebase 리디렉션 결과 처리
-    handleRedirectResult()
-      .then(result => {
-        if (result && result.user) {
-          console.log("리디렉션 로그인 처리 완료:", result.user.uid);
-          setUser(result.user);
-        }
-        setupAuthListener();
-      })
-      .catch(error => {
-        console.error("리디렉션 처리 중 오류 발생:", error);
-        setupAuthListener();
-      });
+    // Supabase 인증 상태 감지 및 초기 세션 확인
+    const unsubscribe = onAuthChange((currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+      
+      if (currentUser) {
+        console.log(`인증됨: ${currentUser.email}`);
+      } else {
+        console.log("로그아웃 상태");
+      }
+    });
 
-    // 인증 상태 변화 감지
-    const setupAuthListener = () => {
-      const unsubscribe = onAuthChange((currentUser) => {
-        setUser(currentUser);
-        setLoading(false);
-        
-        if (currentUser) {
-          console.log(`인증됨: ${currentUser.displayName || currentUser.email}`);
-        } else {
-          console.log("로그아웃 상태");
-        }
-      });
-
-      return unsubscribe;
-    };
-    
-    return setupAuthListener();
+    return () => unsubscribe();
   }, []);
 
   if (loading) {
