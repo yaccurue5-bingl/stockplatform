@@ -1,0 +1,29 @@
+name: Stock Data Crawler
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # 15분마다 실행 (GitHub 무료 플랜 권장)
+  workflow_dispatch: # 수동으로 실행 버튼 활성화
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python_version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        pip install requests beautifulsoup4 supabase python-dotenv
+
+    - name: Run Crawler
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      run: python crawler.py
