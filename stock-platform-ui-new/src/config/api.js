@@ -1,43 +1,30 @@
-// API 기본 URL 설정
-const getApiBaseUrl = () => {
-  // 개발 환경
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:8000';
-  }
-  
-  // 프로덕션 환경 (Firebase Hosting)
-  // 백엔드를 배포할 URL로 변경하세요
-  return process.env.REACT_APP_API_URL || 'https://api.bingl.net';
-};
+import { supabase } from '../supabaseClient';
 
-export const API_BASE_URL = getApiBaseUrl();
+// 1. 기존 백엔드(Cloud Run 등) 호출용 (유지)
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.bingl.net';
 
-// API 엔드포인트
-export const API_ENDPOINTS = {
-  MARKET_LIVE: '/api/market/live',
-  STOCK_PRICE: '/api/stock/price',
-  STOCK_DETAILS: '/api/stock/details',
-  FULL_ANALYSIS: '/api/run_full_analysis'
-};
-
-// API 호출 헬퍼 함수
 export const fetchAPI = async (endpoint, options = {}) => {
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers: { 'Content-Type': 'application/json', ...options.headers },
     });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
   } catch (error) {
-    console.error(`API Error (${endpoint}):`, error);
+    console.error('API Error:', error);
     throw error;
   }
+};
+
+// 2. Supabase 전용 호출 함수 (추가)
+export const fetchFromSupabase = async (tableName) => {
+  const { data, error } = await supabase.from(tableName).select('*');
+  if (error) throw error;
+  return data;
+};
+
+export const API_ENDPOINTS = {
+  MARKET_LIVE: 'market_live',
+  STOCK_DETAILS: 'stock_details'
 };
