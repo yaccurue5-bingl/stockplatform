@@ -9,7 +9,7 @@ import { onAuthChange } from './services/supabase-auth-service';
 
 function App() {
   const [loading, setLoading] = useState(true);
-  //const [user, setUser] = useState(null);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     // Supabase 인증 상태 감지 및 초기 세션 확인
