@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'; // 1. useEffect, useState 임포트 추가
-import { Menu, User, LogOut, globe } from 'lucide-react';
+import { Menu, User, LogOut,} from 'lucide-react';
 import { supabase } from '../supabaseClient'; // 2. supabase 객체 임포트 추가
 import AuthButtons from './AuthButtons';
 
@@ -81,7 +81,6 @@ const Header = () => (
   <header className="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
     <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
       <div className="flex items-center gap-2 font-bold text-xl text-blue-400">
-        <Globe className="w-6 h-6" />
         <span>K-Market Insight</span>
       </div>
       <div className="flex items-center gap-4">
