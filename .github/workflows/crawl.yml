@@ -23,8 +23,8 @@ jobs:
         pip install requests beautifulsoup4 supabase python-dotenv
 
     - name: Run Crawler
+      working-directory: ./stock-platform-server  # 이 폴더 안으로 들어가서 실행해라
       env:
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      # 파일 경로를 폴더명/파일명으로 정확히 지정합니다.
-      run: python stock-platform-server/crawler.py
+      run: python crawler.py
