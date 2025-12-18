@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'; // 1. useEffect, useState 임포트 추가
-import { Menu, User, LogOut } from 'lucide-react';
+import { Menu, User, LogOut, globe } from 'lucide-react';
 import { supabase } from '../supabaseClient'; // 2. supabase 객체 임포트 추가
 import AuthButtons from './AuthButtons';
 

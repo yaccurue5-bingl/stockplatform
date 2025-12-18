@@ -2,7 +2,7 @@ name: Stock Data Crawler
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # 15분마다 실행 (GitHub 무료 플랜 권장)
+    - cron: '*/10 * * * *' # 15분마다 실행 (GitHub 무료 플랜 권장)
   workflow_dispatch: # 수동으로 실행 버튼 활성화
 
 jobs:
