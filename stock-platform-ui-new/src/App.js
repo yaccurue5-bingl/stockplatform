@@ -14,7 +14,7 @@ function App() {
   useEffect(() => {
     // Supabase 인증 상태 감지 및 초기 세션 확인
     const unsubscribe = onAuthChange((currentUser) => {
-      setUser(currentUser);
+      //setUser(currentUser);
       setLoading(false);
       
       if (currentUser) {
