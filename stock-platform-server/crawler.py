@@ -11,6 +11,39 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+def get_recent_disclosures():
+    # GitHub Secrets에서 키 가져오기
+    api_key = os.environ.get("DART_API_KEY")
+    url = "https://opendart.fss.or.kr/api/list.json"
+    
+    # 파라미터 설정 (오늘 날짜 기준으로 검색 가능)
+    params = {
+        'crtfc_key': api_key,
+        'bgn_de': '20231218', # 시작일 (예시: 오늘 날짜로 변경 가능)
+        'pcorp_cls': 'Y',      # 유가증권시장(KOSPI)
+        'page_count': '100'
+    }
+
+    response = requests.get(url, params=params)
+    data = response.json()
+
+    if data.get('status') == '000': # 정상 호출
+        disclosures = data.get('list')
+        print(f"총 {len(disclosures)}건의 공시를 발견했어!")
+        
+        # 우리가 관심 있는 키워드들
+        targets = ["주식소각", "유형자산", "배당", "공급계약"]
+        
+        for d in disclosures:
+            for target in targets:
+                if target in d['report_nm']:
+                    print(f"🚨 [발견!] {d['corp_name']}: {d['report_nm']}")
+                    print(f"🔗 링크: https://dart.fss.or.kr/dsaf001/main.do?rcpNo={d['rcept_no']}")
+    else:
+        print(f"에러 발생: {data.get('message')}")
+
+if __name__ == "__main__":
+    get_recent_disclosures()
 def get_stock_info(ticker, name):
     url = f"https://finance.naver.com/item/main.naver?code={ticker}"
     res = requests.get(url)
