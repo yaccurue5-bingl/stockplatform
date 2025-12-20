@@ -1,4 +1,5 @@
 opendartreader
-google-generativeai
+google-genai
 requests
 supabase
+python-dotenv
