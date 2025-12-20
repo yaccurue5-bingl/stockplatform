@@ -24,12 +24,12 @@ jobs:
 
       # 3. AI 크롤러 실행 (이게 핵심!)
     - name: Run AI Crawler
-        env:
+      env:
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python stock-platform-server/crawler.py
+      run: python stock-platform-server/crawler.py
 
     - name: Install dependencies
       run: |
