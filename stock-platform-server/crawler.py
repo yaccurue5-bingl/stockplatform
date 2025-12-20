@@ -15,7 +15,7 @@ dart = OpenDartReader(DART_KEY)
 def analyze_disclosure():
     # 오늘자 코스피 상장사 공시 목록 가져오기
     # (테스트를 위해 시작일을 최근으로 설정해봐)
-    list_data = dart.list(start='2023-12-15', kind='A') 
+    list_data = dart.list(start='2024-12-15', kind='A') 
     
     # 우리가 주목할 '유료급' 키워드
     target_keywords = ["주식소각", "유형자산", "최대주주", "배당", "공급계약"]
