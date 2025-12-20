@@ -30,9 +30,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python stock-platform-server/crawler.py
-        
+
     - name: Install dependencies
-      run: |
+       run: |
         pip install requests beautifulsoup4 supabase python-dotenv
 
     - name: Run Crawler
