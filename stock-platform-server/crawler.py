@@ -66,36 +66,26 @@ def analyze_disclosure():
         
         print(f"🎯 분석 중: {report_nm}")
         
-        try:
-            content = dart.document(rcept_no)
-            if not content:
-                continue
+        # 여러 모델 시도 루프를 지우고 아래 코드로 교체해!
+try:
+    print(f"🎯 AI 분석 시작: gemini-1.5-flash")
+    
+    # 새로운 SDK에서는 'models/'를 절대 붙이지 말고 아이디만 적어야 해!
+    response = client.models.generate_content(
+        model="gemini-1.5-flash", 
+        contents=prompt
+    )
+    
+    if response and response.text:
+        ai_summary = response.text
+        print("✅ AI 분석 완료!")
+    else:
+        print("⚠️ AI 응답이 비어있습니다.")
+
+except Exception as e:
+    print(f"❌ AI 분석 실패: {e}")
             
-            prompt = f"Summarize: {report_nm}\n{content[:2000]}"
-            
-            # 여러 모델 이름 시도
-            model_names = [
-                "gemini-1.5-flash-latest",
-                "models/gemini-1.5-flash-latest", 
-                "gemini-1.5-flash",
-                "gemini-pro"
-            ]
-            
-            response = None
-            for model_name in model_names:
-                try:
-                    print(f"   시도 중: {model_name}")
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt
-                    )
-                    print(f"   ✅ 성공: {model_name}")
-                    break
-                except Exception as model_error:
-                    print(f"   ❌ 실패: {model_name} - {model_error}")
-                    continue
-            
-            if response and hasattr(response, 'text') and response.text:
+    if response and hasattr(response, 'text') and response.text:
                 data = {
                     "corp_name": corp_name,
                     "report_nm": report_nm,
@@ -104,13 +94,13 @@ def analyze_disclosure():
                 }
                 supabase.table("disclosure_insights").upsert(data).execute()
                 print(f"✅ 저장 완료")
-            else:
+    else:
                 print(f"⚠️ AI 응답 없음")
                 
-        except Exception as e:
+except Exception as e:
             print(f"⚠️ 오류: {e}")
 
-    print("🎉 완료")
+            print("🎉 완료")
 
 if __name__ == "__main__":
     analyze_disclosure()
