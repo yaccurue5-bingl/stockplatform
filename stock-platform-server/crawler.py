@@ -71,9 +71,9 @@ Report: {report_nm}
 Content: {content[:5000]}"""
             
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=prompt
-            )
+    model="gemini-1.5-flash", # 'models/'를 빼고 이름만 적어줘!
+    contents=prompt
+)
             
             if response and hasattr(response, 'text') and response.text:
                 ai_summary = response.text
