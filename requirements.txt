@@ -1,0 +1,4 @@
+opendartreader
+google-generativeai
+requests
+supabase
