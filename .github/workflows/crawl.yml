@@ -2,8 +2,8 @@ name: Stock Data Crawler
 
 on:
   schedule:
-    - cron: '*/15 * * * *' # 15분마다 실행
-  workflow_dispatch: # 수동 실행 버튼 활성화
+    - cron: '*/15 * * * *' # 15분마다 자동 실행
+  workflow_dispatch:      # 수동 실행 버튼 활성화
 
 jobs:
   build:
@@ -11,33 +11,24 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@@v4
 
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10' # 하이픈(-) 확인 완료
-     # 2. 파이썬 라이브러리 설치
+        python-version: '3.10'
+
     - name: Install Python Dependencies
       run: |
-          pip install -r stock-platform-server/requirements.txt
+        pip install -r stock-platform-server/requirements.txt
+        # 혹시 몰라 필요한 라이브러리 추가 설치
+        pip install requests beautifulsoup4 supabase python-dotenv opendartreader google-generativeai
 
-      # 3. AI 크롤러 실행 (이게 핵심!)
     - name: Run AI Crawler
       env:
-          DART_API_KEY: ${{ secrets.DART_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      run: python stock-platform-server/crawler.py
-
-    - name: Install dependencies
-      run: |
-        pip install requests beautifulsoup4 supabase python-dotenv
-
-    - name: Run Crawler
-      working-directory: ./stock-platform-server  # 이 폴더 안으로 들어가서 실행해라
-      env:
+        DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      run: python crawler.py
+      # 폴더 위치를 정확히 지정해서 실행
+      run: python stock-platform-server/crawler.py
