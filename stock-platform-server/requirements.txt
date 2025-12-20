@@ -1,7 +1,4 @@
 opendartreader
-google-genai
+requests
 supabase
 python-dotenv
-requests
-beautifulsoup4
-pandas
