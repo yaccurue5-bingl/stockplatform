@@ -56,3 +56,22 @@ def analyze_disclosure():
 
 if __name__ == "__main__":
     analyze_disclosure()
+    from supabase import create_client
+
+# Supabase 설정 (기존에 쓰던 환경변수 활용)
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ... (기존 AI 분석 코드 아래에 추가) ...
+if ai_summary:
+                # 데이터 준비
+                data = {
+                    "corp_name": corp_name,
+                    "report_nm": report_nm,
+                    "ai_summary": ai_summary,
+                    "rcept_no": rcept_no
+                }
+                # Supabase에 저장 (이미 있는 공시는 무시하거나 업데이트)
+                supabase.table("disclosure_insights").upsert(data).execute()
+                print(f"✅ DB 저장 완료: {corp_name}")
