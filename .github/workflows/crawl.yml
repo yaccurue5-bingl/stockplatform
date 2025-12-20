@@ -30,7 +30,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r stock-platform-server/requirements.txt
-        pip install --upgrade google-genai  # 최신 버전 강제 업그레이드
+        pip install google-genai  
         pip install opendartreader google-genai supabase python-dotenv requests beautifulsoup4
     - name: Verify crawler.py content
       run: |
