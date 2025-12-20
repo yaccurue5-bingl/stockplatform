@@ -19,7 +19,7 @@ jobs:
         python-version: '3.10' # 하이픈(-) 확인 완료
      # 2. 파이썬 라이브러리 설치
     - name: Install Python Dependencies
-        run: |
+      run: |
           pip install -r stock-platform-server/requirements.txt
 
       # 3. AI 크롤러 실행 (이게 핵심!)
@@ -32,7 +32,7 @@ jobs:
         run: python stock-platform-server/crawler.py
 
     - name: Install dependencies
-       run: |
+      run: |
         pip install requests beautifulsoup4 supabase python-dotenv
 
     - name: Run Crawler
