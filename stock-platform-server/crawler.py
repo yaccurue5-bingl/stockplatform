@@ -53,7 +53,7 @@ def analyze_disclosure():
             print("  AI 분석 중...")
             # ✅ google-genai 방식 호출 (404 에러 방지)
             response = client.models.generate_content(
-                model="gemini-1.5-flash-8b",
+                model="gemini-2.0-flash-001",
                 contents=prompt_text
             )
             
