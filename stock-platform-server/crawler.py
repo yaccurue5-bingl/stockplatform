@@ -1,6 +1,6 @@
 import os
 import datetime
-import requests
+from google import genai  # 최신 라이브러리 도입
 import OpenDartReader
 from supabase import create_client
 
@@ -10,84 +10,28 @@ GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-# Gemini REST API 엔드포인트
-GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-
+# 클라이언트 초기화
+client = genai.Client(api_key=GEMINI_KEY)
 dart = OpenDartReader(DART_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def test_gemini_api():
-    """API 키 상태 확인"""
-    print("=== Gemini API 테스트 ===")
-    try:
-        payload = {
-            "contents": [{
-                "parts": [{"text": "Hello"}]
-            }]
-        }
-        response = requests.post(GEMINI_ENDPOINT, json=payload, timeout=10)
-        
-        if response.status_code == 200:
-            print("✅ API 정상")
-            return True
-        else:
-            print(f"❌ API 오류: {response.status_code}")
-            return False
-    except Exception as e:
-        print(f"❌ 테스트 실패: {e}")
-        return False
-
-def call_gemini_api(prompt_text):
-    """Gemini API 호출"""
-    try:
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt_text}]
-            }]
-        }
-        
-        response = requests.post(GEMINI_ENDPOINT, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'candidates' in data and len(data['candidates']) > 0:
-                candidate = data['candidates'][0]
-                if 'content' in candidate and 'parts' in candidate['content']:
-                    parts = candidate['content']['parts']
-                    if len(parts) > 0 and 'text' in parts[0]:
-                        return parts[0]['text']
-            return None
-        else:
-            print(f"   API 오류: {response.status_code}")
-            return None
-            
-    except Exception as e:
-        print(f"   호출 실패: {e}")
-        return None
-
 def analyze_disclosure():
-    """공시 분석"""
-    
-    if not test_gemini_api():
-        print("API 테스트 실패")
-        return
-    
-    print("\n=== 공시 수집 ===")
+    """공시 분석 및 저장"""
+    print("=== 공시 수집 시작 ===")
     
     end_date = datetime.datetime.now().strftime('%Y%m%d')
     start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
     
-    print(f"기간: {start_date}~{end_date}")
-    
     try:
+        # 삼성전자(005930) 공시 목록 가져오기
         list_data = dart.list(corp='005930', start=start_date, end=end_date)
     except Exception as e:
-        print(f"DART 오류: {e}")
+        print(f"❌ DART 오류: {e}")
         return
 
-    # ✅ 수정된 부분
+    # ✅ 판다스 에러 방지용 체크
     if list_data is None or list_data.empty:
-        print("공시 없음")
+        print("ℹ️ 최근 7일간 공시가 없습니다.")
         return
 
     print(f"✅ {len(list_data)}건 발견\n")
@@ -97,22 +41,24 @@ def analyze_disclosure():
         corp_name = row.get('corp_name', '')
         rcept_no = row.get('rcept_no', '')
         
-        if not rcept_no:
-            continue
-        
         print(f"[{idx+1}] {report_nm[:40]}")
         
         try:
+            # 공시 원문 추출
             content = dart.document(rcept_no)
-            if not content:
-                continue
+            if not content: continue
             
-            prompt_text = f"요약: {report_nm}\n{content[:2000]}"
+            prompt_text = f"다음 주식 공시 내용을 한국어로 핵심 요약해줘:\n제목: {report_nm}\n내용: {content[:2000]}"
             
             print("  AI 분석 중...")
-            ai_summary = call_gemini_api(prompt_text)
+            # ✅ google-genai 방식 호출 (404 에러 방지)
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=prompt_text
+            )
             
-            if ai_summary:
+            if response and response.text:
+                ai_summary = response.text
                 data = {
                     "corp_name": corp_name,
                     "report_nm": report_nm,
@@ -121,19 +67,16 @@ def analyze_disclosure():
                     "created_at": datetime.datetime.now().isoformat()
                 }
                 
-                result = supabase.table("disclosure_insights").upsert(data).execute()
-                
-                if result.data:
-                    print("  ✅ 저장완료")
-                else:
-                    print("  ⚠️ 저장실패")
+                # Supabase 저장
+                supabase.table("disclosure_insights").upsert(data).execute()
+                print("  ✅ 저장 완료")
             else:
-                print("  ❌ AI실패")
+                print("  ❌ AI 응답 없음")
                 
         except Exception as e:
-            print(f"  오류: {e}")
+            print(f"  ❌ 오류 발생: {e}")
 
-    print("\n🎉 완료")
+    print("\n🎉 모든 작업 완료")
 
 if __name__ == "__main__":
     analyze_disclosure()
