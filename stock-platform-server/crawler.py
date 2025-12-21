@@ -1,6 +1,7 @@
 import os
 import datetime
-from google import genai  # 최신 라이브러리 도입
+import time # 할당량 조절을 위한 시간 지연 추가
+from google import genai
 import OpenDartReader
 from supabase import create_client
 
@@ -29,19 +30,23 @@ def analyze_disclosure():
         print(f"❌ DART 오류: {e}")
         return
 
-    # ✅ 판다스 에러 방지용 체크
+    # 판다스 에러 방지용 체크
     if list_data is None or list_data.empty:
         print("ℹ️ 최근 7일간 공시가 없습니다.")
         return
 
     print(f"✅ {len(list_data)}건 발견\n")
 
-    for idx, row in list_data.head(3).iterrows():
+    for idx, row in list_data.iterrows(): # 모든 공시 처리 (또는 .head(N) 사용)
         report_nm = row.get('report_nm', '')
         corp_name = row.get('corp_name', '')
         rcept_no = row.get('rcept_no', '')
         
         print(f"[{idx+1}] {report_nm[:40]}")
+        
+        # 429 RESOURCE_EXHAUSTED 에러 방지를 위한 딜레이 추가
+        # 무료 티어 사용 시 요청 간격을 최소 2~5초 이상 두는 것이 안전합니다.
+        time.sleep(4) 
         
         try:
             # 공시 원문 추출
@@ -51,9 +56,10 @@ def analyze_disclosure():
             prompt_text = f"다음 주식 공시 내용을 한국어로 핵심 요약해줘:\n제목: {report_nm}\n내용: {content[:2000]}"
             
             print("  AI 분석 중...")
-            # ✅ google-genai 방식 호출 (404 에러 방지)
+            # ✅ 최신 모델 gemini-2.5-flash 적용 
+            # gemini-1.5-flash 계열은 2025년 9월 29일에 종료되었습니다.
             response = client.models.generate_content(
-                model="gemini-2.0-flash-001",
+                model="gemini-2.5-flash",
                 contents=prompt_text
             )
             
@@ -74,6 +80,9 @@ def analyze_disclosure():
                 print("  ❌ AI 응답 없음")
                 
         except Exception as e:
+            if "429" in str(e):
+                print(f"  ⚠️ 할당량 초과(429). 잠시 중단합니다.")
+                break # 할당량이 완전히 바닥나면 루프 중단
             print(f"  ❌ 오류 발생: {e}")
 
     print("\n🎉 모든 작업 완료")
