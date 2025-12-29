@@ -1,6 +1,7 @@
 // src/services/supabase-auth-service.js
 import { supabase } from '../supabaseClient';
 
+export {supabase};
 // 인증 상태 변화 감지 (onAuthChange 대체)
 export function onAuthChange(callback) {
   const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -14,7 +15,7 @@ export async function signInWithGitHub() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'github',
     options: {
-      redirectTo: 'https://bingl.net'
+      redirectTo: 'https://k-marketinsight.com'
     }
   });
   if (error) alert("GitHub 로그인 오류: " + error.message);
