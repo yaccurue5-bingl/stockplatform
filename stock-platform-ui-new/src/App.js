@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route} from 'react-router-dom';
 import { TrendingUp, TrendingDown, Globe, AlertCircle, BarChart3, ChevronRight } from 'lucide-react';
 import { supabase } from './services/supabase-auth-service'; // 기존 설정 유지
 
