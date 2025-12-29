@@ -24,7 +24,7 @@ jobs:
           node-version: '20'
       - name: Install UI Dependencies
         working-directory: ./stock-platform-ui-new
-        run: npm ci
+        run: npm install
       - name: Build UI Project
         working-directory: ./stock-platform-ui-new
         run: npm run build
@@ -33,11 +33,5 @@ jobs:
           REACT_APP_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           REACT_APP_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           
-      - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          projectId: stockplatform-fe563 
-          repoToken: '${{ secrets.GITHUB_TOKEN }}' 
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_BINGL_WEBSITE }}'
-          channelId: live 
-          # site: stockplatform-fe563 # 이 줄을 제거하여 경고를 없앱니다.
+      
+        
