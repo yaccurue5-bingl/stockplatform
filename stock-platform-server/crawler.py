@@ -1,11 +1,11 @@
 import os
 import datetime
-import time # 할당량 조절을 위한 시간 지연 추가
+import time
 from google import genai
 import OpenDartReader
 from supabase import create_client
 
-# 환경 변수
+# 환경 변수 설정
 DART_KEY = os.environ.get("DART_API_KEY")
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -17,75 +17,76 @@ dart = OpenDartReader(DART_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def analyze_disclosure():
-    """공시 분석 및 저장"""
-    print("=== 공시 수집 시작 ===")
+    print("=== K-Market Insight Data Pipeline Start ===")
     
     end_date = datetime.datetime.now().strftime('%Y%m%d')
     start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
     
+    # 1. 공시 목록 가져오기 (실제 운영 시 여러 종목 리스트를 순회하도록 확장 가능)
     try:
-        # 삼성전자(005930) 공시 목록 가져오기
-        list_data = dart.list(corp='005930', start=start_date, end=end_date)
+        list_data = dart.list(start=start_date, end=end_date, pblntf_ty='A') # 정기공시 중심
     except Exception as e:
-        print(f"❌ DART 오류: {e}")
+        print(f"❌ DART Error: {e}")
         return
 
-    # 판다스 에러 방지용 체크
     if list_data is None or list_data.empty:
-        print("ℹ️ 최근 7일간 공시가 없습니다.")
+        print("ℹ️ No recent filings found.")
         return
 
-    print(f"✅ {len(list_data)}건 발견\n")
-
-    for idx, row in list_data.iterrows(): # 모든 공시 처리 (또는 .head(N) 사용)
+    for idx, row in list_data.iterrows():
         report_nm = row.get('report_nm', '')
         corp_name = row.get('corp_name', '')
+        stock_code = row.get('stock_code', '')
         rcept_no = row.get('rcept_no', '')
         
-        print(f"[{idx+1}] {report_nm[:40]}")
-        
-        # 429 RESOURCE_EXHAUSTED 에러 방지를 위한 딜레이 추가
-        # 무료 티어 사용 시 요청 간격을 최소 2~5초 이상 두는 것이 안전합니다.
-        time.sleep(4) 
+        # 429 에러 방지용 딜레이 [cite: 199]
+        time.sleep(5) 
         
         try:
-            # 공시 원문 추출
             content = dart.document(rcept_no)
             if not content: continue
             
-            prompt_text = f"다음 주식 공시 내용을 한국어로 핵심 요약해줘:\n제목: {report_nm}\n내용: {content[:2000]}"
+            # AI 프롬프트 최적화: 영문 요약 및 감성 분석 포함 [cite: 192, 235]
+            prompt_text = f"""
+            Analyze the following Korean stock disclosure for foreign investors:
+            Title: {report_nm}
+            Content: {content[:3000]}
             
-            print("  AI 분석 중...")
-            # ✅ 최신 모델 gemini-2.5-flash 적용 
-            # gemini-1.5-flash 계열은 2025년 9월 29일에 종료되었습니다.
+            Provide the output in JSON format:
+            1. 'summary': A concise 3-bullet point summary in English.
+            2. 'sentiment': One of [POSITIVE, NEGATIVE, NEUTRAL].
+            3. 'category': One of [Shareholder Return, CAPEX, Earnings, M&A, Others].
+            4. 'importance': One of [High, Medium, Low].
+            """
+            
+            print(f"  AI Analyzing: {corp_name} - {report_nm[:20]}...")
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.0-flash", # 최신 안정화 모델 권장
                 contents=prompt_text
             )
             
             if response and response.text:
-                ai_summary = response.text
+                # 간단한 파싱 로직 (실제 운영 시 json.loads 권장)
+                ai_result = response.text 
+                
                 data = {
                     "corp_name": corp_name,
+                    "stock_code": stock_code,
                     "report_nm": report_nm,
-                    "ai_summary": ai_summary,
+                    "ai_summary": ai_result, # JSON 형태의 영문 요약 저장
                     "rcept_no": rcept_no,
+                    "sentiment": "NEUTRAL", # 실제 구현 시 AI 결과에서 파싱 필요
+                    "category": "Others",
                     "created_at": datetime.datetime.now().isoformat()
                 }
                 
-                # Supabase 저장
                 supabase.table("disclosure_insights").upsert(data).execute()
-                print("  ✅ 저장 완료")
-            else:
-                print("  ❌ AI 응답 없음")
+                print(f"  ✅ Saved: {corp_name}")
                 
         except Exception as e:
-            if "429" in str(e):
-                print(f"  ⚠️ 할당량 초과(429). 잠시 중단합니다.")
-                break # 할당량이 완전히 바닥나면 루프 중단
-            print(f"  ❌ 오류 발생: {e}")
+            print(f"  ❌ Error: {e}")
 
-    print("\n🎉 모든 작업 완료")
+    print("\n🎉 Pipeline Completed")
 
 if __name__ == "__main__":
     analyze_disclosure()
