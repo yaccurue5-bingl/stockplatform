@@ -27,7 +27,7 @@ jobs:
         run: npm install
       - name: Build UI Project
         working-directory: ./stock-platform-ui-new
-        run: CI=false npm run biuld
+        run: CI=false npm run build
         env:
           # GitHub Secrets에 저장된 값을 React 환경 변수로 주입합니다.
           REACT_APP_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
