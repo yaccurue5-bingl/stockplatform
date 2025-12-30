@@ -42,9 +42,12 @@ def get_market_indices():
 
 def analyze_disclosure():
     print("=== K-Market Insight Data Pipeline Start ===")
-    current_minute = datetime.datetime.now().minute
-    if current_minute % 15 == 0:
-        print("--- 15-minute interval: Fetching DART disclosures ---")
+    # 1. 지수 수집 (항상 실행)
+    get_market_indices()
+    
+    # 2. 공시 수집 (15분 주기로 조절 - API 할당량 관리)
+    if datetime.datetime.now().minute % 15 == 0:
+        print("--- Fetching DART Disclosures ---")
     
     end_date = datetime.datetime.now().strftime('%Y%m%d')
     start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
