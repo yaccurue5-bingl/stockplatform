@@ -45,8 +45,9 @@ def analyze_disclosure():
     # 1. 지수 수집 (항상 실행)
     get_market_indices()
     
-    # 2. 공시 수집 (15분 주기로 조절 - API 할당량 관리)
-    if datetime.datetime.now().minute % 15 == 0:
+    # 2. 공시 수집 (정각, 15분, 30분, 45분 근처에서 실행되도록 범위 지정)
+    current_minute = datetime.datetime.now().minute
+    if any(abs(current_minute - target) <= 3 for target in [0, 15, 30, 45]):
         print("--- Fetching DART Disclosures ---")
     
     end_date = datetime.datetime.now().strftime('%Y%m%d')
