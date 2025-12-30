@@ -1,4 +1,4 @@
-name: Deploy UI Project to Firebase Hosting
+name: Deploy UI to GitHub Pages
 
 on:
   push:
@@ -7,10 +7,12 @@ on:
 
 permissions:
   contents: read
+  pages: write      # GitHub Pages 권한 추가
+  id-token: write   # 인증 권한 추가
 
 concurrency:
-  group: deployment-${{ github.ref }}
-  cancel-in-progress: false
+  group: "pages"
+  cancel-in-progress: true
 
 jobs:
   build_and_deploy:
@@ -18,20 +20,34 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install UI Dependencies
+
+      - name: Install Dependencies
+        # 만약 실제 폴더명이 stock-platform-ui-new 라면 그대로 두시고, 
+        # 루트에 바로 파일들이 있다면 이 줄을 삭제하세요.
         working-directory: ./stock-platform-ui-new
-        run: npm install
-      - name: Build UI Project
+        run: npm install  # ci 대신 install 사용 (유연함)
+
+      - name: Build Project
         working-directory: ./stock-platform-ui-new
         run: CI=false PUBLIC_URL=/ npm run build
         env:
-          # GitHub Secrets에 저장된 값을 React 환경 변수로 주입합니다.
           REACT_APP_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           REACT_APP_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          
-      
-        
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # 빌드된 결과물이 있는 경로를 정확히 지정해야 합니다.
+          path: './stock-platform-ui-new/build'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
