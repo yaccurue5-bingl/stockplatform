@@ -34,10 +34,25 @@ function Dashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-    const timer = setInterval(fetchData, 300000); // 5분
-    return () => clearInterval(timer);
-  }, []);
+  fetchData(); // 초기 데이터 로드
+
+  // 실시간 구독 설정 (market_indices 테이블의 변화 감시)
+  const channel = supabase
+    .channel('schema-db-changes')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'market_indices' },
+      (payload) => {
+        console.log('실시간 업데이트 감지!', payload);
+        fetchData(); // 데이터가 변경되면 즉시 다시 불러옴
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
 
   return (
     <div className="relative">
