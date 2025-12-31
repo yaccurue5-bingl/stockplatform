@@ -106,7 +106,77 @@ function Dashboard() {
       setLoading(false);
     }
   };
+// --- 공시 상세 페이지 컴포넌트 (이 부분을 추가하세요) ---
+function StockDetailPage() {
+  const { ticker } = useParams();
+  const navigate = useNavigate();
+  const [stockInsights, setStockInsights] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    const fetchStockData = async () => {
+      try {
+        const { data } = await supabase
+          .from('disclosure_insights')
+          .select('*')
+          .eq('stock_code', ticker)
+          .order('created_at', { ascending: false });
+        if (data) setStockInsights(data);
+      } catch (err) {
+        console.error("Fetch detail error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStockData();
+  }, [ticker]);
+
+  if (loading) return <div className="text-white p-10">Loading detail...</div>;
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 text-white">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-400 hover:text-white mb-8">
+        <ArrowLeft size={20} /> Back to List
+      </button>
+      
+      {stockInsights.length > 0 ? (
+        <div className="space-y-8">
+          <div className="border-b border-slate-800 pb-6">
+            <h1 className="text-3xl font-bold mb-2">{stockInsights[0].corp_name}</h1>
+            <p className="text-slate-500 font-mono">Stock Code: #{ticker}</p>
+          </div>
+
+          {stockInsights.map((item) => (
+            <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <span className={`px-4 py-1 rounded-full text-xs font-bold ${item.sentiment === 'POSITIVE' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                  {item.sentiment} ANALYSIS
+                </span>
+                <span className="text-slate-500 text-sm italic">{new Date(item.created_at).toLocaleDateString()}</span>
+              </div>
+              
+              <h2 className="text-xl font-bold mb-6 text-blue-400">"{item.report_nm}"</h2>
+              
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">AI Deep Summary</h3>
+                  <div className="text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-800/30 p-6 rounded-2xl">
+                    {item.ai_summary}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-20">
+            <AlertCircle className="mx-auto mb-4 text-slate-700" size={48} />
+            <p className="text-slate-500">No details found for this ticker.</p>
+        </div>
+      )}
+    </div>
+  );
+}
   useEffect(() => {
     fetchData();
     const channel = supabase
@@ -200,6 +270,7 @@ export default function App() {
         </nav>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/stock/:ticker" element={<StockDetailPage />} />
         </Routes>
       </div>
     </Router>
