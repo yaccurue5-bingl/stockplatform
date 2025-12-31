@@ -58,25 +58,32 @@ def get_market_indices():
     print("--- Fetching Market Indices from Naver Finance ---")
     try:
         url = "https://finance.naver.com/"
-        headers = {"User-Agent": "Mozilla/5.0"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
         res = requests.get(url, headers=headers)
-        res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        kospi_val = soup.select_one("#KOSPI_now").text if soup.select_one("#KOSPI_now") else "---"
-        kosdaq_val = soup.select_one("#KOSDAQ_now").text if soup.select_one("#KOSDAQ_now") else "---"
-        ex_node = soup.select_one(".group_sub .on .num") or soup.select_one("#exchangeList .value")
-        usd_krw_val = ex_node.text if ex_node else "---"
+        # 네이버 금융 메인 페이지의 지수 데이터 추출 (정교화된 셀렉터)
+        # KOSPI: id가 KOSPI_now인 요소
+        kospi_val = soup.find("span", {"id": "KOSPI_now"}).text if soup.find("span", {"id": "KOSPI_now"}) else "---"
+        # KOSDAQ: id가 KOSDAQ_now인 요소
+        kosdaq_val = soup.find("span", {"id": "KOSDAQ_now"}).text if soup.find("span", {"id": "KOSDAQ_now"}) else "---"
+        # 환율: 특정 클래스 구조 내의 값
+        usd_node = soup.select_one(".group_sub .on .num")
+        usd_val = usd_node.text if usd_node else "---"
 
         indices = [
             {"name": "KOSPI", "current_val": kospi_val},
             {"name": "KOSDAQ", "current_val": kosdaq_val},
-            {"name": "USD/KRW", "current_val": usd_krw_val}
+            {"name": "USD/KRW", "current_val": usd_val}
         ]
 
         for data in indices:
+            # upsert 시 'name' 컬럼을 기준으로 중복이면 업데이트
             supabase.table("market_indices").upsert(data, on_conflict="name").execute()
-        print("✅ Market indices updated.")
+            
+        print(f"✅ Indices Update Success: KOSPI({kospi_val}), KOSDAQ({kosdaq_val}), USD({usd_val})")
     except Exception as e:
         print(f"❌ Index Error: {e}")
 
