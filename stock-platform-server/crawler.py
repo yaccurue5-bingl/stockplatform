@@ -2,6 +2,7 @@ import os
 import re
 import datetime
 import time
+from fg_index_calc import update_fear_greed_idx
 import requests
 import json
 from bs4 import BeautifulSoup
@@ -57,6 +58,20 @@ client = Groq(api_key=GROQ_KEY)
 dart = OpenDartReader(DART_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def calculate_fear_greed():
+    # 1. 시장 모멘텀: KOSPI 현재가 vs 125일 이평선
+    # 2. 변동성: VKOSPI 현재 수치
+    # 3. 신용융자: 금투협 신용잔고 데이터
+    
+    # 예시 가중치 계산 (실제 데이터 수집 후 정규화 필요)
+    score = 50 
+    
+    # 4. Supabase의 market_indices 테이블 등에 저장
+    supabase.table("market_indices").upsert({
+        "name": "FEAR_GREED",
+        "current_val": str(score)
+    }, on_conflict="name").execute()
+
 def get_market_indices():
     print("--- Fetching Market Indices from Naver ---")
     try:
@@ -86,11 +101,37 @@ def get_market_indices():
                 print(f"✅ {name} 수집 성공: {val}")
     except Exception as e:
         print(f"❌ 지수 수집 에러: {e}")
+        for name, val in results.items():
+           if val:
+            # 1. 기존 데이터 가져오기 (히스토리 업데이트를 위해)
+            current_row = supabase.table("market_indices").select("history").eq("name", name).execute()
+            
+            history_list = []
+            if current_row.data and current_row.data[0].get('history'):
+                try:
+                    # 저장된 JSON 문자열을 리스트로 변환
+                    history_list = json.loads(current_row.data[0]['history'])
+                except:
+                    history_list = []
 
+            # 2. 새로운 값(숫자만 추출) 추가
+            clean_val = float(val.replace(',', ''))
+            history_list.append(clean_val)
+
+            # 3. 최대 10개까지만 유지 (최신 데이터 10개)
+            if len(history_list) > 10:
+                history_list = history_list[-10:]
+
+            # 4. DB 업데이트 (리스트를 다시 JSON 문자열로 변환하여 저장)
+            supabase.table("market_indices").upsert({
+                "name": name, 
+                "current_val": val,
+                "history": json.dumps(history_list) # 배열을 문자열화 ["2560.1", "2570.5", ...]
+            }, on_conflict="name").execute()
 def analyze_disclosure():
     print("=== K-Market Insight Data Pipeline Start ===")
     get_market_indices()
-    
+    update_fear_greed_idx()
     today = datetime.datetime.now().strftime('%Y%m%d')
     print(f"--- Fetching ALL Disclosures for {today} ---")
     
