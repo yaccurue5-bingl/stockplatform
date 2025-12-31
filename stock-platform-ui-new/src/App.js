@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
-import { Globe, ChevronRight, Clock, MessageSquare, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Globe, ChevronRight, MessageSquare, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from './supabaseClient';
 
-// --- 공포와 탐욕 게이지 컴포넌트 ---
+// --- [공용 컴포넌트] 공포와 탐욕 게이지 ---
 const FearGreedGauge = ({ score = 50 }) => {
   const data = [
     { value: 25, color: '#ef4444' }, // Extreme Fear
@@ -52,7 +52,7 @@ const FearGreedGauge = ({ score = 50 }) => {
   );
 };
 
-// --- 역동적 지수 카드 (스파크라인 포함) ---
+// --- [공용 컴포넌트] 마켓 지수 카드 ---
 const DynamicStatCard = ({ title, value, change, history }) => {
   const isPositive = parseFloat(change) >= 0;
   const chartData = history ? JSON.parse(history).map((v) => ({ val: v })) : [];
@@ -77,14 +77,7 @@ const DynamicStatCard = ({ title, value, change, history }) => {
   );
 };
 
-const StatCard = ({ title, value }) => (
-  <div className="w-44 lg:w-52 bg-slate-900/80 border border-slate-800 p-3 rounded-xl flex flex-col justify-center shadow-lg">
-    <p className="text-slate-500 text-[10px] font-bold uppercase mb-0.5 tracking-wider">{title}</p>
-    <h3 className="text-base font-bold text-white tracking-tight">{value || '---'}</h3>
-  </div>
-);
-
-// --- 공시 상세 페이지 컴포넌트 ---
+// --- [페이지] 공시 상세 정보 ---
 function StockDetailPage() {
   const { ticker } = useParams();
   const navigate = useNavigate();
@@ -137,11 +130,17 @@ function StockDetailPage() {
               
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <MessageSquare size={14} /> AI Deep Summary
+                  <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <MessageSquare size={14} /> AI Integrated Summary
                   </h3>
-                  <div className="text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-800/30 p-6 rounded-2xl border border-slate-800/50 shadow-inner italic">
-                    {item.ai_summary}
+                  {/* 줄바꿈(\n)을 기준으로 리스트화하여 출력 */}
+                  <div className="bg-slate-800/30 p-6 rounded-2xl border border-slate-800/50 space-y-4 shadow-inner">
+                    {item.ai_summary.split('\n').filter(line => line.trim() !== '').map((line, idx) => (
+                      <div key={idx} className="flex gap-3 text-slate-300 leading-relaxed">
+                        <span className="text-blue-500 font-bold shrink-0">•</span>
+                        <span>{line}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -158,7 +157,7 @@ function StockDetailPage() {
   );
 }
 
-// --- 대시보드 컴포넌트 ---
+// --- [페이지] 대시보드 메인 ---
 function Dashboard() {
   const [insights, setInsights] = useState([]);
   const [indices, setIndices] = useState([]);
@@ -172,8 +171,8 @@ function Dashboard() {
       const { data: ind } = await supabase.from('market_indices').select('*').order('name', { ascending: true });
       
       if (ins) {
-        const unique = Array.from(new Map(ins.map(item => [item.corp_name, item])).values());
-        setInsights(unique); 
+        // 동일 기업의 여러 공시가 크롤러에서 통합되지 않았을 경우를 대비한 클라이언트 사이드 그룹화 (옵션)
+        setInsights(ins); 
       }
       if (ind) {
         const fg = ind.find(i => i.name === 'FEAR_GREED');
@@ -181,7 +180,7 @@ function Dashboard() {
         setIndices(ind.filter(i => i.name !== 'FEAR_GREED'));
       }
     } catch (err) {
-      console.error("Fetch error:", err);
+      console.error("Dashboard fetch error:", err);
     } finally {
       setLoading(false);
     }
@@ -190,8 +189,8 @@ function Dashboard() {
   useEffect(() => {
     fetchData();
     const channel = supabase
-      .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'market_indices' }, () => fetchData())
+      .channel('market-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'market_indices' }, fetchData)
       .subscribe();
     return () => supabase.removeChannel(channel);
   }, []);
@@ -200,27 +199,25 @@ function Dashboard() {
 
   return (
     <div className="relative">
+      {/* 상단 지수 바 */}
       <div className="sticky top-[64px] z-40 bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-800/50 py-4">
-        <div className="max-w-7xl mx-auto px-6 flex justify-between items-center gap-6">
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            {indices.length > 0 ? (
-              indices.map(idx => (
-                <DynamicStatCard 
-                  key={idx.name} 
-                  title={idx.name} 
-                  value={idx.current_val} 
-                  change={idx.change_rate}
-                  history={idx.history}
-                />
-              ))
-            ) : (
-              ['KOSPI', 'KOSDAQ', 'USD/KRW'].map(name => <StatCard key={name} title={name} value="---" />)
-            )}
+        <div className="max-w-7xl mx-auto px-6 flex flex-wrap justify-between items-center gap-6">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide flex-grow">
+            {indices.map(idx => (
+              <DynamicStatCard 
+                key={idx.name} 
+                title={idx.name} 
+                value={idx.current_val} 
+                change={idx.change_rate}
+                history={idx.history}
+              />
+            ))}
           </div>
           <FearGreedGauge score={fgScore} />
         </div>
       </div>
 
+      {/* 공시 리스트 */}
       <main className="max-w-7xl mx-auto p-6">
         <h2 className="text-2xl font-bold text-white italic mb-8">"While you were sleeping"</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -232,7 +229,7 @@ function Dashboard() {
             >
               <div className="flex justify-between items-start mb-3">
                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded ${item.sentiment === 'POSITIVE' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                  {item.sentiment || 'NEUTRAL'}
+                  {item.sentiment}
                 </span>
                 <span className="text-slate-500 text-[10px]">{new Date(item.created_at).toLocaleTimeString()}</span>
               </div>
@@ -254,23 +251,26 @@ function Dashboard() {
   );
 }
 
-// --- App 메인 컴포넌트 ---
+// --- [루트] App 컴포넌트 ---
 export default function App() {
   return (
     <Router>
       <div className="min-h-screen bg-[#0f172a]">
+        {/* 네비게이션 바 */}
         <nav className="h-[64px] sticky top-0 z-50 bg-[#0f172a] border-b border-slate-800 px-6 flex justify-between items-center">
           <Link to="/" className="flex items-center gap-2">
             <Globe className="text-blue-500" />
             <span className="text-xl font-black text-white tracking-tighter uppercase">K-Market <span className="text-blue-500">Insight</span></span>
           </Link>
           <div className="flex gap-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-             <Link to="/" className="text-white">AI Summaries</Link>
+             <Link to="/" className="text-white hover:text-blue-500 transition">AI Summaries</Link>
           </div>
           <div className="bg-blue-600/10 text-blue-500 px-3 py-1 rounded-full text-[10px] font-bold border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
              LIVE DATA
           </div>
         </nav>
+
+        {/* 라우팅 설정 */}
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/stock/:ticker" element={<StockDetailPage />} />
