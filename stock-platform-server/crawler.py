@@ -92,7 +92,7 @@ def analyze_disclosure():
     
     try:
         # 특정 기업이 아닌 전체 공시 목록을 가져옴
-        df = dart.list(str(today))
+        df = dart.list(start=today, end=today)
     except Exception as e:
         print(f"❌ DART Fetch Error: {e}")
         return
