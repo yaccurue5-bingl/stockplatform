@@ -83,7 +83,7 @@ def analyze_disclosure():
     start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
     
     try:
-        list_data = dart.list(start=start_date, end=end_date, pblntf_ty='A') 
+        list_data = dart.list(start=start_date, end=end_date, kind='A') 
     except Exception as e:
         print(f"❌ DART Error: {e}")
         return
