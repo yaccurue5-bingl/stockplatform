@@ -56,7 +56,7 @@ const FearGreedGauge = ({ score = 50 }) => {
 const DynamicStatCard = ({ title, value, change, history }) => {
   const isPositive = parseFloat(change) >= 0;
   // 문자열 형태의 history 데이터를 배열로 변환
-  const chartData = history ? JSON.parse(history).map((v, i) => ({ val: v })) : [];
+  const chartData = history ? JSON.parse(history).map((v) => ({ val: v })) : [];
 
   return (
     <div className="w-44 lg:w-52 bg-slate-900/80 border border-slate-800 p-3 rounded-xl shadow-lg relative overflow-hidden">
@@ -91,9 +91,9 @@ function Dashboard() {
       const { data: ind } = await supabase.from('market_indices').select('*').order('name', { ascending: true });
       
       if (ins) {
-        // 기존 6개 제한을 풀고 싶다면 slice를 조정하세요.
+        // [수정]: slice(0, 6)을 제거하여 전체 공시가 나타나도록 함
         const unique = Array.from(new Map(ins.map(item => [item.corp_name, item])).values());
-        setInsights(unique); // 전체 표시
+        setInsights(unique); 
       }
       if (ind) {
         const fg = ind.find(i => i.name === 'FEAR_GREED');
@@ -116,11 +116,12 @@ function Dashboard() {
     return () => supabase.removeChannel(channel);
   }, []);
 
+  if (loading) return <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2" /> Loading...</div>;
+
   return (
     <div className="relative">
       <div className="sticky top-[64px] z-40 bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-800/50 py-4">
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center gap-6">
-          {/* 좌측: 3대 지수 */}
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             {indices.length > 0 ? (
               indices.map(idx => (
@@ -133,10 +134,9 @@ function Dashboard() {
                 />
               ))
             ) : (
-              ['KOSPI', 'KOSDAQ', 'USD/KRW'].map(name => <StatCard key={name} title={name} value="Loading..." />)
+              ['KOSPI', 'KOSDAQ', 'USD/KRW'].map(name => <StatCard key={name} title={name} value="---" />)
             )}
           </div>
-          {/* 우측: 공포 탐욕 지수 */}
           <FearGreedGauge score={fgScore} />
         </div>
       </div>
@@ -159,7 +159,6 @@ function Dashboard() {
               <h4 className="font-bold text-lg text-white mb-1">{item.corp_name}</h4>
               <p className="text-slate-400 text-xs line-clamp-2 mb-4">{item.report_nm}</p>
               
-              {/* 하단 정보 추가: 종목코드 및 원문 링크 느낌 */}
               <div className="flex justify-between items-center pt-4 border-t border-slate-800/50">
                 <span className="text-slate-600 text-[10px] font-bold uppercase tracking-tighter">#{item.stock_code}</span>
                 <div className="flex items-center gap-1 text-blue-500 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition">
@@ -175,7 +174,6 @@ function Dashboard() {
   );
 }
 
-// StatCard 기본 컴포넌트 (로딩용)
 const StatCard = ({ title, value }) => (
   <div className="w-44 lg:w-52 bg-slate-900/80 border border-slate-800 p-3 rounded-xl flex flex-col justify-center shadow-lg">
     <p className="text-slate-500 text-[10px] font-bold uppercase mb-0.5 tracking-wider">{title}</p>
@@ -183,5 +181,27 @@ const StatCard = ({ title, value }) => (
   </div>
 );
 
-// StockDetailPage 및 App 컴포넌트는 기존과 동일하게 유지...
-// (이하 생략 - 기존 코드의 StockDetailPage와 App 정의를 그대로 붙여넣으세요)
+// --- App 메인 컴포넌트 ---
+export default function App() {
+  return (
+    <Router>
+      <div className="min-h-screen bg-[#0f172a]">
+        <nav className="h-[64px] sticky top-0 z-50 bg-[#0f172a] border-b border-slate-800 px-6 flex justify-between items-center">
+          <Link to="/" className="flex items-center gap-2">
+            <Globe className="text-blue-500" />
+            <span className="text-xl font-black text-white tracking-tighter uppercase">K-Market <span className="text-blue-500">Insight</span></span>
+          </Link>
+          <div className="flex gap-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+             <Link to="/" className="text-white">AI Summaries</Link>
+          </div>
+          <div className="bg-blue-600/10 text-blue-500 px-3 py-1 rounded-full text-[10px] font-bold border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+             LIVE DATA
+          </div>
+        </nav>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
