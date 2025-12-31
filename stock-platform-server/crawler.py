@@ -1,4 +1,5 @@
 import os
+import re
 import datetime
 import time
 import requests
@@ -54,47 +55,60 @@ groq_client = Groq(api_key=GROQ_KEY)
 dart = OpenDartReader(DART_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
 def get_market_indices():
     print("--- Fetching Market Indices from Naver Finance ---")
     try:
-        # 1. 네이버 금융 메인 페이지 접속
         url = "https://finance.naver.com/"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         res = requests.get(url, headers=headers)
+        res.raise_for_status() # 접속 성공 여부 확인
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # 2. 지수 데이터 추출 (id를 직접 지정하는 방식이 가장 정확합니다)
-        # KOSPI
-        kospi_node = soup.select_one("#KOSPI_now")
-        # KOSDAQ
-        kosdaq_node = soup.select_one("#KOSDAQ_now")
-        # USD/KRW (환율 섹션의 첫 번째 숫자)
-        usd_node = soup.select_one(".group_sub .on .num")
+        # 1. KOSPI & KOSDAQ 수집 (ID 우선 탐색 후 클래스 보조 탐색)
+        kospi_val = soup.find("span", id="KOSPI_now")
+        if not kospi_val:
+            kospi_val = soup.select_one(".lg_area .kospi_area .num_quot .num")
+            
+        kosdaq_val = soup.find("span", id="KOSDAQ_now")
+        if not kosdaq_val:
+            kosdaq_val = soup.select_one(".lg_area .kosdaq_area .num_quot .num")
 
-        # 3. 데이터 정리
+        # 2. 환율 수집 (환율은 구조가 자주 바뀌므로 텍스트 패턴으로 탐색)
+        usd_val = None
+        exchange_area = soup.select_one(".group_sub .on")
+        if exchange_area:
+            usd_val = exchange_area.select_one(".num")
+        
+        # 3. 데이터 정제 (쉼표 및 불필요한 공백 제거)
+        def clean_val(node):
+            if node:
+                text = node.get_text(strip=True)
+                # 숫자, 마침표, 쉼표만 남기고 제거
+                return re.sub(r'[^\d.,]', '', text)
+            return None
+
         indices = [
-            ("KOSPI", kospi_node.text if kospi_node else None),
-            ("KOSDAQ", kosdaq_node.text if kosdaq_node else None),
-            ("USD/KRW", usd_node.text if usd_node else None)
+            ("KOSPI", clean_val(kospi_val)),
+            ("KOSDAQ", clean_val(kosdaq_val)),
+            ("USD/KRW", clean_val(usd_val))
         ]
 
-        # 4. DB 업데이트 (값이 정상일 때만 실행)
+        # 4. DB 업데이트 및 로그 출력
         for name, val in indices:
-            if val and val.strip() != "" and val != "---":
+            if val and len(val) > 1: # 값이 유효할 때만
                 supabase.table("market_indices").upsert(
                     {"name": name, "current_val": val},
                     on_conflict="name"
                 ).execute()
-                print(f"✅ {name} updated: {val}")
+                print(f"✅ {name} 실시간 수집 성공: {val}")
             else:
-                print(f"⚠️ {name} 수집 실패 (기존 데이터 유지)")
+                print(f"❌ {name} 수집 실패: 결과가 빈 값입니다. (기존 DB 값 유지)")
 
-        print("=== Market Indices Update Process Completed ===")
-        
     except Exception as e:
-        print(f"❌ Index Fetch Error: {e}")
+        print(f"❌ 지수 수집 중 시스템 에러: {e}")
 
 def analyze_disclosure():
     print("=== K-Market Insight Data Pipeline Start ===")
