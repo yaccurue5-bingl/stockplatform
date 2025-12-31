@@ -18,27 +18,56 @@ dart = OpenDartReader(DART_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_market_indices():
-    """네이버 금융에서 KOSPI, KOSDAQ, 환율 수집"""
-    print("--- Fetching Market Indices from Naver ---")
-    url = "https://finance.naver.com/sise/"
-    res = requests.get(url)
-    soup = BeautifulSoup(res.text, 'html.parser')
-
-    indices = [
-        {"id": "KOSPI", "selector": "#KOSPI_now"},
-        {"id": "KOSDAQ", "selector": "#KOSDAQ_now"}
-    ]
-    
-    for item in indices:
-        val = soup.select_one(item["selector"]).text
-        # 실제 운영 시 등락률도 파싱하여 저장 가능
-        data = {
-            "name": item["id"],
-            "current_val": val,
-            "updated_at": datetime.datetime.now().isoformat()
+    print("--- Fetching Market Indices from Naver Finance ---")
+    try:
+        # 네이버 금융 메인 페이지 호출
+        url = "https://finance.naver.com/"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
         }
-        supabase.table("market_indices").upsert(data).execute()
-    print("✅ Market Indices Updated")
+        res = requests.get(url, headers=headers)
+        res.raise_for_status()
+        
+        soup = BeautifulSoup(res.text, 'html.parser')
+
+        # 1. KOSPI 수집
+        kospi_node = soup.select_one("#KOSPI_now")
+        kospi_val = kospi_node.text if kospi_node else "---"
+
+        # 2. KOSDAQ 수집
+        kosdaq_node = soup.select_one("#KOSDAQ_now")
+        kosdaq_val = kosdaq_node.text if kosdaq_node else "---"
+
+        # 3. USD/KRW (환율) 수집
+        # 네이버 금융 메인 하단 혹은 시장지표 영역에서 환율 추출
+        exchange_node = soup.select_one(".group_sub .on .num") # 네이버 금융 구조에 따라 변경될 수 있음
+        if not exchange_node:
+            # 환율 노드가 위와 다를 경우 대비 (다른 셀렉터 시도)
+            exchange_node = soup.select_one("#exchangeList .value")
+        
+        usd_krw_val = exchange_node.text if exchange_node else "---"
+
+        # 수집된 데이터를 리스트로 정리
+        indices = [
+            {"name": "KOSPI", "current_val": kospi_val},
+            {"name": "KOSDAQ", "current_val": kosdaq_val},
+            {"name": "USD/KRW", "current_val": usd_krw_val}
+        ]
+
+        print(f"Scraped Data: KOSPI({kospi_val}), KOSDAQ({kosdaq_val}), USD/KRW({usd_krw_val})")
+
+        # Supabase 저장 (중복 시 업데이트)
+        for data in indices:
+            # on_conflict="name" 설정을 통해 이미 존재하는 지수 이름이면 값을 업데이트(Upsert)함
+            supabase.table("market_indices").upsert(
+                data, 
+                on_conflict="name"
+            ).execute()
+            
+        print("Market indices updated in Supabase successfully.")
+        
+    except Exception as e:
+        print(f"Error in get_market_indices: {e}")
 
 def analyze_disclosure():
     print("=== K-Market Insight Data Pipeline Start ===")
