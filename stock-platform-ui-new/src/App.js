@@ -108,7 +108,7 @@ function StockDetailPage() {
       const { data: res } = await supabase
         .from('disclosure_insights')
         .select('*')
-        .eq('stock_code', ticker) // SQL stock_code 필드와 매칭
+  //      .eq('stock_code', ticker) // SQL stock_code 필드와 매칭
         .order('created_at', { ascending: false });
       
       setData(res || []);
