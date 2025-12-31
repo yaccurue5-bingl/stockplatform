@@ -2,13 +2,17 @@ import os
 import re
 import datetime
 import time
-from fg_index_calc import update_fear_greed_idx
 import requests
 import json
 from bs4 import BeautifulSoup
 from groq import Groq 
 import OpenDartReader
 from supabase import create_client
+# 공포 탐욕 지수 계산 파일 임포트
+try:
+    import fg_index_calc 
+except ImportError:
+    fg_index_calc = None
 
 # 1. 뉴스 브리핑 프롬프트 템플릿
 DISCLOSURE_PROMPT_TEMPLATE = """
@@ -39,12 +43,11 @@ Disclosure Title: {disclosure_title}
 }}
 """
 
-# 2. 중요 키워드 정의
+# 2. 중요 키워드 정의 (불성실공시 등 리스크 키워드 추가)
 IMPORTANT_KEYWORDS = [
     '공급계약', '유상증자', '무상증자', '실적발표', '영업실적', '단일판매', 
-    '인수', '합병', 'M&A', '특허', '신제품', '최대주주변경', '자기주식취득', '현금배당'
-    '업무제휴', '시설투자' ,'MOU', '특허권취득','공장신설','주식분할', '불성실공시', '관리종목',
-    '상장폐지','공시번복'
+    '인수', '합병', 'M&A', '특허', '신제품', '최대주주변경', '자기주식취득', '현금배당',
+    '불성실공시', '관리종목', '상장폐지', '공시번복'
 ]
 
 # 환경 변수 설정
@@ -58,22 +61,8 @@ client = Groq(api_key=GROQ_KEY)
 dart = OpenDartReader(DART_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def calculate_fear_greed():
-    # 1. 시장 모멘텀: KOSPI 현재가 vs 125일 이평선
-    # 2. 변동성: VKOSPI 현재 수치
-    # 3. 신용융자: 금투협 신용잔고 데이터
-    
-    # 예시 가중치 계산 (실제 데이터 수집 후 정규화 필요)
-    score = 50 
-    
-    # 4. Supabase의 market_indices 테이블 등에 저장
-    supabase.table("market_indices").upsert({
-        "name": "FEAR_GREED",
-        "current_val": str(score)
-    }, on_conflict="name").execute()
-
 def get_market_indices():
-    print("--- Fetching Market Indices from Naver ---")
+    print("--- Fetching Market Indices with History ---")
     try:
         urls = {
             "KOSPI": "https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
@@ -86,122 +75,76 @@ def get_market_indices():
         for name, url in urls.items():
             res = requests.get(url, headers=headers)
             soup = BeautifulSoup(res.text, 'html.parser')
-            
-            if name in ["KOSPI", "KOSDAQ"]:
-                node = soup.select_one("#now_value")
-            else: # 환율
-                node = soup.select_one(".value")
-            
+            node = soup.select_one("#now_value") if name in ["KOSPI", "KOSDAQ"] else soup.select_one(".value")
             if node:
                 results[name] = node.get_text(strip=True)
 
         for name, val in results.items():
             if val and val != "---":
-                supabase.table("market_indices").upsert({"name": name, "current_val": val}, on_conflict="name").execute()
-                print(f"✅ {name} 수집 성공: {val}")
+                # 히스토리 업데이트 로직
+                row = supabase.table("market_indices").select("history").eq("name", name).execute()
+                hist = json.loads(row.data[0].get('history', '[]')) if row.data else []
+                
+                clean_val = float(val.replace(',', ''))
+                hist.append(clean_val)
+                if len(hist) > 10: hist = hist[-10:] # 최근 10개 유지
+
+                supabase.table("market_indices").upsert({
+                    "name": name, 
+                    "current_val": val, 
+                    "history": json.dumps(hist)
+                }, on_conflict="name").execute()
+                print(f"✅ {name} updated with history")
     except Exception as e:
-        print(f"❌ 지수 수집 에러: {e}")
-        for name, val in results.items():
-           if val:
-            # 1. 기존 데이터 가져오기 (히스토리 업데이트를 위해)
-            current_row = supabase.table("market_indices").select("history").eq("name", name).execute()
-            
-            history_list = []
-            if current_row.data and current_row.data[0].get('history'):
-                try:
-                    # 저장된 JSON 문자열을 리스트로 변환
-                    history_list = json.loads(current_row.data[0]['history'])
-                except:
-                    history_list = []
+        print(f"❌ Index Fetch Error: {e}")
 
-            # 2. 새로운 값(숫자만 추출) 추가
-            clean_val = float(val.replace(',', ''))
-            history_list.append(clean_val)
-
-            # 3. 최대 10개까지만 유지 (최신 데이터 10개)
-            if len(history_list) > 10:
-                history_list = history_list[-10:]
-
-            # 4. DB 업데이트 (리스트를 다시 JSON 문자열로 변환하여 저장)
-            supabase.table("market_indices").upsert({
-                "name": name, 
-                "current_val": val,
-                "history": json.dumps(history_list) # 배열을 문자열화 ["2560.1", "2570.5", ...]
-            }, on_conflict="name").execute()
 def analyze_disclosure():
     print("=== K-Market Insight Data Pipeline Start ===")
     get_market_indices()
-    update_fear_greed_idx()
-    today = datetime.datetime.now().strftime('%Y%m%d')
-    print(f"--- Fetching ALL Disclosures for {today} ---")
     
+    # 공포 탐욕 지수 계산 호출
+    if fg_index_calc:
+        fg_index_calc.update_fear_greed_idx()
+    
+    today = datetime.datetime.now().strftime('%Y%m%d')
     try:
         df = dart.list(start=today, end=today)
     except Exception as e:
-        print(f"❌ DART Fetch Error: {e}")
-        return
+        print(f"❌ DART Error: {e}"); return
 
     if df is None or df.empty:
-        print("No disclosures found today.")
-        return
+        print("No disclosures today."); return
 
     for idx, row in df.head(20).iterrows():
-        title = row.get('report_nm', '')
-        corp_name = row.get('corp_name', '')
-        rcept_no = row.get('rcept_no')
-        stock_code = row.get('stock_code')
-
-        if not stock_code:
-            continue
+        title, corp_name, rcept_no = row.get('report_nm', ''), row.get('corp_name', ''), row.get('rcept_no')
+        if not row.get('stock_code'): continue
 
         check = supabase.table("disclosure_insights").select("id").eq("rcept_no", rcept_no).execute()
-        if check.data:
-            continue
+        if check.data: continue
 
-        is_important = any(kw in title for kw in IMPORTANT_KEYWORDS)
-        
-        if is_important:
-            print(f"🎯 중요 공시 분석 시작: [{corp_name}] {title}")
+        if any(kw in title for kw in IMPORTANT_KEYWORDS):
+            print(f"🎯 Analyzing: {corp_name}")
             try:
-                time.sleep(1) 
-                
-                # 변수명 통일: final_prompt 사용
                 final_prompt = DISCLOSURE_PROMPT_TEMPLATE.format(disclosure_title=title)
-
                 response = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": "You are a professional financial analyst. Return your answer strictly in JSON format."},
-                        {"role": "user", "content": final_prompt} # prompt 대신 final_prompt로 수정
+                        {"role": "system", "content": "Return strictly in JSON format."},
+                        {"role": "user", "content": final_prompt} # prompt 오타 수정
                     ],
                     response_format={"type": "json_object"},
-                    max_tokens=1024,
-                    temperature=0.1
+                    max_tokens=1024
                 )
-
-                # 변수명 통일: response.choices 사용
-                ai_res = json.loads(response.choices[0].message.content)
+                ai_res = json.loads(response.choices[0].message.content) # completion 오타 수정
                 
-                sentiment_label = "POSITIVE" if ai_res.get('sentiment_score', 0) > 0.1 else \
-                                  "NEGATIVE" if ai_res.get('sentiment_score', 0) < -0.1 else "NEUTRAL"
+                sentiment = "POSITIVE" if ai_res.get('sentiment_score', 0) > 0.1 else \
+                            "NEGATIVE" if ai_res.get('sentiment_score', 0) < -0.1 else "NEUTRAL"
 
-                save_data = {
-                    "corp_name": corp_name,
-                    "stock_code": stock_code,
-                    "report_nm": title,
-                    "ai_summary": "\n".join(ai_res.get('summary', ["요약 생성 실패"])),
-                    "sentiment": sentiment_label,
-                    "rcept_no": rcept_no,
+                supabase.table("disclosure_insights").upsert({
+                    "corp_name": corp_name, "stock_code": row.get('stock_code'),
+                    "report_nm": title, "ai_summary": "\n".join(ai_res.get('summary', [])),
+                    "sentiment": sentiment, "rcept_no": rcept_no,
                     "created_at": datetime.datetime.now().isoformat()
-                }
-                
-                supabase.table("disclosure_insights").upsert(save_data).execute()
-                print(f"✅ AI 분석 및 저장 완료: {corp_name}")
-
+                }).execute()
             except Exception as e:
-                print(f"❌ AI Analysis Error for {corp_name}: {e}")
-        else:
-            print(f"⏩ 일반 공시 패스: {title}")
-
-if __name__ == "__main__":
-    analyze_disclosure()
+                print(f"❌ AI Error for {corp_name}: {e}")
