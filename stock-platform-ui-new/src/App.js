@@ -55,7 +55,6 @@ const FearGreedGauge = ({ score = 50 }) => {
 // --- 역동적 지수 카드 (스파크라인 포함) ---
 const DynamicStatCard = ({ title, value, change, history }) => {
   const isPositive = parseFloat(change) >= 0;
-  // 문자열 형태의 history 데이터를 배열로 변환
   const chartData = history ? JSON.parse(history).map((v) => ({ val: v })) : [];
 
   return (
@@ -78,35 +77,14 @@ const DynamicStatCard = ({ title, value, change, history }) => {
   );
 };
 
-function Dashboard() {
-  const [insights, setInsights] = useState([]);
-  const [indices, setIndices] = useState([]);
-  const [fgScore, setFgScore] = useState(50);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+const StatCard = ({ title, value }) => (
+  <div className="w-44 lg:w-52 bg-slate-900/80 border border-slate-800 p-3 rounded-xl flex flex-col justify-center shadow-lg">
+    <p className="text-slate-500 text-[10px] font-bold uppercase mb-0.5 tracking-wider">{title}</p>
+    <h3 className="text-base font-bold text-white tracking-tight">{value || '---'}</h3>
+  </div>
+);
 
-  const fetchData = async () => {
-    try {
-      const { data: ins } = await supabase.from('disclosure_insights').select('*').order('created_at', { ascending: false });
-      const { data: ind } = await supabase.from('market_indices').select('*').order('name', { ascending: true });
-      
-      if (ins) {
-        // [수정]: slice(0, 6)을 제거하여 전체 공시가 나타나도록 함
-        const unique = Array.from(new Map(ins.map(item => [item.corp_name, item])).values());
-        setInsights(unique); 
-      }
-      if (ind) {
-        const fg = ind.find(i => i.name === 'FEAR_GREED');
-        if (fg) setFgScore(parseInt(fg.current_val));
-        setIndices(ind.filter(i => i.name !== 'FEAR_GREED'));
-      }
-    } catch (err) {
-      console.error("Fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-// --- 공시 상세 페이지 컴포넌트 (이 부분을 추가하세요) ---
+// --- 공시 상세 페이지 컴포넌트 ---
 function StockDetailPage() {
   const { ticker } = useParams();
   const navigate = useNavigate();
@@ -131,11 +109,11 @@ function StockDetailPage() {
     fetchStockData();
   }, [ticker]);
 
-  if (loading) return <div className="text-white p-10">Loading detail...</div>;
+  if (loading) return <div className="text-white p-10 flex items-center justify-center min-h-screen bg-[#0f172a]"><Loader2 className="animate-spin mr-2" /> Loading detail...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 text-white">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-400 hover:text-white mb-8">
+    <div className="max-w-4xl mx-auto p-6 text-white min-h-screen">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-400 hover:text-white mb-8 transition-colors">
         <ArrowLeft size={20} /> Back to List
       </button>
       
@@ -143,24 +121,26 @@ function StockDetailPage() {
         <div className="space-y-8">
           <div className="border-b border-slate-800 pb-6">
             <h1 className="text-3xl font-bold mb-2">{stockInsights[0].corp_name}</h1>
-            <p className="text-slate-500 font-mono">Stock Code: #{ticker}</p>
+            <p className="text-slate-500 font-mono italic">Stock Code: #{ticker}</p>
           </div>
 
           {stockInsights.map((item) => (
             <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl">
               <div className="flex justify-between items-center mb-6">
-                <span className={`px-4 py-1 rounded-full text-xs font-bold ${item.sentiment === 'POSITIVE' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                <span className={`px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.sentiment === 'POSITIVE' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                   {item.sentiment} ANALYSIS
                 </span>
                 <span className="text-slate-500 text-sm italic">{new Date(item.created_at).toLocaleDateString()}</span>
               </div>
               
-              <h2 className="text-xl font-bold mb-6 text-blue-400">"{item.report_nm}"</h2>
+              <h2 className="text-xl font-bold mb-6 text-blue-400 leading-tight">"{item.report_nm}"</h2>
               
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">AI Deep Summary</h3>
-                  <div className="text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-800/30 p-6 rounded-2xl">
+                  <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <MessageSquare size={14} /> AI Deep Summary
+                  </h3>
+                  <div className="text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-800/30 p-6 rounded-2xl border border-slate-800/50 shadow-inner italic">
                     {item.ai_summary}
                   </div>
                 </div>
@@ -169,14 +149,44 @@ function StockDetailPage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-20">
+        <div className="text-center py-20 flex flex-col items-center">
             <AlertCircle className="mx-auto mb-4 text-slate-700" size={48} />
-            <p className="text-slate-500">No details found for this ticker.</p>
+            <p className="text-slate-500">No details found for Ticker: {ticker}</p>
         </div>
       )}
     </div>
   );
 }
+
+// --- 대시보드 컴포넌트 ---
+function Dashboard() {
+  const [insights, setInsights] = useState([]);
+  const [indices, setIndices] = useState([]);
+  const [fgScore, setFgScore] = useState(50);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const fetchData = async () => {
+    try {
+      const { data: ins } = await supabase.from('disclosure_insights').select('*').order('created_at', { ascending: false });
+      const { data: ind } = await supabase.from('market_indices').select('*').order('name', { ascending: true });
+      
+      if (ins) {
+        const unique = Array.from(new Map(ins.map(item => [item.corp_name, item])).values());
+        setInsights(unique); 
+      }
+      if (ind) {
+        const fg = ind.find(i => i.name === 'FEAR_GREED');
+        if (fg) setFgScore(parseInt(fg.current_val));
+        setIndices(ind.filter(i => i.name !== 'FEAR_GREED'));
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     const channel = supabase
@@ -186,7 +196,7 @@ function StockDetailPage() {
     return () => supabase.removeChannel(channel);
   }, []);
 
-  if (loading) return <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2" /> Loading...</div>;
+  if (loading) return <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2" /> Loading Dashboard...</div>;
 
   return (
     <div className="relative">
@@ -243,13 +253,6 @@ function StockDetailPage() {
     </div>
   );
 }
-
-const StatCard = ({ title, value }) => (
-  <div className="w-44 lg:w-52 bg-slate-900/80 border border-slate-800 p-3 rounded-xl flex flex-col justify-center shadow-lg">
-    <p className="text-slate-500 text-[10px] font-bold uppercase mb-0.5 tracking-wider">{title}</p>
-    <h3 className="text-base font-bold text-white tracking-tight">{value || '---'}</h3>
-  </div>
-);
 
 // --- App 메인 컴포넌트 ---
 export default function App() {
