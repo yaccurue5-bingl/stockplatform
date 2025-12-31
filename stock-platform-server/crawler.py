@@ -57,58 +57,35 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 def get_market_indices():
-    print("--- Fetching Market Indices from Naver Finance ---")
+    print("--- Fetching Market Indices from Naver ---")
     try:
-        url = "https://finance.naver.com/"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        # KOSPI, KOSDAQ 수집 주소 분리 (더 안정적)
+        urls = {
+            "KOSPI": "https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
+            "KOSDAQ": "https://finance.naver.com/sise/sise_index.naver?code=KOSDAQ",
+            "USD/KRW": "https://finance.naver.com/marketindex/"
         }
-        res = requests.get(url, headers=headers)
-        res.raise_for_status() # 접속 성공 여부 확인
-        soup = BeautifulSoup(res.text, 'html.parser')
-
-        # 1. KOSPI & KOSDAQ 수집 (ID 우선 탐색 후 클래스 보조 탐색)
-        kospi_val = soup.find("span", id="KOSPI_now")
-        if not kospi_val:
-            kospi_val = soup.select_one(".lg_area .kospi_area .num_quot .num")
-            
-        kosdaq_val = soup.find("span", id="KOSDAQ_now")
-        if not kosdaq_val:
-            kosdaq_val = soup.select_one(".lg_area .kosdaq_area .num_quot .num")
-
-        # 2. 환율 수집 (환율은 구조가 자주 바뀌므로 텍스트 패턴으로 탐색)
-        usd_val = None
-        exchange_area = soup.select_one(".group_sub .on")
-        if exchange_area:
-            usd_val = exchange_area.select_one(".num")
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         
-        # 3. 데이터 정제 (쉼표 및 불필요한 공백 제거)
-        def clean_val(node):
+        results = {}
+        for name, url in urls.items():
+            res = requests.get(url, headers=headers)
+            soup = BeautifulSoup(res.text, 'html.parser')
+            
+            if name in ["KOSPI", "KOSDAQ"]:
+                node = soup.select_one("#now_value")
+            else: # 환율
+                node = soup.select_one(".value")
+            
             if node:
-                text = node.get_text(strip=True)
-                # 숫자, 마침표, 쉼표만 남기고 제거
-                return re.sub(r'[^\d.,]', '', text)
-            return None
+                results[name] = node.get_text(strip=True)
 
-        indices = [
-            ("KOSPI", clean_val(kospi_val)),
-            ("KOSDAQ", clean_val(kosdaq_val)),
-            ("USD/KRW", clean_val(usd_val))
-        ]
-
-        # 4. DB 업데이트 및 로그 출력
-        for name, val in indices:
-            if val and len(val) > 1: # 값이 유효할 때만
-                supabase.table("market_indices").upsert(
-                    {"name": name, "current_val": val},
-                    on_conflict="name"
-                ).execute()
-                print(f"✅ {name} 실시간 수집 성공: {val}")
-            else:
-                print(f"❌ {name} 수집 실패: 결과가 빈 값입니다. (기존 DB 값 유지)")
-
+        for name, val in results.items():
+            if val:
+                supabase.table("market_indices").upsert({"name": name, "current_val": val}, on_conflict="name").execute()
+                print(f"✅ {name} 수집 성공: {val}")
     except Exception as e:
-        print(f"❌ 지수 수집 중 시스템 에러: {e}")
+        print(f"❌ 지수 수집 에러: {e}")
 
 def analyze_disclosure():
     print("=== K-Market Insight Data Pipeline Start ===")
@@ -160,14 +137,15 @@ def analyze_disclosure():
                     disclosure_title=title
                 )
 
-                # Groq AI 호출
-                completion = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                # crawler.py 내의 AI 호출 부분 (Groq 또는 OpenAI)
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile", # 사용 중인 모델명
                     messages=[
-                        {"role": "system", "content": "You are a professional financial analyst. Return ONLY JSON."},
-                        {"role": "user", "content": final_prompt}
+                        {"role": "system", "content": "You are a financial analyst. Respond ONLY in valid JSON format."},
+                        {"role": "user", "content": prompt}
                     ],
-                    response_format={"type": "json_object"}
+                    response_format={"type": "json_object"}, # JSON 모드 강제
+                    max_tokens=1000 # 토큰 길이를 충분히 확보
                 )
 
                 # AI 결과 파싱
