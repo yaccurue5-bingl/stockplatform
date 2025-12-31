@@ -51,7 +51,9 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 # 클라이언트 초기화
-groq_client = Groq(api_key=GROQ_KEY)
+client = Groq(
+    api_key=os.environ.get("GROQ_API_KEY"), # GitHub Secrets에 저장된 키를 가져옴
+)
 dart = OpenDartReader(DART_KEY)
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -138,15 +140,16 @@ def analyze_disclosure():
                 )
 
                 # crawler.py 내의 AI 호출 부분 (Groq 또는 OpenAI)
-                response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile", # 사용 중인 모델명
-                    messages=[
-                        {"role": "system", "content": "You are a financial analyst. Respond ONLY in valid JSON format."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    response_format={"type": "json_object"}, # JSON 모드 강제
-                    max_tokens=1000 # 토큰 길이를 충분히 확보
-                )
+                response = client.chat.completions.create( # 여기서 'client' 이름이 위와 같아야 함
+                   model="llama-3.3-70b-versatile",
+                   messages=[
+            {"role": "system", "content": "You are a professional financial analyst. Return your answer strictly in JSON format."},
+            {"role": "user", "content": prompt}
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=1024, # 토큰을 넉넉히 주어 답변이 끊기지 않게 함
+        temperature=0.1  # 답변의 일관성을 위해 낮게 설정
+    )
 
                 # AI 결과 파싱
                 ai_res = json.loads(completion.choices[0].message.content)
