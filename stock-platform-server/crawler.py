@@ -57,32 +57,44 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def get_market_indices():
     print("--- Fetching Market Indices from Naver Finance ---")
     try:
+        # 1. 네이버 금융 메인 페이지 접속
         url = "https://finance.naver.com/"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
         res = requests.get(url, headers=headers)
         soup = BeautifulSoup(res.text, 'html.parser')
 
-        # 네이버 메인 페이지에서 지수 추출 (가장 안정적인 id 사용)
-        kospi_node = soup.find("span", {"id": "KOSPI_now"})
-        kosdaq_node = soup.find("span", {"id": "KOSDAQ_now"})
-        usd_node = soup.select_one(".group_sub .on .num") # 환율
+        # 2. 지수 데이터 추출 (id를 직접 지정하는 방식이 가장 정확합니다)
+        # KOSPI
+        kospi_node = soup.select_one("#KOSPI_now")
+        # KOSDAQ
+        kosdaq_node = soup.select_one("#KOSDAQ_now")
+        # USD/KRW (환율 섹션의 첫 번째 숫자)
+        usd_node = soup.select_one(".group_sub .on .num")
 
+        # 3. 데이터 정리
         indices = [
             ("KOSPI", kospi_node.text if kospi_node else None),
             ("KOSDAQ", kosdaq_node.text if kosdaq_node else None),
             ("USD/KRW", usd_node.text if usd_node else None)
         ]
 
+        # 4. DB 업데이트 (값이 정상일 때만 실행)
         for name, val in indices:
-            if val and val != "---": # ⚠️ 값이 정상적일 때만 업데이트
+            if val and val.strip() != "" and val != "---":
                 supabase.table("market_indices").upsert(
-                    {"name": name, "current_val": val}, 
+                    {"name": name, "current_val": val},
                     on_conflict="name"
                 ).execute()
+                print(f"✅ {name} updated: {val}")
+            else:
+                print(f"⚠️ {name} 수집 실패 (기존 데이터 유지)")
+
+        print("=== Market Indices Update Process Completed ===")
         
-        print("✅ Market indices checked and updated if available.")
     except Exception as e:
-        print(f"❌ Index Error: {e}")
+        print(f"❌ Index Fetch Error: {e}")
 
 def analyze_disclosure():
     print("=== K-Market Insight Data Pipeline Start ===")
