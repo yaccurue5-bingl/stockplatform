@@ -63,7 +63,7 @@ def analyze_disclosure():
     get_market_indices()
     
     today = datetime.datetime.now().strftime('%Y%m%d')
-    df = dart.list(start=20251230, end=20251231)
+    df = dart.list(start='20251230', end='20251231')
     if df is None or df.empty: return
 
     # 1. 종목별로 공시 그룹화 (비츠로셀 3건 등을 하나로 묶음)
@@ -83,8 +83,8 @@ def analyze_disclosure():
         rep_rcept_no = targets[0]['rcept_no']
 
         # 중복 체크
-        check = supabase.table("disclosure_insights").select("id").eq("rcept_no", rep_rcept_no).execute()
-        if check.data: continue
+       # check = supabase.table("disclosure_insights").select("id").eq("rcept_no", rep_rcept_no).execute()
+       # if check.data: continue
 
         print(f"🎯 통합 분석 진행 중: {corp_name} ({len(targets)}건)")
         
