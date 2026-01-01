@@ -75,6 +75,8 @@ const DynamicStatCard = ({ title, value, history }) => {
 };
 
 // --- [유지] 상세 페이지 디자인 ---
+// ... (기존 상단 코드 동일)
+
 function StockDetailPage() {
   const { ticker } = useParams();
   const navigate = useNavigate();
@@ -83,50 +85,74 @@ function StockDetailPage() {
 
   useEffect(() => {
     const fetchDetail = async () => {
-      const { data } = await supabase.from('disclosure_insights').select('*').eq('stock_code', ticker).order('created_at', { ascending: false });
-      if (data) setStockInsights(data);
-      setLoading(false);
+      try {
+        const { data } = await supabase
+          .from('disclosure_insights')
+          .select('*')
+          .eq('stock_code', ticker)
+          .order('created_at', { ascending: false });
+        if (data) setStockInsights(data);
+      } catch (err) {
+        console.error('Error fetching detail:', err);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchDetail();
   }, [ticker]);
 
-  if (loading) return <div className="min-h-screen bg-[#060b18] flex items-center justify-center text-white"><Loader2 className="animate-spin" /></div>;
+  if (loading) return (
+    <div className="text-white p-10 flex justify-center bg-[#0f172a] min-h-screen">
+      <Loader2 className="animate-spin mr-2" /> 상세 분석 데이터를 불러오는 중...
+    </div>
+  );
 
   return (
-    <div className="max-w-4xl mx-auto p-6 min-h-screen text-slate-200">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-white mb-10 transition-all group">
-        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
+    <div className="max-w-4xl mx-auto p-6 text-white min-h-screen">
+      <button 
+        onClick={() => navigate(-1)} 
+        className="flex items-center gap-2 text-slate-400 hover:text-white mb-8 transition-colors"
+      >
+        <ArrowLeft size={20} /> 뒤로 가기
       </button>
-      
-      <div className="mb-12 border-l-4 border-blue-500 pl-6">
-        <h1 className="text-4xl font-black text-white tracking-tight mb-2">{stockInsights[0]?.corp_name}</h1>
-        <p className="text-slate-500 font-mono tracking-tighter">STOCK_ID: {ticker}</p>
-      </div>
 
-      <div className="space-y-8">
-        {stockInsights.map((item) => (
-          <div key={item.id} className="bg-[#0f172a] border border-slate-800/50 rounded-3xl overflow-hidden shadow-2xl">
-            <div className="p-8 border-b border-slate-800/50 flex justify-between items-center bg-gradient-to-r from-slate-900 to-transparent">
-               <span className="text-blue-400 font-bold text-sm uppercase tracking-widest">AI Deep Summary</span>
-               <span className="text-slate-500 text-xs">{new Date(item.created_at).toLocaleDateString()}</span>
-            </div>
-            <div className="p-8">
-              <h2 className="text-xl font-bold mb-8 text-white leading-snug">"{item.report_nm}"</h2>
-              <div className="space-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800/30 shadow-inner">
-                {item.ai_summary?.split('\n').filter(l => l.trim()).map((line, i) => (
-                  <div key={i} className="flex gap-4 items-start">
-                    <Zap size={16} className="text-blue-500 mt-1 shrink-0" />
-                    <p className="text-slate-300 leading-relaxed text-sm lg:text-base">{line}</p>
-                  </div>
-                ))}
+      {stockInsights.length > 0 ? (
+        <div className="space-y-6">
+          <h1 className="text-3xl font-black mb-2">{stockInsights[0].corp_name} 전문 분석</h1>
+          <p className="text-slate-400 mb-10">종목 코드: {ticker}</p>
+
+          {stockInsights.map((item) => (
+            <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl">
+              <h2 className="text-xl font-bold mb-6 text-blue-400">"{item.report_nm}"</h2>
+              
+              <div className="bg-slate-800/30 p-6 rounded-2xl border border-slate-800/50">
+                <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 tracking-widest">AI 통합 요약</h3>
+                <div className="space-y-4">
+                  {/* 줄바꿈(\n)을 기준으로 나누어 리스트로 출력 */}
+                  {item.ai_summary?.split('\n').map((line, idx) => (
+                    <div key={idx} className="flex gap-3 text-slate-300 leading-relaxed">
+                      <span className="text-blue-500 font-bold">•</span>
+                      <span>{line}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="mt-8 flex justify-between items-center text-xs text-slate-500">
+                <span>공시 번호: {item.rcept_no}</span>
+                <span>분석 일시: {new Date(item.created_at).toLocaleString()}</span>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-20">분석 데이터가 존재하지 않습니다.</div>
+      )}
     </div>
   );
 }
+
+// ... (나머지 Dashboard 및 App 컴포넌트 동일)
 
 // --- [유지] 대시보드 메인 ---
 function Dashboard() {
