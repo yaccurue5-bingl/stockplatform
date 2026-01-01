@@ -63,7 +63,7 @@ def analyze_disclosure():
     get_market_indices()
     
     today = datetime.datetime.now().strftime('%Y%m%d')
-    df = dart.list(start=today, end=today)
+    df = dart.list(start=20251230, end=20251231)
     if df is None or df.empty: return
 
     # 1. 종목별로 공시 그룹화 (비츠로셀 3건 등을 하나로 묶음)
