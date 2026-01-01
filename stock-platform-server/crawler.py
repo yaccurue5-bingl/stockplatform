@@ -15,45 +15,30 @@ try:
 except ImportError:
     fg_index_calc = None
 
-# 통합 분석 및 구체적 정보(상대방, 금액) 추출을 위한 프롬프트
+# 통합 분석 및 상세 추출 프롬프트
 DISCLOSURE_PROMPT_TEMPLATE = """
-# Role
-You are a professional financial analyst. 
-
-# Language
-Respond ONLY in KOREAN. (중요: 답변에 러시아어나 기타 외국어를 절대 섞지 마세요.)
+# Role: Professional Financial Analyst
+# Language: Respond ONLY in KOREAN. (중요: 답변에 외국어를 절대 섞지 마세요.)
 
 # Task
-Analyze the following disclosures for the SAME company and create ONE integrated summary.
-You MUST extract the 'Target Company Name' and 'Contract Amount' for EACH disclosure.
+제공된 공시 원문을 분석하여 통합 보고서를 작성하세요.
+특히 '계약 상대방'과 '계약 금액'을 텍스트에서 정확히 찾아 리스트업하세요.
 
 # Input Data
 Company: {corp_name}
-Detailed Disclosure Text:
+Disclosure Details:
 {disclosure_details}
 
 # Constraints
-1. **Headline**: Create one integrated English headline.
+1. **Headline**: 영어로 된 통합 헤드라인 작성.
 2. **Key Takeaways (KOREAN)**: 
-   - 각 계약별로 구체적 정보 명시: "1. [상대방 이름]과 [금액] 규모 계약, [핵심내용/정정사유]"
-   - 실제 회사 이름과 금액을 텍스트에서 찾아 기재하세요. (모호하게 'company'라 적지 마세요.)
-3. **Sentiment**: Overall tone score from -1.0 to 1.0.
+   - 각 계약별 상세 리스트: "1. [상대방] [금액] 계약, [정정/핵심 내용]"
+   - 실제 회사명과 금액을 명시하세요.
+3. **Sentiment**: -1.0 ~ 1.0 점수.
 4. **JSON Format**: Output strictly in JSON.
-
-# Output Format (JSON)
-{{
-  "headline": "Integrated Headline",
-  "summary": ["1. [상대방] [금액] 상세 내용", "2. [상대방] [금액] 상세 내용", "종합 분석"],
-  "sentiment_score": 0.0,
-  "impact_analysis": "투자자 영향 분석"
-}}
 """
 
-IMPORTANT_KEYWORDS = [
-    '공급계약', '유상증자', '무상증자', '실적발표', '영업실적', '단일판매', 
-    '인수', '합병', 'M&A', '특허', '신제품', '최대주주변경', '자기주식취득', '현금배당',
-    '불성실공시', '관리종목', '상장폐지', '공시번복'
-]
+IMPORTANT_KEYWORDS = ['공급계약', '유상증자', '무상증자', '실적발표', '단일판매', '인수', '합병', 'M&A', '최대주주변경']
 
 DART_KEY = os.environ.get("DART_API_KEY")
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
@@ -84,21 +69,22 @@ def get_market_indices():
             if val and val != "---":
                 row = supabase.table("market_indices").select("history").eq("name", name).execute()
                 
-                # [수정] JSON 파싱 에러 방지 로직
-                raw_history = row.data[0].get('history', []) if row.data else []
+                # [수정] NoneType 및 JSON 파싱 에러 방어 로직
+                raw_history = []
+                if row.data and row.data[0].get('history') is not None:
+                    raw_history = row.data[0]['history']
+                
                 if isinstance(raw_history, str):
                     hist = json.loads(raw_history)
                 else:
-                    hist = raw_history # 이미 리스트 형태인 경우 그대로 사용
+                    hist = raw_history
                 
                 clean_val = float(val.replace(',', ''))
                 hist.append(clean_val)
                 if len(hist) > 10: hist = hist[-10:]
                 
                 supabase.table("market_indices").upsert({
-                    "name": name, 
-                    "current_val": val, 
-                    "history": hist # 리스트 형태로 바로 저장 (SDK가 변환 처리)
+                    "name": name, "current_val": val, "history": hist
                 }, on_conflict="name").execute()
     except Exception as e:
         print(f"❌ Index Error: {e}")
@@ -106,19 +92,16 @@ def get_market_indices():
 def analyze_disclosure():
     print("=== K-Market Insight Data Pipeline Start ===")
     get_market_indices()
-    if fg_index_calc:
-        fg_index_calc.update_fear_greed_idx()
+    if fg_index_calc: fg_index_calc.update_fear_greed_idx()
     
     today = datetime.datetime.now().strftime('%Y%m%d')
     try:
         df = dart.list(start=today, end=today)
     except Exception as e:
-        print(f"❌ DART Error: {e}")
-        return
+        print(f"❌ DART Error: {e}"); return
 
     if df is None or df.empty: return
 
-    # [수정] 종목별 그룹화 (비츠로셀 등 동일 종목 공시 통합)
     grouped = {}
     for _, row in df.iterrows():
         code = row.get('stock_code')
@@ -133,59 +116,41 @@ def analyze_disclosure():
         corp_name = targets[0]['corp_name']
         rep_rcept_no = targets[0]['rcept_no']
 
-        # 중복 체크
         check = supabase.table("disclosure_insights").select("id").eq("rcept_no", rep_rcept_no).execute()
         if check.data: continue
 
-        print(f"🎯 통합 분석 중: {corp_name} ({len(targets)}건)")
+        print(f"🎯 통합 분석: {corp_name} ({len(targets)}건)")
         
-        # [수정] 공시 본문 텍스트 추출 (상대방/금액 파악용)
-        full_text_context = ""
+        full_text = ""
         for t in targets:
             try:
                 doc = dart.document(t['rcept_no'])
-                clean_text = re.sub('<[^<]+?>', '', doc)
-                clean_text = re.sub(r'\s+', ' ', clean_text).strip()[:2000]
-                full_text_context += f"\n[공시제목: {t['report_nm']}]\n{clean_text}\n"
+                clean = re.sub('<[^<]+?>', '', doc)
+                full_text += f"\n[제목: {t['report_nm']}]\n{clean[:2000]}\n"
             except:
-                full_text_context += f"\n[공시제목: {t['report_nm']}] (본문 추출 실패)\n"
+                full_text += f"\n[제목: {t['report_nm']}] 원문 추출 실패\n"
 
         try:
-            # [수정] 한국어 전용 프롬프트 및 구체적 정보 요청
-            final_prompt = DISCLOSURE_PROMPT_TEMPLATE.format(
-                corp_name=corp_name, 
-                disclosure_details=full_text_context
-            )
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
-                    {"role": "system", "content": "너는 한국 금융 전문가야. 반드시 한국어로만 답변하고, 계약 상대방과 금액을 정확히 기재해."},
-                    {"role": "user", "content": final_prompt}
+                    {"role": "system", "content": "너는 한국 금융 전문가야. 한국어로만 답변해."},
+                    {"role": "user", "content": DISCLOSURE_PROMPT_TEMPLATE.format(corp_name=corp_name, disclosure_details=full_text)}
                 ],
                 response_format={"type": "json_object"}
             )
             ai_res = json.loads(response.choices[0].message.content)
             
-            sentiment = "POSITIVE" if ai_res.get('sentiment_score', 0) > 0.1 else \
-                        "NEGATIVE" if ai_res.get('sentiment_score', 0) < -0.1 else "NEUTRAL"
-
-            # 통합 제목 생성
-            combined_title = targets[0]['report_nm']
-            if len(targets) > 1:
-                combined_title += f" 외 {len(targets)-1}건"
-
-            supabase.table("disclosure_insights").upsert({
-                "corp_name": corp_name, 
-                "stock_code": code,
-                "report_nm": combined_title, 
-                "ai_summary": "\n".join(ai_res.get('summary', [])),
-                "sentiment": sentiment, 
-                "rcept_no": rep_rcept_no,
-                "created_at": datetime.datetime.now().isoformat()
-            }).execute()
+            report_title = targets[0]['report_nm'] + (f" 외 {len(targets)-1}건" if len(targets) > 1 else "")
             
+            supabase.table("disclosure_insights").upsert({
+                "corp_name": corp_name, "stock_code": code,
+                "report_nm": report_title, "ai_summary": "\n".join(ai_res.get('summary', [])),
+                "sentiment": "POSITIVE" if ai_res.get('sentiment_score', 0) > 0.1 else "NEUTRAL",
+                "rcept_no": rep_rcept_no, "created_at": datetime.datetime.now().isoformat()
+            }).execute()
         except Exception as e:
-            print(f"❌ AI Error for {corp_name}: {e}")
+            print(f"❌ AI Error: {e}")
 
 if __name__ == "__main__":
     analyze_disclosure()
