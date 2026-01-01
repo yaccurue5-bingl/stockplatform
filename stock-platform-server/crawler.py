@@ -15,17 +15,17 @@ try:
 except ImportError:
     fg_index_calc = None
 
-# 1. 통합 분석 및 상세 정보 추출을 위한 프롬프트
+# 통합 분석 및 구체적 정보(상대방, 금액) 추출을 위한 프롬프트
 DISCLOSURE_PROMPT_TEMPLATE = """
 # Role
 You are a professional financial analyst. 
 
 # Language
-Respond ONLY in KOREAN. (절대로 한국어 외의 언어(러시아어 등)를 섞지 마세요.)
+Respond ONLY in KOREAN. (중요: 답변에 러시아어나 기타 외국어를 절대 섞지 마세요.)
 
 # Task
 Analyze the following disclosures for the SAME company and create ONE integrated summary.
-You must extract the 'Target Company' and 'Contract Amount' from the provided text.
+You MUST extract the 'Target Company Name' and 'Contract Amount' for EACH disclosure.
 
 # Input Data
 Company: {corp_name}
@@ -35,8 +35,8 @@ Detailed Disclosure Text:
 # Constraints
 1. **Headline**: Create one integrated English headline.
 2. **Key Takeaways (KOREAN)**: 
-   - 각 계약별로 구체적 정보 기술: "1. [상대방 이름]과 [금액] 규모 계약, [정정사유]"
-   - 실제 회사 이름과 금액을 텍스트에서 찾아 명시하세요. (모호하게 'company'라 적지 마세요.)
+   - 각 계약별로 구체적 정보 명시: "1. [상대방 이름]과 [금액] 규모 계약, [핵심내용/정정사유]"
+   - 실제 회사 이름과 금액을 텍스트에서 찾아 기재하세요. (모호하게 'company'라 적지 마세요.)
 3. **Sentiment**: Overall tone score from -1.0 to 1.0.
 4. **JSON Format**: Output strictly in JSON.
 
@@ -83,14 +83,22 @@ def get_market_indices():
         for name, val in results.items():
             if val and val != "---":
                 row = supabase.table("market_indices").select("history").eq("name", name).execute()
-                hist = json.loads(row.data[0].get('history', '[]')) if row.data else []
+                
+                # [수정] JSON 파싱 에러 방지 로직
+                raw_history = row.data[0].get('history', []) if row.data else []
+                if isinstance(raw_history, str):
+                    hist = json.loads(raw_history)
+                else:
+                    hist = raw_history # 이미 리스트 형태인 경우 그대로 사용
+                
                 clean_val = float(val.replace(',', ''))
                 hist.append(clean_val)
                 if len(hist) > 10: hist = hist[-10:]
+                
                 supabase.table("market_indices").upsert({
                     "name": name, 
                     "current_val": val, 
-                    "history": json.dumps(hist)
+                    "history": hist # 리스트 형태로 바로 저장 (SDK가 변환 처리)
                 }, on_conflict="name").execute()
     except Exception as e:
         print(f"❌ Index Error: {e}")
@@ -110,7 +118,7 @@ def analyze_disclosure():
 
     if df is None or df.empty: return
 
-    # 2번 해결: 종목별 그룹화 (비츠로셀 3건 등을 하나로 묶음)
+    # [수정] 종목별 그룹화 (비츠로셀 등 동일 종목 공시 통합)
     grouped = {}
     for _, row in df.iterrows():
         code = row.get('stock_code')
@@ -119,33 +127,31 @@ def analyze_disclosure():
         grouped[code].append(row)
 
     for code, rows in grouped.items():
-        # 중요 키워드가 포함된 공시만 필터링
         targets = [r for r in rows if any(kw in r['report_nm'] for kw in IMPORTANT_KEYWORDS)]
         if not targets: continue
 
         corp_name = targets[0]['corp_name']
         rep_rcept_no = targets[0]['rcept_no']
 
-        # 중복 체크 (대표 번호 기준)
+        # 중복 체크
         check = supabase.table("disclosure_insights").select("id").eq("rcept_no", rep_rcept_no).execute()
         if check.data: continue
 
         print(f"🎯 통합 분석 중: {corp_name} ({len(targets)}건)")
         
-        # 2번 해결: 공시 원문 텍스트 추출 (금액, 상대방 정보 파악용)
+        # [수정] 공시 본문 텍스트 추출 (상대방/금액 파악용)
         full_text_context = ""
         for t in targets:
             try:
                 doc = dart.document(t['rcept_no'])
-                # HTML 태그 제거 및 텍스트 정제 (앞부분 2500자)
                 clean_text = re.sub('<[^<]+?>', '', doc)
-                clean_text = re.sub(r'\s+', ' ', clean_text).strip()[:2500]
+                clean_text = re.sub(r'\s+', ' ', clean_text).strip()[:2000]
                 full_text_context += f"\n[공시제목: {t['report_nm']}]\n{clean_text}\n"
             except:
                 full_text_context += f"\n[공시제목: {t['report_nm']}] (본문 추출 실패)\n"
 
         try:
-            # 3번 해결: 한국어 답변 강제 프롬프트 적용
+            # [수정] 한국어 전용 프롬프트 및 구체적 정보 요청
             final_prompt = DISCLOSURE_PROMPT_TEMPLATE.format(
                 corp_name=corp_name, 
                 disclosure_details=full_text_context
@@ -163,7 +169,7 @@ def analyze_disclosure():
             sentiment = "POSITIVE" if ai_res.get('sentiment_score', 0) > 0.1 else \
                         "NEGATIVE" if ai_res.get('sentiment_score', 0) < -0.1 else "NEUTRAL"
 
-            # 2번 해결: 통합된 제목으로 저장
+            # 통합 제목 생성
             combined_title = targets[0]['report_nm']
             if len(targets) > 1:
                 combined_title += f" 외 {len(targets)-1}건"
