@@ -66,7 +66,7 @@ def analyze_disclosure():
     df = dart.list(start=today, end=today)
     if df is None or df.empty: return
 
-    # 1. 종목별로 공시 그룹화 (비츠로셀 3건 등을 하나로 묶음)
+    # 1. 종목별로 공시 그룹화
     grouped = {}
     for _, row in df.iterrows():
         code = row.get('stock_code')
@@ -88,13 +88,11 @@ def analyze_disclosure():
 
         print(f"🎯 통합 분석 진행 중: {corp_name} ({len(targets)}건)")
         
-        # 2. [핵심 수정] 각 공시의 원문 텍스트를 가져와서 AI에게 전달
+        # 2. 각 공시의 원문 텍스트 추출
         disc_details_text = ""
         for t in targets:
             try:
-                # OpenDartReader로 공시 원문 추출
                 document = dart.document(t['rcept_no'])
-                # HTML 태그 제거 및 텍스트 정리 (상위 2000자 내외)
                 clean_text = re.sub('<[^<]+?>', '', document)[:2000]
                 disc_details_text += f"\n[공시제목: {t['report_nm']}]\n{clean_text}\n"
             except:
@@ -116,8 +114,7 @@ def analyze_disclosure():
             )
             ai_res = json.loads(response.choices[0].message.content)
             
-            # 4. DB 저장 (통합된 내용을 ai_summary에 저장)
-            # 대표 제목 설정 (외 N건 형식)
+            # 4. DB 저장
             report_title = targets[0]['report_nm']
             if len(targets) > 1:
                 report_title += f" 외 {len(targets)-1}건"
@@ -126,14 +123,19 @@ def analyze_disclosure():
                 "corp_name": corp_name, 
                 "stock_code": code,
                 "report_nm": report_title, 
-                "ai_summary": "\n".join(ai_res.get('summary', [])), # 리스트를 줄바꿈으로 합침
+                "ai_summary": "\n".join(ai_res.get('summary', [])),
                 "sentiment": "POSITIVE" if ai_res.get('sentiment_score', 0) > 0.1 else "NEUTRAL",
                 "rcept_no": rep_rcept_no,
                 "created_at": datetime.datetime.now().isoformat()
             }).execute()
-            
+
+            # --- [삽입] 429 에러 방지를 위한 타임 슬립 ---
+            print(f"✅ {corp_name} 분석 완료. 다음 요청을 위해 3초간 대기합니다...")
+            time.sleep(3) 
+
         except Exception as e:
             print(f"❌ AI Error for {corp_name}: {e}")
+            time.sleep(5) # 에러 발생 시 조금 더 길게 대기
 
 if __name__ == "__main__":
     analyze_disclosure()
