@@ -16,26 +16,24 @@ except ImportError:
     fg_index_calc = None
 
 DISCLOSURE_PROMPT_TEMPLATE = """
-# Role: Professional Financial Analyst
-# Language: Respond ONLY in KOREAN. (절대 외국어를 섞지 마세요.)
-
 # Task
-Analyze the disclosures and create ONE integrated summary. 
-Extract 'Contract Partner' and 'Amount' precisely.
+Analyze the Korean Public Disclosures and create ONE integrated summary. 
+Respond ONLY in KOREAN.
 
 # Input Data
 Company: {corp_name}
-Details: {disclosure_details}
+Disclosures:
+{disclosure_details}
 
 # Output Format (JSON)
 {{
-  "headline": "English Headline",
-  "summary": ["1. [상대방] [금액] 상세내용", "2. 상세내용", "종합분석"],
+  "headline": "English Title",
+  "summary": ["1. [상대방] [금액] 상세내용", "2. ...", "분석결과"],
   "sentiment_score": 0.0
 }}
 """
 
-IMPORTANT_KEYWORDS = ['공급계약', '유상증자', '무상증자', '실적발표', '단일판매', '인수', '합병', 'M&A']
+IMPORTANT_KEYWORDS = ['공급계약', '유상증자', '무상증자', '실적발표', '단일판매', '인수', '합병', '최대주주변경']
 
 DART_KEY = os.environ.get("DART_API_KEY")
 GROQ_KEY = os.environ.get("GROQ_API_KEY")
@@ -65,15 +63,13 @@ def get_market_indices():
         for name, val in results.items():
             if val and val != "---":
                 row = supabase.table("market_indices").select("history").eq("name", name).execute()
-                
-                # [수정] NoneType 방어 로직 강화
                 raw_data = row.data[0].get('history', []) if row.data else []
                 if raw_data is None: raw_data = []
-                
                 hist = json.loads(raw_data) if isinstance(raw_data, str) else raw_data
+                
                 clean_val = float(val.replace(',', ''))
                 hist.append(clean_val)
-                if len(hist) > 10: hist = hist[-10:]
+                if len(hist) > 15: hist = hist[-15:] # 스파크라인을 위해 조금 더 길게 유지
                 
                 supabase.table("market_indices").upsert({
                     "name": name, "current_val": val, "history": hist
@@ -114,7 +110,7 @@ def analyze_disclosure():
         for t in targets:
             try:
                 doc = dart.document(t['rcept_no'])
-                full_text += f"\n[{t['report_nm']}]\n{re.sub('<[^<]+?>', '', doc)[:1500]}\n"
+                full_text += f"\n[{t['report_nm']}]\n{re.sub('<[^<]+?>', '', doc)[:2000]}\n"
             except: continue
 
         try:
