@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
-import { Globe, ChevronRight, MessageSquare, Loader2, ArrowLeft, AlertCircle, Zap } from 'lucide-react';
+import { Globe, ChevronRight, MessageSquare, Loader2, ArrowLeft, Zap } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from './supabaseClient';
 
-// --- 슬림 지수 게이지 ---
+// --- [개선] 공포와 탐욕 게이지 (눈금 및 라벨 추가) ---
 const FearGreedGauge = ({ score = 50 }) => {
-  const data = [{ value: 25, color: '#ef4444' }, { value: 25, color: '#f97316' }, { value: 25, color: '#eab308' }, { value: 25, color: '#22c55e' }];
+  const data = [
+    { value: 25, name: 'Ext. Fear', color: '#ef4444' },
+    { value: 25, name: 'Fear', color: '#f97316' },
+    { value: 25, name: 'Greed', color: '#eab308' },
+    { value: 25, name: 'Ext. Greed', color: '#22c55e' }
+  ];
   const RADIAN = Math.PI / 180;
   const cx = 60, cy = 45, iR = 25, oR = 40;
 
@@ -21,8 +26,8 @@ const FearGreedGauge = ({ score = 50 }) => {
   };
 
   return (
-    <div className="w-[110px] h-[65px] bg-slate-900/80 rounded-xl border border-slate-800 flex flex-col items-center justify-center shadow-inner">
-      <ResponsiveContainer width="100%" height={50}>
+    <div className="w-[125px] h-[75px] bg-slate-900/80 rounded-xl border border-slate-800 flex flex-col items-center justify-center relative shadow-inner">
+      <ResponsiveContainer width="100%" height={55}>
         <PieChart>
           <Pie dataKey="value" startAngle={180} endAngle={0} data={data} cx={cx} cy={cy} innerRadius={iR} outerRadius={oR} stroke="none">
             {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
@@ -30,20 +35,38 @@ const FearGreedGauge = ({ score = 50 }) => {
           {needle(score)}
         </PieChart>
       </ResponsiveContainer>
-      <span className="text-white text-[10px] font-black -mt-3">{score}</span>
+      {/* 게이지 하단 라벨 (20, 50, 80 표시) */}
+      <div className="flex justify-between w-full px-4 -mt-2.5 text-[7px] font-bold text-slate-500 uppercase tracking-tighter">
+        <span>FEAR</span>
+        <span className="text-white font-black text-[10px]">{score}</span>
+        <span>GREED</span>
+      </div>
     </div>
   );
 };
 
-// --- 지수 카드 ---
+// --- [개선] 지수 카드 (상승/하락 색상 스파크라인) ---
 const DynamicStatCard = ({ title, value, history }) => {
   const chartData = history ? (typeof history === 'string' ? JSON.parse(history) : history).map(v => ({ val: v })) : [];
+  
+  // 스파크라인 색상 결정 (첫 값 대비 마지막 값 비교)
+  let strokeColor = "#3b82f6"; // 기본 파랑
+  if (chartData.length >= 2) {
+    const first = chartData[0].val;
+    const last = chartData[chartData.length - 1].val;
+    strokeColor = last > first ? "#10b981" : last < first ? "#f43f5e" : "#3b82f6";
+  }
+
   return (
-    <div className="min-w-[140px] bg-slate-900/60 border border-slate-800/50 p-2 rounded-xl backdrop-blur-sm">
-      <div className="flex justify-between items-center mb-1">
+    <div className="min-w-[145px] bg-slate-900/60 border border-slate-800/50 p-2 rounded-xl backdrop-blur-sm">
+      <div className="flex justify-between items-center mb-0.5">
         <p className="text-slate-500 text-[9px] font-bold uppercase">{title}</p>
-        <div className="h-3 w-12">
-            <ResponsiveContainer><LineChart data={chartData.slice(-5)}><Line type="monotone" dataKey="val" stroke="#3b82f6" strokeWidth={1} dot={false} /></LineChart></ResponsiveContainer>
+        <div className="h-4 w-12">
+            <ResponsiveContainer>
+              <LineChart data={chartData.slice(-10)}>
+                <Line type="monotone" dataKey="val" stroke={strokeColor} strokeWidth={1.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
         </div>
       </div>
       <h3 className="text-xs font-black text-white">{value || '---'}</h3>
@@ -51,7 +74,7 @@ const DynamicStatCard = ({ title, value, history }) => {
   );
 };
 
-// --- 상세 페이지 (이전 디자인 복구) ---
+// --- [유지] 상세 페이지 디자인 ---
 function StockDetailPage() {
   const { ticker } = useParams();
   const navigate = useNavigate();
@@ -84,12 +107,12 @@ function StockDetailPage() {
         {stockInsights.map((item) => (
           <div key={item.id} className="bg-[#0f172a] border border-slate-800/50 rounded-3xl overflow-hidden shadow-2xl">
             <div className="p-8 border-b border-slate-800/50 flex justify-between items-center bg-gradient-to-r from-slate-900 to-transparent">
-               <span className="text-blue-400 font-bold text-sm">AI DEEP SUMMARY</span>
+               <span className="text-blue-400 font-bold text-sm uppercase tracking-widest">AI Deep Summary</span>
                <span className="text-slate-500 text-xs">{new Date(item.created_at).toLocaleDateString()}</span>
             </div>
             <div className="p-8">
               <h2 className="text-xl font-bold mb-8 text-white leading-snug">"{item.report_nm}"</h2>
-              <div className="space-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800/30">
+              <div className="space-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800/30 shadow-inner">
                 {item.ai_summary?.split('\n').filter(l => l.trim()).map((line, i) => (
                   <div key={i} className="flex gap-4 items-start">
                     <Zap size={16} className="text-blue-500 mt-1 shrink-0" />
@@ -105,7 +128,7 @@ function StockDetailPage() {
   );
 }
 
-// --- 메인 대시보드 (디자인 복구) ---
+// --- [유지] 대시보드 메인 ---
 function Dashboard() {
   const [insights, setInsights] = useState([]);
   const [indices, setIndices] = useState([]);
@@ -135,7 +158,6 @@ function Dashboard() {
 
   return (
     <div>
-      {/* 슬림 지수바 */}
       <div className="sticky top-[64px] z-40 bg-[#060b18]/80 backdrop-blur-xl border-b border-white/5 py-2">
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center gap-4">
           <div className="flex gap-3 overflow-x-auto scrollbar-hide flex-grow">
@@ -166,7 +188,7 @@ function Dashboard() {
               <h4 className="font-bold text-lg text-white mb-2 group-hover:text-blue-400 transition-colors">{item.corp_name}</h4>
               <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">{item.report_nm}</p>
               <div className="mt-6 pt-4 border-t border-slate-800/50 flex justify-between items-center">
-                <span className="text-slate-700 text-[10px] font-mono">#{item.stock_code}</span>
+                <span className="text-slate-700 text-[10px] font-mono tracking-widest">#{item.stock_code}</span>
                 <ChevronRight size={16} className="text-slate-700 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
               </div>
             </div>
@@ -191,7 +213,10 @@ export default function App() {
             <span className="text-[10px] font-black text-emerald-500 tracking-widest uppercase">Live Alpha</span>
           </div>
         </nav>
-        <Routes><Route path="/" element={<Dashboard />} /><Route path="/stock/:ticker" element={<StockDetailPage />} /></Routes>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/stock/:ticker" element={<StockDetailPage />} />
+        </Routes>
       </div>
     </Router>
   );
