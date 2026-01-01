@@ -1,56 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
-import { Globe, ChevronRight, MessageSquare, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Globe, ChevronRight, MessageSquare, Loader2, ArrowLeft, AlertCircle, Zap } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from './supabaseClient';
 
-// --- 축소된 공포와 탐욕 게이지 ---
+// --- 슬림 지수 게이지 ---
 const FearGreedGauge = ({ score = 50 }) => {
   const data = [{ value: 25, color: '#ef4444' }, { value: 25, color: '#f97316' }, { value: 25, color: '#eab308' }, { value: 25, color: '#22c55e' }];
   const RADIAN = Math.PI / 180;
-  const cx = 60, cy = 50, iR = 30, oR = 45; // 크기 축소
+  const cx = 60, cy = 45, iR = 25, oR = 40;
 
-  const needle = (value, cx, cy, iR, oR, color) => {
+  const needle = (value) => {
     const ang = 180.0 * (1 - value / 100);
     const length = (iR + oR) / 2;
     const sin = Math.sin(-RADIAN * ang), cos = Math.cos(-RADIAN * ang);
-    return [<circle key="c" cx={cx} cy={cy} r={3} fill={color} />, <path key="p" d={`M${cx-3*sin} ${cy+3*cos}L${cx+3*sin} ${cy-3*cos}L${cx+length*cos} ${cy+length*sin}Z`} fill={color} />];
+    return [
+      <circle key="c" cx={cx} cy={cy} r={3} fill="#fff" />,
+      <path key="p" d={`M${cx-2*sin} ${cy+2*cos}L${cx+2*sin} ${cy-2*cos}L${cx+length*cos} ${cy+length*sin}Z`} fill="#fff" />
+    ];
   };
 
   return (
-    <div className="w-[120px] h-[75px] bg-slate-900/50 rounded-xl border border-slate-800 flex flex-col items-center justify-center overflow-hidden">
-      <ResponsiveContainer width="100%" height={55}>
+    <div className="w-[110px] h-[65px] bg-slate-900/80 rounded-xl border border-slate-800 flex flex-col items-center justify-center shadow-inner">
+      <ResponsiveContainer width="100%" height={50}>
         <PieChart>
           <Pie dataKey="value" startAngle={180} endAngle={0} data={data} cx={cx} cy={cy} innerRadius={iR} outerRadius={oR} stroke="none">
             {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
           </Pie>
-          {needle(score, cx, cy, iR, oR, '#fff')}
+          {needle(score)}
         </PieChart>
       </ResponsiveContainer>
-      <div className="text-center -mt-2 pb-1">
-        <span className="text-white text-[10px] font-black">{score}</span>
-      </div>
+      <span className="text-white text-[10px] font-black -mt-3">{score}</span>
     </div>
   );
 };
 
-const DynamicStatCard = ({ title, value, change, history }) => {
-  const isPositive = parseFloat(change) >= 0;
+// --- 지수 카드 ---
+const DynamicStatCard = ({ title, value, history }) => {
   const chartData = history ? (typeof history === 'string' ? JSON.parse(history) : history).map(v => ({ val: v })) : [];
   return (
-    <div className="w-40 lg:w-44 bg-slate-900/80 border border-slate-800 p-2 rounded-xl shadow-lg">
-      <div className="flex justify-between items-start mb-0.5">
+    <div className="min-w-[140px] bg-slate-900/60 border border-slate-800/50 p-2 rounded-xl backdrop-blur-sm">
+      <div className="flex justify-between items-center mb-1">
         <p className="text-slate-500 text-[9px] font-bold uppercase">{title}</p>
-        <span className={`text-[8px] font-bold ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>{isPositive ? '▲' : '▼'}{Math.abs(change) || '0.0'}%</span>
+        <div className="h-3 w-12">
+            <ResponsiveContainer><LineChart data={chartData.slice(-5)}><Line type="monotone" dataKey="val" stroke="#3b82f6" strokeWidth={1} dot={false} /></LineChart></ResponsiveContainer>
+        </div>
       </div>
-      <h3 className="text-sm font-bold text-white mb-1">{value || '---'}</h3>
-      <div className="h-5 w-full">
-        <ResponsiveContainer><LineChart data={chartData}><Line type="monotone" dataKey="val" stroke={isPositive ? '#10b981' : '#f43f5e'} strokeWidth={1.5} dot={false} /></LineChart></ResponsiveContainer>
-      </div>
+      <h3 className="text-xs font-black text-white">{value || '---'}</h3>
     </div>
   );
 };
 
+// --- 상세 페이지 (이전 디자인 복구) ---
 function StockDetailPage() {
   const { ticker } = useParams();
   const navigate = useNavigate();
@@ -59,35 +60,52 @@ function StockDetailPage() {
 
   useEffect(() => {
     const fetchDetail = async () => {
-      try {
-        const { data } = await supabase.from('disclosure_insights').select('*').eq('stock_code', ticker).order('created_at', { ascending: false });
-        if (data) setStockInsights(data);
-      } catch (err) { console.error(err); } finally { setLoading(false); }
+      const { data } = await supabase.from('disclosure_insights').select('*').eq('stock_code', ticker).order('created_at', { ascending: false });
+      if (data) setStockInsights(data);
+      setLoading(false);
     };
     fetchDetail();
   }, [ticker]);
 
-  if (loading) return <div className="text-white p-10 flex justify-center bg-[#0f172a] min-h-screen"><Loader2 className="animate-spin mr-2" /> Loading...</div>;
+  if (loading) return <div className="min-h-screen bg-[#060b18] flex items-center justify-center text-white"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 text-white min-h-screen">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-400 hover:text-white mb-8 transition-colors"><ArrowLeft size={20} /> Back</button>
-      {stockInsights.map((item) => (
-        <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl mb-6">
-          <h2 className="text-xl font-bold mb-6 text-blue-400">"{item.report_nm}"</h2>
-          <div className="bg-slate-800/30 p-6 rounded-2xl border border-slate-800/50 space-y-4">
-            {item.ai_summary?.split('\n').map((line, idx) => (
-              <div key={idx} className="flex gap-3 text-slate-300 leading-relaxed">
-                <span className="text-blue-500 font-bold">•</span><span>{line}</span>
+    <div className="max-w-4xl mx-auto p-6 min-h-screen text-slate-200">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-white mb-10 transition-all group">
+        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Dashboard
+      </button>
+      
+      <div className="mb-12 border-l-4 border-blue-500 pl-6">
+        <h1 className="text-4xl font-black text-white tracking-tight mb-2">{stockInsights[0]?.corp_name}</h1>
+        <p className="text-slate-500 font-mono tracking-tighter">STOCK_ID: {ticker}</p>
+      </div>
+
+      <div className="space-y-8">
+        {stockInsights.map((item) => (
+          <div key={item.id} className="bg-[#0f172a] border border-slate-800/50 rounded-3xl overflow-hidden shadow-2xl">
+            <div className="p-8 border-b border-slate-800/50 flex justify-between items-center bg-gradient-to-r from-slate-900 to-transparent">
+               <span className="text-blue-400 font-bold text-sm">AI DEEP SUMMARY</span>
+               <span className="text-slate-500 text-xs">{new Date(item.created_at).toLocaleDateString()}</span>
+            </div>
+            <div className="p-8">
+              <h2 className="text-xl font-bold mb-8 text-white leading-snug">"{item.report_nm}"</h2>
+              <div className="space-y-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800/30">
+                {item.ai_summary?.split('\n').filter(l => l.trim()).map((line, i) => (
+                  <div key={i} className="flex gap-4 items-start">
+                    <Zap size={16} className="text-blue-500 mt-1 shrink-0" />
+                    <p className="text-slate-300 leading-relaxed text-sm lg:text-base">{line}</p>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
+// --- 메인 대시보드 (디자인 복구) ---
 function Dashboard() {
   const [insights, setInsights] = useState([]);
   const [indices, setIndices] = useState([]);
@@ -96,44 +114,64 @@ function Dashboard() {
   const navigate = useNavigate();
 
   const fetchData = async () => {
-    try {
-      const { data: ins } = await supabase.from('disclosure_insights').select('*').order('created_at', { ascending: false });
-      const { data: ind } = await supabase.from('market_indices').select('*').order('name', { ascending: true });
-      if (ins) setInsights(ins);
-      if (ind) {
-        const fg = ind.find(i => i.name === 'FEAR_GREED');
-        if (fg) setFgScore(parseInt(fg.current_val));
-        setIndices(ind.filter(i => i.name !== 'FEAR_GREED'));
-      }
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    const { data: ins } = await supabase.from('disclosure_insights').select('*').order('created_at', { ascending: false });
+    const { data: ind } = await supabase.from('market_indices').select('*');
+    if (ins) setInsights(ins);
+    if (ind) {
+      setIndices(ind.filter(i => i.name !== 'FEAR_GREED'));
+      const fg = ind.find(i => i.name === 'FEAR_GREED');
+      if (fg) setFgScore(parseInt(fg.current_val));
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
     fetchData();
-    const channel = supabase.channel('changes').on('postgres_changes', { event: '*', schema: 'public', table: 'market_indices' }, fetchData).subscribe();
-    return () => supabase.removeChannel(channel);
+    const sub = supabase.channel('any').on('postgres_changes', { event: '*', schema: 'public', table: 'disclosure_insights' }, fetchData).subscribe();
+    return () => supabase.removeChannel(sub);
   }, []);
 
-  if (loading) return <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white"><Loader2 className="animate-spin" /></div>;
+  if (loading) return <div className="min-h-screen bg-[#060b18] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" /></div>;
 
   return (
-    <div className="relative">
-      {/* 지수바 높이 조절: py-4 -> py-2 */}
-      <div className="sticky top-[64px] z-40 bg-[#0f172a]/95 backdrop-blur-md border-b border-slate-800/50 py-2">
+    <div>
+      {/* 슬림 지수바 */}
+      <div className="sticky top-[64px] z-40 bg-[#060b18]/80 backdrop-blur-xl border-b border-white/5 py-2">
         <div className="max-w-7xl mx-auto px-6 flex justify-between items-center gap-4">
-          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide flex-grow">
-            {indices.map(idx => <DynamicStatCard key={idx.name} {...idx} />)}
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide flex-grow">
+            {indices.map(idx => <DynamicStatCard key={idx.name} title={idx.name} value={idx.current_val} history={idx.history} />)}
           </div>
           <FearGreedGauge score={fgScore} />
         </div>
       </div>
-      <main className="max-w-7xl mx-auto p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {insights.map(item => (
-          <div key={item.id} onClick={() => navigate(`/stock/${item.stock_code}`)} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl hover:border-blue-500/50 transition cursor-pointer">
-            <h4 className="font-bold text-lg text-white mb-1">{item.corp_name}</h4>
-            <p className="text-slate-400 text-xs line-clamp-2">{item.report_nm}</p>
-          </div>
-        ))}
+
+      <main className="max-w-7xl mx-auto p-6 mt-8">
+        <div className="flex items-center gap-3 mb-10">
+            <div className="h-1 w-12 bg-blue-600 rounded-full"></div>
+            <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">While you were sleeping</h2>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {insights.map(item => (
+            <div 
+              key={item.id} 
+              onClick={() => navigate(`/stock/${item.stock_code}`)}
+              className="group relative bg-[#0f172a] border border-slate-800/50 p-6 rounded-3xl hover:bg-slate-800/40 hover:border-blue-500/30 transition-all cursor-pointer shadow-xl"
+            >
+              <div className={`absolute top-0 left-0 w-full h-1 rounded-t-3xl ${item.sentiment === 'POSITIVE' ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-[10px] font-black text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded uppercase tracking-widest">{item.sentiment} ANALYSIS</span>
+                <span className="text-slate-600 text-[10px]">{new Date(item.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+              </div>
+              <h4 className="font-bold text-lg text-white mb-2 group-hover:text-blue-400 transition-colors">{item.corp_name}</h4>
+              <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">{item.report_nm}</p>
+              <div className="mt-6 pt-4 border-t border-slate-800/50 flex justify-between items-center">
+                <span className="text-slate-700 text-[10px] font-mono">#{item.stock_code}</span>
+                <ChevronRight size={16} className="text-slate-700 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+              </div>
+            </div>
+          ))}
+        </div>
       </main>
     </div>
   );
@@ -142,10 +180,16 @@ function Dashboard() {
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-[#0f172a]">
-        <nav className="h-[64px] sticky top-0 z-50 bg-[#0f172a] border-b border-slate-800 px-6 flex justify-between items-center">
-          <Link to="/" className="flex items-center gap-2"><Globe className="text-blue-500" /><span className="text-xl font-black text-white uppercase tracking-tighter">K-Market Insight</span></Link>
-          <div className="bg-blue-600/10 text-blue-500 px-3 py-1 rounded-full text-[10px] font-bold border border-blue-500/20">LIVE</div>
+      <div className="min-h-screen bg-[#060b18]">
+        <nav className="h-[64px] sticky top-0 z-50 bg-[#060b18] border-b border-white/5 px-8 flex justify-between items-center">
+          <Link to="/" className="flex items-center gap-3">
+            <div className="bg-blue-600 p-1.5 rounded-lg"><Globe size={20} className="text-white" /></div>
+            <span className="text-xl font-black text-white tracking-tighter uppercase">K-Market <span className="text-blue-500">Insight</span></span>
+          </Link>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+            <span className="text-[10px] font-black text-emerald-500 tracking-widest uppercase">Live Alpha</span>
+          </div>
         </nav>
         <Routes><Route path="/" element={<Dashboard />} /><Route path="/stock/:ticker" element={<StockDetailPage />} /></Routes>
       </div>
