@@ -5,8 +5,9 @@ import { LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell } from 'recha
 import { supabase } from './supabaseClient';
 
 // --- [개선] 공포와 탐욕 게이지 (눈금 및 라벨 추가) ---
-// App.js 내 FearGreedGauge 컴포넌트를 아래 코드로 교체하세요.
-const FearGreedGauge = ({ score = 50 }) => {
+// App.js 내 FearGreedGauge 컴포넌트 부분을 아래 코드로 교체하세요.
+
+const FearGreedGauge = ({ score = 48 }) => { // 기본값을 요청하신 47~48 부근으로 설정
   const data = [
     { value: 25, color: '#ef4444' }, // Extreme Fear
     { value: 25, color: '#f97316' }, // Fear
@@ -15,20 +16,22 @@ const FearGreedGauge = ({ score = 50 }) => {
   ];
 
   const RADIAN = Math.PI / 180;
-  // cx, cy는 게이지의 중심축 좌표입니다.
+  // cx, cy: 게이지의 중심축 (회전 포인트)
+  // iR, oR: 안쪽 반지름과 바깥쪽 반지름
   const cx = 100, cy = 100, iR = 50, oR = 80;
 
   const needle = (value) => {
-    // 0~100 사이의 수치를 180도(왼쪽)에서 0도(오른쪽) 사이의 각도로 변환합니다.
+    // 0~100 수치를 180도~0도 사이의 각도로 변환
+    // 50일 때 수직(90도), 48일 때 왼쪽으로 살짝 기움
     const ang = 180.0 * (1 - value / 100);
-    const length = (iR + oR) / 2 + 10; // 바늘의 길이
+    const length = (iR + oR) / 2 + 10; // 바늘 길이
     const sin = Math.sin(-RADIAN * ang);
     const cos = Math.cos(-RADIAN * ang);
     
     return [
-      // 바늘이 회전하는 고정 축 (흰색 작은 원)
+      // 바늘 고정 축 (중심점)
       <circle key="c" cx={cx} cy={cy} r={5} fill="#fff" stroke="#0f172a" strokeWidth={2} />,
-      // 수치를 가리키는 실제 바늘 (삼각형 형태)
+      // 바늘 본체 (삼각형)
       <path 
         key="p" 
         d={`M${cx - 2 * sin} ${cy + 2 * cos} L${cx + 2 * sin} ${cy - 2 * cos} L${cx + length * cos} ${cy + length * sin} Z`} 
@@ -38,8 +41,8 @@ const FearGreedGauge = ({ score = 50 }) => {
   };
 
   return (
-    <div className="w-[200px] h-[140px] bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col items-center justify-start pt-4 relative shadow-2xl overflow-hidden">
-      <ResponsiveContainer width="100%" height={110}>
+    <div className="w-[200px] h-[130px] bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col items-center justify-start pt-6 relative shadow-2xl overflow-hidden">
+      <ResponsiveContainer width="100%" height={100}>
         <PieChart>
           <Pie
             dataKey="value"
@@ -56,24 +59,15 @@ const FearGreedGauge = ({ score = 50 }) => {
               <Cell key={index} fill={entry.color} />
             ))}
           </Pie>
+          {/* 바늘이 50(중심)에서 왼쪽으로 살짝 기운 위치를 가리킴 */}
           {needle(score)}
         </PieChart>
       </ResponsiveContainer>
       
-      {/* 바늘과 겹치던 50 숫자를 제거하고 하단에 상태 텍스트만 표시 */}
-      <div className="flex flex-col items-center -mt-2">
-        <span className="text-white text-xl font-black tracking-tighter">{score}</span>
-        <div className="flex gap-14 text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">
-          <span>FEAR</span>
-          <span>GREED</span>
-        </div>
-      </div>
-
-      {/* 0, 50, 100 기준선 표시 (가독성 향상) */}
-      <div className="absolute top-[4.5rem] w-full px-6 flex justify-between text-[8px] font-bold text-slate-600">
-        <span className="transform -translate-x-1">0</span>
-        <span className="transform -translate-y-4">50</span>
-        <span className="transform translate-x-1">100</span>
+      {/* 숫자를 모두 제거하고 영문 라벨만 남김 */}
+      <div className="flex gap-14 text-[10px] font-black text-slate-500 uppercase tracking-widest mt-2">
+        <span className="text-rose-600/80">FEAR</span>
+        <span className="text-emerald-600/80">GREED</span>
       </div>
     </div>
   );
