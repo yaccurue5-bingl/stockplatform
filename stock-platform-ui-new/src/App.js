@@ -51,7 +51,7 @@ const FearGreedGauge = ({ score = 50 }) => {
       </div>
     </div>
   );
-};s
+};
 
 // --- [개선] 지수 카드 (상승/하락 색상 스파크라인) ---
 const DynamicStatCard = ({ title, value, history }) => {
