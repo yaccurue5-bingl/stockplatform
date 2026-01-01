@@ -1,36 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, useParams, useNavigate } from 'react-router-dom';
 import { Globe, ChevronRight, MessageSquare, Loader2, ArrowLeft, Zap } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { supabase } from './supabaseClient';
 
 // --- [개선] 공포와 탐욕 게이지 (눈금 및 라벨 추가) ---
-// App.js 내 FearGreedGauge 컴포넌트 교체
 const FearGreedGauge = ({ score = 50 }) => {
   const data = [
-    { value: 25, name: '공포', color: '#ef4444' },
-    { value: 25, name: '주의', color: '#f97316' },
-    { value: 25, name: '탐욕', color: '#eab308' },
-    { value: 25, name: '열광', color: '#22c55e' }
+    { value: 25, color: '#ef4444' }, // 극도의 공포
+    { value: 25, color: '#f97316' }, // 공포
+    { value: 25, color: '#eab308' }, // 탐욕
+    { value: 25, color: '#22c55e' }  // 극도의 탐욕
   ];
 
   const RADIAN = Math.PI / 180;
-  // 바늘의 중심축과 크기 조정
-  const cx = 100, cy = 90, iR = 50, oR = 80;
+  const cx = 100, cy = 100, iR = 55, oR = 85;
 
   const needle = (value) => {
     const ang = 180.0 * (1 - value / 100);
-    const length = (iR + oR) / 2 + 10;
+    const length = (iR + oR) / 2 + 15;
     const sin = Math.sin(-RADIAN * ang), cos = Math.cos(-RADIAN * ang);
     return [
-      <circle key="c" cx={cx} cy={cy} r={6} fill="#fff" stroke="#0f172a" strokeWidth={2} />,
-      <path key="p" d={`M${cx - 3 * sin} ${cy + 3 * cos}L${cx + 3 * sin} ${cy - 3 * cos}L${cx + length * cos} ${cy + length * sin}Z`} fill="#fff" />
+      <circle key="c" cx={cx} cy={cy} r={8} fill="#fff" stroke="#060b18" strokeWidth={3} />,
+      <path key="p" d={`M${cx - 4 * sin} ${cy + 4 * cos}L${cx + 4 * sin} ${cy - 4 * cos}L${cx + length * cos} ${cy + length * sin}Z`} fill="#fff" />
     ];
   };
 
   return (
-    <div className="w-[200px] h-[140px] bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col items-center justify-center relative shadow-2xl">
-      <ResponsiveContainer width="100%" height={110}>
+    <div className="w-[220px] h-[150px] bg-slate-900/95 rounded-3xl border border-slate-800 flex flex-col items-center justify-center relative shadow-2xl overflow-hidden">
+      <ResponsiveContainer width="100%" height={120}>
         <PieChart>
           <Pie dataKey="value" startAngle={180} endAngle={0} data={data} cx={cx} cy={cy} innerRadius={iR} outerRadius={oR} stroke="none">
             {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
@@ -39,15 +37,20 @@ const FearGreedGauge = ({ score = 50 }) => {
         </PieChart>
       </ResponsiveContainer>
       
-      {/* 게이지 내부 하단 숫자 표시 */}
-      <div className="absolute bottom-6 flex flex-col items-center">
-        <span className="text-2xl font-black text-white leading-none">{score}</span>
+      {/* 게이지 내부 숫자 및 텍스트 라벨 */}
+      <div className="absolute bottom-4 flex flex-col items-center">
+        <span className="text-3xl font-black text-white leading-none mb-1">{score}</span>
+        <div className="flex gap-12 text-[10px] font-black tracking-widest text-slate-500 uppercase">
+          <span>Fear</span>
+          <span>Greed</span>
+        </div>
       </div>
-
-      {/* 좌우 라벨 강화 */}
-      <div className="flex justify-between w-full px-5 pb-2 text-[10px] font-black tracking-tighter uppercase">
-        <span className="text-rose-500">FEAR</span>
-        <span className="text-emerald-500">GREED</span>
+      
+      {/* 20단위 눈금 가이드 (옵션) */}
+      <div className="absolute top-14 w-full flex justify-between px-6 text-[8px] font-bold text-slate-600">
+        <span>0</span>
+        <span className="ml-4">50</span>
+        <span>100</span>
       </div>
     </div>
   );
