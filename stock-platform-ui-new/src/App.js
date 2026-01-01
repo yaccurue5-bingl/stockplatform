@@ -5,29 +5,32 @@ import { LineChart, Line, ResponsiveContainer, PieChart, Pie, Cell } from 'recha
 import { supabase } from './supabaseClient';
 
 // --- [개선] 공포와 탐욕 게이지 (눈금 및 라벨 추가) ---
+// App.js 내 FearGreedGauge 컴포넌트 교체
 const FearGreedGauge = ({ score = 50 }) => {
   const data = [
-    { value: 25, name: 'Ext. Fear', color: '#ef4444' },
-    { value: 25, name: 'Fear', color: '#f97316' },
-    { value: 25, name: 'Greed', color: '#eab308' },
-    { value: 25, name: 'Ext. Greed', color: '#22c55e' }
+    { value: 25, name: '공포', color: '#ef4444' },
+    { value: 25, name: '주의', color: '#f97316' },
+    { value: 25, name: '탐욕', color: '#eab308' },
+    { value: 25, name: '열광', color: '#22c55e' }
   ];
+
   const RADIAN = Math.PI / 180;
-  const cx = 60, cy = 45, iR = 25, oR = 40;
+  // 바늘의 중심축과 크기 조정
+  const cx = 100, cy = 90, iR = 50, oR = 80;
 
   const needle = (value) => {
     const ang = 180.0 * (1 - value / 100);
-    const length = (iR + oR) / 2;
+    const length = (iR + oR) / 2 + 10;
     const sin = Math.sin(-RADIAN * ang), cos = Math.cos(-RADIAN * ang);
     return [
-      <circle key="c" cx={cx} cy={cy} r={3} fill="#fff" />,
-      <path key="p" d={`M${cx-2*sin} ${cy+2*cos}L${cx+2*sin} ${cy-2*cos}L${cx+length*cos} ${cy+length*sin}Z`} fill="#fff" />
+      <circle key="c" cx={cx} cy={cy} r={6} fill="#fff" stroke="#0f172a" strokeWidth={2} />,
+      <path key="p" d={`M${cx - 3 * sin} ${cy + 3 * cos}L${cx + 3 * sin} ${cy - 3 * cos}L${cx + length * cos} ${cy + length * sin}Z`} fill="#fff" />
     ];
   };
 
   return (
-    <div className="w-[125px] h-[75px] bg-slate-900/80 rounded-xl border border-slate-800 flex flex-col items-center justify-center relative shadow-inner">
-      <ResponsiveContainer width="100%" height={55}>
+    <div className="w-[200px] h-[140px] bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col items-center justify-center relative shadow-2xl">
+      <ResponsiveContainer width="100%" height={110}>
         <PieChart>
           <Pie dataKey="value" startAngle={180} endAngle={0} data={data} cx={cx} cy={cy} innerRadius={iR} outerRadius={oR} stroke="none">
             {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
@@ -35,15 +38,20 @@ const FearGreedGauge = ({ score = 50 }) => {
           {needle(score)}
         </PieChart>
       </ResponsiveContainer>
-      {/* 게이지 하단 라벨 (20, 50, 80 표시) */}
-      <div className="flex justify-between w-full px-4 -mt-2.5 text-[7px] font-bold text-slate-500 uppercase tracking-tighter">
-        <span>FEAR</span>
-        <span className="text-white font-black text-[10px]">{score}</span>
-        <span>GREED</span>
+      
+      {/* 게이지 내부 하단 숫자 표시 */}
+      <div className="absolute bottom-6 flex flex-col items-center">
+        <span className="text-2xl font-black text-white leading-none">{score}</span>
+      </div>
+
+      {/* 좌우 라벨 강화 */}
+      <div className="flex justify-between w-full px-5 pb-2 text-[10px] font-black tracking-tighter uppercase">
+        <span className="text-rose-500">FEAR</span>
+        <span className="text-emerald-500">GREED</span>
       </div>
     </div>
   );
-};
+};s
 
 // --- [개선] 지수 카드 (상승/하락 색상 스파크라인) ---
 const DynamicStatCard = ({ title, value, history }) => {
