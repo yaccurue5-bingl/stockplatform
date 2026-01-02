@@ -55,7 +55,13 @@ serve(async (req) => {
     // B. DART 공시 분석 로직
     const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
     const listUrl = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
-    const listRes = await fetch(listUrl);
+    const listRes = await fetch(listUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': '*/*',
+        'User-Agent': 'Mozilla/5.0' // 서버가 봇으로 인식해 차단하는 것을 방지
+      }
+    });
     const listData = await listRes.json();
 
     if (listData.status !== '000') throw new Error(listData.message);
