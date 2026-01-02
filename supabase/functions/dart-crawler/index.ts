@@ -16,22 +16,29 @@ async function updateMarketIndices() {
     { name: 'NASDAQ', url: 'https://finance.naver.com/world/sise.naver?symbol=NAS@IXIC' }
   ];
 
+  console.log("📊 지수 업데이트 프로세스 시작...");
+
   for (const target of targets) {
     try {
-      const res = await fetch(target.url);
+      const res = await fetch(target.url, {
+        headers: { "User-Agent": "Mozilla/5.0" }
+      });
       const html = await res.text();
-      // 네이버 금융 페이지에서 지수 값 추출을 위한 정규식
-      const match = html.match(/now_value">([^<]+)</) || html.match(/last_value">([^<]+)</);
+      
+      // 다양한 네이버 금융 페이지 구조에 대응하는 정규식
+      const match = html.match(/now_value">([^<]+)</) || 
+                    html.match(/last_value">([^<]+)</) ||
+                    html.match(/id="now_value">([^<]+)</);
       
       if (match) {
         const currentVal = match[1].replace(/,/g, '');
+        console.log(`✅ ${target.name}: ${currentVal}`);
         
-        // 히스토리 관리를 위해 기존 데이터 호출
         const { data: existing } = await supabase.from('market_indices').select('history').eq('name', target.name).single();
         let history = existing?.history ? (typeof existing.history === 'string' ? JSON.parse(existing.history) : existing.history) : [];
         
         history.push(parseFloat(currentVal));
-        if (history.length > 20) history.shift(); // 최근 20개 유지
+        if (history.length > 20) history.shift();
 
         await supabase.from('market_indices').upsert({
           name: target.name,
@@ -39,9 +46,11 @@ async function updateMarketIndices() {
           history: JSON.stringify(history),
           updated_at: new Date().toISOString()
         });
+      } else {
+        console.warn(`⚠️ ${target.name} 값을 찾을 수 없습니다.`);
       }
     } catch (e) {
-      console.error(`${target.name} 크롤링 실패:`, e);
+      console.error(`❌ ${target.name} 크롤링 실패:`, e.message);
     }
   }
 }
@@ -49,27 +58,45 @@ async function updateMarketIndices() {
 // --- 2. 메인 실행 로직 ---
 serve(async (req) => {
   try {
-    // A. 지수 업데이트 실행
+    // [STEP A] 지수 업데이트 (DART 결과와 상관없이 무조건 실행)
     await updateMarketIndices();
 
-    // B. DART 공시 분석 로직
+    // [STEP B] DART 공시 분석 로직
+    console.log("🔍 DART 공시 분석 시작...");
     const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
     const listUrl = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
+    
     const listRes = await fetch(listUrl, {
       method: 'GET',
       headers: {
-        'Accept': '*/*',
-        'User-Agent': 'Mozilla/5.0' // 서버가 봇으로 인식해 차단하는 것을 방지
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0'
       }
     });
+    
     const listData = await listRes.json();
 
-    if (listData.status !== '000') throw new Error(listData.message);
+    // 데이터가 없는 경우(013) 정상 종료 처리
+    if (listData.status === '013') {
+      console.log("ℹ️ 오늘은 공시 데이터가 없습니다. (주말 또는 휴일)");
+      return new Response("Indices Updated, No Disclosures Today", { status: 200 });
+    }
 
+    if (listData.status !== '000') {
+      console.error(`DART API 오류: ${listData.message}`);
+      return new Response(`DART API Error: ${listData.message}`, { status: 200 }); // 지수는 업데이트했으므로 200 반환
+    }
+
+    // 공시 필터링 및 AI 분석 로직
     const IMPORTANT_KEYWORDS = ['공급계약', '유상증자', '무상증자', '실적발표', '단일판매', '인수', '합병'];
     const filteredList = listData.list.filter((item: any) => 
       IMPORTANT_KEYWORDS.some(kw => item.report_nm.includes(kw))
     );
+
+    if (filteredList.length === 0) {
+      console.log("ℹ️ 분석할 중요 공시가 없습니다.");
+      return new Response("Indices Updated, No Important Disclosures", { status: 200 });
+    }
 
     const grouped = filteredList.reduce((acc: any, cur: any) => {
       acc[cur.stock_code] = acc[cur.stock_code] || [];
@@ -90,7 +117,7 @@ serve(async (req) => {
         const docUrl = `https://opendart.fss.or.kr/api/document.xml?crtfc_key=${DART_API_KEY}&rcept_no=${r.rcept_no}`;
         const docRes = await fetch(docUrl);
         const docXml = await docRes.text();
-        const cleanText = docXml.replace(/<[^>]*>?/gm, '').substring(0, 1500); // 1500자로 요약하여 토큰 절약
+        const cleanText = docXml.replace(/<[^>]*>?/gm, '').substring(0, 1500);
         combinedText += `\n[제목: ${r.report_nm}]\n${cleanText}\n`;
       }
 
@@ -115,16 +142,17 @@ serve(async (req) => {
         stock_code: stockCode,
         report_nm: reports.length > 1 ? `${reports[0].report_nm} 외 ${reports.length-1}건` : reports[0].report_nm,
         ai_summary: insight.summary?.join('\n') || '',
-        sentiment: insight.sentiment_score > 0.1 ? 'POSITIVE' : 'NEUTRAL',
+        sentiment: insight.sentiment_score > 0.1 ? 'POSITIVE' : (insight.sentiment_score < -0.1 ? 'NEGATIVE' : 'NEUTRAL'),
         rcept_no: repRceptNo,
         created_at: new Date().toISOString()
       });
       
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Rate Limit 방지용 지연
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     return new Response("Success: Indices and Disclosures Updated", { status: 200 });
   } catch (err) {
+    console.error("Critical Error:", err.message);
     return new Response(err.message, { status: 500 });
   }
 });
