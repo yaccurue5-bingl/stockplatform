@@ -4,7 +4,7 @@ import { Globe, ChevronRight, Loader2, ArrowLeft } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { supabase } from './supabaseClient';
 
-// --- [개선] 지수 카드 (높이를 대폭 줄인 초슬림 버전) ---
+// App.js 내 DynamicStatCard 컴포넌트 수정
 const DynamicStatCard = ({ title, value, history }) => {
   const chartData = history ? (typeof history === 'string' ? JSON.parse(history) : history).map(v => ({ val: v })) : [];
   
@@ -24,7 +24,15 @@ const DynamicStatCard = ({ title, value, history }) => {
       <div className="h-4 w-10">
         <ResponsiveContainer>
           <LineChart data={chartData.slice(-10)}>
-            <Line type="monotone" dataKey="val" stroke={strokeColor} strokeWidth={1.5} dot={false} />
+            {/* dot={false}와 더불어 activeDot={false}를 추가하여 마우스 오버 시 점을 완전히 제거합니다. */}
+            <Line 
+              type="monotone" 
+              dataKey="val" 
+              stroke={strokeColor} 
+              strokeWidth={1.5} 
+              dot={false} 
+              activeDot={false} 
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
