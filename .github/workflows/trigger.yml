@@ -1,14 +1,20 @@
 name: Supabase Function Trigger
+
 on:
   schedule:
-    - cron: '*/15 * * * *' # 15분마다
-  workflow_dispatch: # 수동 실행 가능
+    # 한국 시간(KST) 기준 평일(월-금) 07:30 ~ 19:30 실행
+    # UTC 기준으로는 평일 22:30(전날) ~ 10:30 입니다.
+    - cron: '30,45 22 * * 0-4'     # 07:30, 07:45 (KST)
+    - cron: '*/15 23 * * 0-4'      # 08:00 ~ 08:45 (KST)
+    - cron: '*/15 0-9 * * 1-5'     # 09:00 ~ 18:45 (KST)
+    - cron: '0,15,30 10 * * 1-5'   # 19:00, 19:15, 19:30 (KST)
+  workflow_dispatch: # 필요할 때 언제든 수동 실행 가능
 
 jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
-      - name: Call Edge Function
+      - name: Call Supabase Edge Function
         run: |
           curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
