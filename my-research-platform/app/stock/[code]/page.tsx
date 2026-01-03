@@ -3,23 +3,35 @@ import { DisclosureInsight, Company } from '@/types/database';
 import StockSentiment from '@/components/StockSentiment';
 import { Metadata } from 'next';
 
-// 1. 동적 메타 태그 설정 (SEO 최적화) 
-export async function generateMetadata({ params }: { params: { code: string } }): Promise<Metadata> {
+// 1. 동적 메타 태그 설정 (Next.js 15 비동기 params 대응) 
+export async function generateMetadata({ 
+  params 
+}: { 
+  params: Promise<{ code: string }> 
+}): Promise<Metadata> {
+  // params를 await로 먼저 받아와야 합니다.
+  const { code } = await params;
+
   const { data } = await supabase
     .from('disclosure_insights')
     .select('corp_name')
-    .eq('stock_code', params.code)
+    .eq('stock_code', code)
     .single();
 
   return {
-    title: `${data?.corp_name || params.code} AI 공시 분석 및 기업 정보`,
-    description: `${data?.corp_name}의 최신 공시 AI 요약과 시가총액, 업종 등 핵심 기업 정보를 확인하세요.`,
+    title: `${data?.corp_name || code} AI 공시 분석 및 기업 정보`,
+    description: `${data?.corp_name || '해당 종목'}의 최신 공시 AI 요약과 시가총액, 업종 등 핵심 기업 정보를 확인하세요.`,
   };
 }
 
-// 2. 종목 상세 페이지 메인 컴포넌트 (서버 컴포넌트)
-export default async function StockPage({ params }: { params: { code: string } }) {
-  const { code } = params;
+// 2. 종목 상세 페이지 메인 컴포넌트 (Next.js 15 비동기 params 대응)
+export default async function StockPage({ 
+  params 
+}: { 
+  params: Promise<{ code: string }> 
+}) {
+  // 컴포넌트 내부에서도 params를 await로 처리합니다.
+  const { code } = await params;
 
   // 병렬 데이터 페칭: 공시 분석 정보와 기업 정보를 동시에 가져와 성능을 높임
   const [insightRes, companyRes] = await Promise.all([
@@ -35,14 +47,14 @@ export default async function StockPage({ params }: { params: { code: string } }
     return (
       <div className="max-w-4xl mx-auto p-10 text-center">
         <h1 className="text-2xl font-bold text-gray-800">데이터를 찾을 수 없습니다.</h1>
-        <p className="mt-2 text-gray-500">해당 종목의 분석 데이터가 아직 생성되지 않았습니다.</p>
+        <p className="mt-2 text-gray-500">해당 종목({code})의 분석 데이터가 아직 생성되지 않았습니다.</p>
       </div>
     );
   }
 
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-10">
-      {/* [Step 3 반영] 기업 기본 정보 섹션: 검색 로봇이 읽기 좋은 텍스트 구조 */}
+      {/* 기업 기본 정보 섹션: 검색 로봇이 읽기 좋은 텍스트 구조 */}
       <section className="mb-10 border-b pb-8">
         <div className="flex items-baseline gap-3">
           <h1 className="text-4xl font-extrabold text-gray-900">{insight.corp_name}</h1>
@@ -86,7 +98,6 @@ export default async function StockPage({ params }: { params: { code: string } }
           <h3 className="text-lg font-bold text-gray-700 mb-4 pb-2 border-b">
             최신 공시: {insight.report_nm}
           </h3>
-          {/* AI가 생성한 요약 텍스트가 HTML에 직접 박혀 검색 로봇이 인덱싱함 [cite: 21] */}
           <div className="prose max-w-none text-gray-800 leading-relaxed">
             <p className="whitespace-pre-wrap">{insight.ai_summary}</p>
           </div>
