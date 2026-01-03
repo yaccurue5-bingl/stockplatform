@@ -3,10 +3,10 @@ name: Supabase Function Trigger
 on:
   schedule:
     # 한국 시간(KST) 기준 평일(월-금) 07:30 ~ 19:30 실행
-    - cron: '30,45 22 * * 0-4'     # 07:30, 07:45 (KST)
-    - cron: '*/15 23 * * 0-4'      # 08:00 ~ 08:45 (KST)
-    - cron: '*/15 0-9 * * 1-5'     # 09:00 ~ 18:45 (KST)
-    - cron: '0,15,30 10 * * 1-5'   # 19:00, 19:15, 19:30 (KST)
+    - cron: '30,45 22 * * 0-4'
+    - cron: '*/15 23 * * 0-4'
+    - cron: '*/15 0-9 * * 1-5'
+    - cron: '0,15,30 10 * * 1-5'
   workflow_dispatch: # 수동 실행 기능
 
 jobs:
@@ -21,19 +21,19 @@ jobs:
         with:
           node-version: '18'
 
-      # Next.js 빌드를 위해 폴더 이동 후 설치
+      # 1. 패키지 설치 단계 (에러 발생 지점 수정)
       - name: Install dependencies
         run: |
           cd stock-platform-ui-new
           npm install
 
-      # 빌드 테스트 (Next.js 에러 확인용)
+      # 2. Next.js 빌드 단계 (next 명령어를 찾을 수 있게 함)
       - name: Build Next.js
         run: |
           cd stock-platform-ui-new
           npm run build
 
-      # 기존 Supabase Edge Function 호출
+      # 3. 기존 Supabase Edge Function 호출
       - name: Call Supabase Edge Function
         run: |
           curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
