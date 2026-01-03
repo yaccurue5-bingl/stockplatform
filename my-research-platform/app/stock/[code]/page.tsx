@@ -109,3 +109,8 @@ export default async function StockPage({
     </div>
   );
 }
+// app/stock/[code]/page.tsx 맨 아래 추가
+export async function generateStaticParams() {
+  // 테스트용으로 삼성전자(005930) 페이지 하나만 미리 생성하도록 설정
+  return [{ code: '005930' }];
+}
