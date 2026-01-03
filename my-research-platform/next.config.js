@@ -1,7 +1,7 @@
+// next.config.mjs
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 프로젝트 루트를 기준으로 app 폴더가 있는 위치를 명시적으로 지정
-  distDir: '.next',
+  output: 'export', // 정적 배포 설정
+  trailingSlash: true, // 주소 끝에 /를 붙여 404 방지
 };
-
-module.exports = nextConfig;
+export default nextConfig;
