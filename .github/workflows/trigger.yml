@@ -24,15 +24,15 @@ jobs:
       # 1. 패키지 설치 단계 (에러 발생 지점 수정)
       - name: Install dependencies
         run: |
-          cd stock-platform-ui-new
           npm install
+        working-directory: ./my-research-platform
 
       # 2. Next.js 빌드 단계 (next 명령어를 찾을 수 있게 함)
       - name: Build Next.js
         run: |
-          cd stock-platform-ui-new
           npm run build
-
+        working-directory: ./my-research-platform
+        
       # 3. 기존 Supabase Edge Function 호출
       - name: Call Supabase Edge Function
         run: |
