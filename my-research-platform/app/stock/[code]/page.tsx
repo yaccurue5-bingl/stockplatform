@@ -1,6 +1,7 @@
-import { supabase } from '@/lib/supabase';
-import { DisclosureInsight, Company } from '@/types/database';
-import StockSentiment from '@/components/StockSentiment';
+// 기존 경로를 아래와 같이 수정하세요
+import { supabase } from '../../../lib/supabase';
+import { DisclosureInsight, Company } from '../../../types/database';
+import StockSentiment from '../../../components/StockSentiment';
 import { Metadata } from 'next';
 
 // 1. 동적 메타 태그 설정 (Next.js 15 비동기 params 대응) 
@@ -11,7 +12,6 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   // params를 await로 먼저 받아와야 합니다.
   const { code } = await params;
-
   const { data } = await supabase
     .from('disclosure_insights')
     .select('corp_name')
@@ -108,9 +108,4 @@ export default async function StockPage({
       </section>
     </div>
   );
-}
-// app/stock/[code]/page.tsx 맨 아래 추가
-export async function generateStaticParams() {
-  // 테스트용으로 삼성전자(005930) 페이지 하나만 미리 생성하도록 설정
-  return [{ code: '005930' }];
 }
