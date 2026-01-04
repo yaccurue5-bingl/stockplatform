@@ -8,7 +8,7 @@ export const revalidate = 0;
 export default async function Home() {
   // 2. Supabase에서 company 테이블의 모든 데이터를 가져옵니다.
   const { data: companies, error } = await supabase
-    .from('company')
+    .from('companies')
     .select('*');
 
   if (error) {
