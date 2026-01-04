@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2017",
     "lib": [
       "dom",
@@ -15,7 +16,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "incremental": true,
     "plugins": [
       {
@@ -32,6 +33,10 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    "app/**/*",
+    "lib/**/*",
+    "components/**/*",
+    "types/**/*",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
