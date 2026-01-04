@@ -1,6 +1,6 @@
 import Image from "next/image";
 // 1. 아까 확인한 lib/supabase.ts 파일을 불러옵니다. (경로가 다르면 수정하세요)
-import { supabase } from "@/lib/supabase"; 
+import { supabase } from "../lib/supabase"; 
 
 // 이 설정을 추가하면 Vercel 캐시를 무시하고 페이지를 열 때마다 새 데이터를 가져옵니다.
 export const revalidate = 0;
