@@ -64,7 +64,7 @@ serve(async (req: Request) => {
     // [STEP B] DART 공시 분석 로직
     console.log("🔍 DART 공시 분석 시작...");
     const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const listUrl = `http://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
+    const listUrl = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
     
     const listRes = await fetch(listUrl, {
       method: 'GET',
