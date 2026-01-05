@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  run_all_processes: # 작업 이름을 명확히 변경
+  deploy_and_trigger:
     runs-on: ubuntu-latest
     
     env:
@@ -33,7 +33,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 1. 빌드 단계 (환경 변수 주입 확인)
+      # 1. 의존성 설치 및 빌드
       - name: Install and Build
         run: |
           echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env.local
@@ -42,7 +42,7 @@ jobs:
           npm run build
         working-directory: ./my-research-platform
 
-      # 2. 강제 배포 (이 단계가 로그에 나타나야 합니다)
+      # 2. Edge Function 강제 배포 (최신 코드 반영)
       - name: Deploy Edge Function
         run: |
           npx supabase functions deploy dart-crawler --project-ref rxcwqsolfrjhomeusyza
@@ -56,10 +56,10 @@ jobs:
           python ../scripts/init_companies.py
         working-directory: ./my-research-platform
 
-      # 4. 최종 호출
+      # 4. 표준 HTTPS 호출 (보안 검사 수행)
       - name: Call Supabase Edge Function
         run: |
-          curl -i -X POST "http://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
+          curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json" \
           -d '{}'
