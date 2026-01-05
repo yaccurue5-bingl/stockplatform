@@ -42,3 +42,9 @@ jobs:
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json" \
           -d '{}'
+          run: |
+          # 1. 지수 데이터 먼저 업데이트 (상단 대시보드용)
+          python scripts/update_indices.py
+          
+          # 2. 기초 기업 데이터 업데이트
+          python scripts/init_companies.py
