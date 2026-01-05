@@ -25,9 +25,9 @@ serve(async (req: any) => {
     
     // 3. DART API 호출 (보안 검사 통과를 위한 전략 적용)
     // HTTPS Handshake 에러가 지속되면 아래 URL을 http://로 변경하여 테스트 가능합니다.
-    //const dartUrl = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
-// index.ts 주소를 잠시 http로 바꿔서 배포해 보세요.
-    const dartUrl = `http://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}...`;
+    const dartUrl = `http://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
+
+    
     console.log(`🚀 DART 요청 시작: ${dartUrl}`);
 
     const dartResponse = await fetch(dartUrl, {
