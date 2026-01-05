@@ -49,14 +49,14 @@ async function updateMarketIndices() {
       } else {
         console.warn(`⚠️ ${target.name} 값을 찾을 수 없습니다.`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(`❌ ${target.name} 크롤링 실패:`, e.message);
     }
   }
 }
 
 // --- 2. 메인 실행 로직 ---
-serve(async (req) => {
+serve(async (req: Request) => {
   try {
     // [STEP A] 지수 업데이트 (DART 결과와 상관없이 무조건 실행)
     await updateMarketIndices();
@@ -64,7 +64,7 @@ serve(async (req) => {
     // [STEP B] DART 공시 분석 로직
     console.log("🔍 DART 공시 분석 시작...");
     const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const listUrl = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
+    const listUrl = `http://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
     
     const listRes = await fetch(listUrl, {
       method: 'GET',
@@ -114,7 +114,7 @@ serve(async (req) => {
 
       let combinedText = "";
       for (const r of reports) {
-        const docUrl = `https://opendart.fss.or.kr/api/document.xml?crtfc_key=${DART_API_KEY}&rcept_no=${r.rcept_no}`;
+        const docUrl = `http://opendart.fss.or.kr/api/document.xml?crtfc_key=${DART_API_KEY}&rcept_no=${r.rcept_no}`;
         const docRes = await fetch(docUrl);
         const docXml = await docRes.text();
         const cleanText = docXml.replace(/<[^>]*>?/gm, '').substring(0, 1500);
@@ -151,7 +151,7 @@ serve(async (req) => {
     }
 
     return new Response("Success: Indices and Disclosures Updated", { status: 200 });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Critical Error:", err.message);
     return new Response(err.message, { status: 500 });
   }
