@@ -12,12 +12,13 @@ jobs:
   trigger_job:
     runs-on: ubuntu-latest
     
-    # [필수] 빌드 시점에 환경 변수가 주입되어야 에러가 발생하지 않습니다.
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # 배포를 위해 추가로 필요한 토큰
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -36,15 +37,20 @@ jobs:
       # 1. 의존성 설치 및 빌드
       - name: Install and Build
         run: |
-          # .env.local 파일 생성
           echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env.local
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> .env.local
-          
           npm install
           npm run build
         working-directory: ./my-research-platform
 
-      # 2. 파이썬 스크립트 실행 (경로 주의)
+      # 2. [추가] 수정된 Edge Function 코드를 Supabase에 강제 배포
+      # 이 단계가 있어야 index.ts의 변경사항(http:// 등)이 실제 서버에 반영됩니다.
+      - name: Deploy Edge Function
+        run: |
+          npx supabase functions deploy dart-crawler --project-ref rxcwqsolfrjhomeusyza
+        working-directory: ./my-research-platform
+
+      # 3. 파이썬 스크립트 실행
       - name: Run Python Scripts
         run: |
           pip install pykrx supabase pandas setuptools
@@ -52,7 +58,8 @@ jobs:
           python ../scripts/init_companies.py
         working-directory: ./my-research-platform
 
-      # 3. 기존 Edge Function 호출
+      # 4. [수정] 인증 헤더를 포함하여 Edge Function 호출
+      # Bearer 뒤에 키가 정확히 전달되어야 401 에러가 발생하지 않습니다.
       - name: Call Supabase Edge Function
         run: |
           curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
