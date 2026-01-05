@@ -2,12 +2,14 @@ name: Supabase Function Trigger
 
 on:
   schedule:
-    # GitHub Actions의 스케줄은 최대 5~10분 정도 지연될 수 있습니다.
-    - cron: "*/15 * * * *" 
+    - cron: "30,45 22 * * 0-4"
+    - cron: "*/15 23 * * 0-4"
+    - cron: "*/15 0-9 * * 1-5"
+    - cron: "30 8 * * 1-5"
   workflow_dispatch:
 
 jobs:
-  run_automation:
+  automation:
     runs-on: ubuntu-latest
     
     steps:
@@ -19,18 +21,23 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      # 1. 지수 업데이트 파이썬 실행
+      - name: Run Market Update
         run: |
-          pip install pykrx supabase pandas requests
-
-      - name: Run Data Sync Script
-        run: |
+          pip install pykrx supabase pandas setuptools
           python scripts/update_indices.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Call Edge Function (Keep Alive)
+      # 2. Edge Function 배포 (경로 에러 해결의 핵심)
+      - name: Deploy Edge Function
+        run: |
+          # my-research-platform 폴더 내부로 들어가서 supabase 명령어를 실행함
+          npx supabase functions deploy dart-crawler --project-ref rxcwqsolfrjhomeusyza
+        working-directory: ./my-research-platform
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      # 3. 배포된 함수 호출
+      - name: Call Function
         run: |
           curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
