@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
 
       # 1. 실제 폴더명인 my-research-platform으로 수정
       - name: Install dependencies
