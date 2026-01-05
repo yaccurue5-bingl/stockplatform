@@ -25,8 +25,9 @@ serve(async (req: any) => {
     
     // 3. DART API 호출 (보안 검사 통과를 위한 전략 적용)
     // HTTPS Handshake 에러가 지속되면 아래 URL을 http://로 변경하여 테스트 가능합니다.
-    const dartUrl = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
-
+    //const dartUrl = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}&bgnde=${today}&endde=${today}&page_count=100`;
+// index.ts 주소를 잠시 http로 바꿔서 배포해 보세요.
+    const dartUrl = `http://opendart.fss.or.kr/api/list.json?crtfc_key=${DART_API_KEY}...`;
     console.log(`🚀 DART 요청 시작: ${dartUrl}`);
 
     const dartResponse = await fetch(dartUrl, {
@@ -55,14 +56,25 @@ serve(async (req: any) => {
       status: 200,
     });
 
-  } catch (error: unknown) {
-    // [중요] TypeScript 에러 문법 오류 해결 부분
-    const errorMessage = error instanceof Error ? error.message : "알 수 없는 에러 발생";
-    console.error("❌ 서버 내부 에러:", errorMessage);
+  } catch (error: any) {
+    // ---------------------------------------------------------
+    // 🔍 [여기에 붙이세요] 에러 상세 로그 출력 부분
+    // ---------------------------------------------------------
+    console.error("======= 🚨 ERROR DETAILS START =======");
+    console.error("메시지:", error.message);
+    console.error("에러 이름:", error.name);
+    console.error("스택 트레이스:", error.stack);
+    
+    // 에러 객체의 모든 속성을 문자열로 변환하여 출력 (가장 중요)
+    console.error("상세 객체:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    console.error("======= 🚨 ERROR DETAILS END   =======");
 
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400, // 에러 발생 시 400번대 반환
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      detail: "Handshake 혹은 네트워크 에러 확인 중" 
+    }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 400,
     });
   }
 });
