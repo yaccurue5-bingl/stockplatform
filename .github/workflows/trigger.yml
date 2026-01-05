@@ -2,14 +2,9 @@ name: Supabase Function Trigger
 
 on:
   schedule:
-    # [공시] 장 시작 전 및 집중 크롤링 (07:30, 07:45, 08:00~08:45)
     - cron: "30,45 22 * * 0-4"
     - cron: "*/15 23 * * 0-4"
-    
-    # [공시] 정규 장 시간 (09:00 ~ 18:00 KST, 15분 간격)
     - cron: "*/15 0-9 * * 1-5"
-    
-    # [기초 데이터] 당일 전 종목 시가총액 최종 업데이트 (17:30 KST)
     - cron: "30 8 * * 1-5"
   workflow_dispatch:
 
@@ -17,7 +12,7 @@ jobs:
   run_automation:
     runs-on: ubuntu-latest
     
-    # 빌드 및 스크립트 실행에 필요한 환경 변수를 전역 설정합니다
+    # 1. 전역 환경 변수 설정 (NEXT_PUBLIC_ 접두사 필수)
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -28,38 +23,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Next.js 15 요구사항인 Node.js 20 버전 설정
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # 파이썬 환경 설정
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      # 의존성 설치 (Node.js 및 Python)
-      - name: Install dependencies
+      # 2. 의존성 설치 및 빌드
+      - name: Install and Build
         run: |
           npm install
-          pip install pykrx supabase pandas setuptools
+          npm run build
         working-directory: ./my-research-platform
 
-      # Next.js 프로젝트 빌드 (환경 변수가 주입된 상태로 진행)
-      - name: Build Next.js
-        run: npm run build
-        working-directory: ./my-research-platform
-
-      # 파이썬 스크립트 실행 (지수 및 기업 정보 업데이트)
+      # 3. 파이썬 스크립트 실행 (경로 주의: scripts는 루트에 있으므로 ../ 사용)
       - name: Run Python Scripts
         run: |
+          pip install pykrx supabase pandas setuptools
           python ../scripts/update_indices.py
           python ../scripts/init_companies.py
         working-directory: ./my-research-platform
 
-      # 기존 Supabase Edge Function 호출
       - name: Call Supabase Edge Function
         run: |
           curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
