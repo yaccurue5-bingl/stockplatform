@@ -1,4 +1,4 @@
-nimport { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 // 1. CORS 헤더 설정 (가이드 준수)
 const corsHeaders = {
