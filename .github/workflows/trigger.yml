@@ -2,17 +2,17 @@ name: Supabase Function Trigger
 
 on:
   schedule:
-    - cron: "30,45 22 * * 0-4" # 07:30, 07:45 KST
-    - cron: "*/15 23 * * 0-4" # 08:00 ~ 08:45 KST
-    - cron: "*/15 0-9 * * 1-5" # 09:00 ~ 18:00 KST
-    - cron: "30 8 * * 1-5"     # 17:30 KST
+    - cron: "30,45 22 * * 0-4"
+    - cron: "*/15 23 * * 0-4"
+    - cron: "*/15 0-9 * * 1-5"
+    - cron: "30 8 * * 1-5"
   workflow_dispatch:
 
 jobs:
-  run_automation:
+  trigger_job:
     runs-on: ubuntu-latest
     
-    # [중요] 빌드 시 필요한 환경 변수를 여기서 정의합니다.
+    # [필수] 빌드 시점에 환경 변수가 주입되어야 에러가 발생하지 않습니다.
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -33,12 +33,14 @@ jobs:
         with:
           python-version: '3.10'
 
+      # 1. 의존성 설치 및 빌드
       - name: Install and Build
         run: |
           npm install
           npm run build
         working-directory: ./my-research-platform
 
+      # 2. 파이썬 스크립트 실행 (경로 주의)
       - name: Run Python Scripts
         run: |
           pip install pykrx supabase pandas setuptools
@@ -46,6 +48,7 @@ jobs:
           python ../scripts/init_companies.py
         working-directory: ./my-research-platform
 
+      # 3. 기존 Edge Function 호출
       - name: Call Supabase Edge Function
         run: |
           curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
