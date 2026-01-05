@@ -25,24 +25,27 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] font-sans dark:bg-black">
-      {/* --- Global Navigation Bar --- */}
-      <nav className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-md border-b border-gray-100 dark:bg-zinc-900/90 dark:border-zinc-800">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      {/* --- Global Navigation Bar: 높이와 정렬 최적화 --- */}
+      <nav className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-gray-100 dark:bg-zinc-900/95 dark:border-zinc-800 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center">
-            {/* Logo linked to home */}
-            <Image 
-              src="/logo.jpg" 
-              alt="KMI Insight Logo" 
-              width={160} 
-              height={40} 
-              className="object-contain"
-              priority
-            />
+            {/* 로고 크기를 메뉴 높이에 맞게 조정하고 어두운 배경 제거 시도 */}
+            <div className="relative h-12 w-48 transition-transform hover:scale-105">
+              <Image 
+                src="/logo.jpg" 
+                alt="KMI Insight Logo" 
+                fill
+                className="object-contain" // 비율 유지하며 꽉 채움
+                priority
+              />
+            </div>
           </div>
-          <div className="hidden md:flex gap-10 text-[11px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
-            <a href="#" className="hover:text-blue-600 transition">Market Intelligence</a>
-            <a href="#" className="hover:text-blue-600 transition">AI Analysis</a>
-            <a href="#" className="hover:text-blue-600 transition">Global Terminal</a>
+          
+          {/* 메뉴 간격과 폰트 무게 조정 */}
+          <div className="hidden md:flex gap-12 text-[12px] font-black uppercase tracking-[0.25em] text-gray-400 dark:text-gray-500">
+            <a href="#" className="hover:text-blue-600 transition-colors py-2 border-b-2 border-transparent hover:border-blue-600">Market Intelligence</a>
+            <a href="#" className="hover:text-blue-600 transition-colors py-2 border-b-2 border-transparent hover:border-blue-600">AI Analysis</a>
+            <a href="#" className="hover:text-blue-600 transition-colors py-2 border-b-2 border-transparent hover:border-blue-600">Global Terminal</a>
           </div>
         </div>
       </nav>
