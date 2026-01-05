@@ -59,7 +59,7 @@ jobs:
       # 4. 최종 호출
       - name: Call Supabase Edge Function
         run: |
-          curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
+          curl -i -X POST "http://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
           -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
           -H "Content-Type: application/json" \
           -d '{}'
