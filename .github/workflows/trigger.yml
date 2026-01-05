@@ -36,6 +36,10 @@ jobs:
       # 1. 의존성 설치 및 빌드
       - name: Install and Build
         run: |
+          # .env.local 파일 생성
+          echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env.local
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> .env.local
+          
           npm install
           npm run build
         working-directory: ./my-research-platform
