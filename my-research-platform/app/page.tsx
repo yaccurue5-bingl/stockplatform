@@ -8,7 +8,7 @@ export default async function Home() {
   // 1. 지수 데이터와 기업 리스트를 동시에 가져옵니다.
   // 'stock_indices' 테이블이 있다고 가정하며, 없을 경우 에러 방지를 위해 분리 호출합니다.
   const { data: indices } = await supabase
-    .from('stock_indices')
+    .from('market_indices')
     .select('*')
     .order('updated_at', { ascending: false })
     .limit(3);
