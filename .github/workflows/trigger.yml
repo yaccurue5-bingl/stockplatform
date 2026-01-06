@@ -1,4 +1,4 @@
-name: Market & DART Automation
+name: Market Data & AI Disclosure Automation
 
 on:
   schedule:
@@ -11,6 +11,7 @@ on:
 jobs:
   automation:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -21,15 +22,18 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install requests pandas supabase pykrx urllib3 groq
 
-      - name: Run Market Update
+      # 1단계: 지수 정보 업데이트 (기존 방식 유지)
+      - name: Run Market Indices Update
         run: python scripts/update_indices.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Run DART Crawler
+      # 2단계: AI 공시 인사이트 수집 (신규 dart_crawler.py 실행)
+      - name: Run AI Disclosure Crawler
         run: python scripts/dart_crawler.py
         env:
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
