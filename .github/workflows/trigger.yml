@@ -1,7 +1,8 @@
-name: Supabase Function Trigger
+name: Market Data & DART Automation
 
 on:
   schedule:
+    # 기존에 설정된 크론 스케줄 유지
     - cron: "30,45 22 * * 0-4"
     - cron: "*/15 23 * * 0-4"
     - cron: "*/15 0-9 * * 1-5"
@@ -21,25 +22,22 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 1. 지수 업데이트 파이썬 실행 (루트의 scripts 폴더 기준)
+      - name: Install dependencies
+        run: |
+          pip install requests pandas supabase pykrx urllib3
+          # 필요한 경우: pip install -r requirements.txt
+
+      # 1단계: 기존 지수 업데이트 실행
       - name: Run Market Update
-        run: |
-          pip install pykrx supabase pandas setuptools
-          python scripts/update_indices.py
-
-      # 2. Edge Function 배포 (루트 폴더의 supabase를 사용)
-      - name: Deploy Edge Function
-        run: |
-          # 현재 위치(루트)에서 바로 배포를 실행합니다.
-          npx supabase functions deploy dart-crawler --project-ref rxcwqsolfrjhomeusyza
-        # working-directory를 제거하거나 ./ 로 설정합니다.
+        run: python scripts/update_indices.py
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      # 3. 배포된 함수 호출
-      - name: Call Function
-        run: |
-          curl -i -X POST "https://rxcwqsolfrjhomeusyza.functions.supabase.co/dart-crawler" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-          -H "Content-Type: application/json" \
-          -d '{}'
+      # 2단계: 신규 DART 공시 수집 실행 (핸드쉐이크 에러 없음)
+      - name: Run DART Crawler
+        run: python scripts/dart_crawler.py
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
