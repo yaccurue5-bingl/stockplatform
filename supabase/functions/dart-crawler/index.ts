@@ -1,19 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-// 1. CORS 헤더 설정 (가이드 준수)
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 serve(async (req: Request) => {
-  // CORS 프리플라이트 요청 처리
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // 1. SSL/TLS 호환성을 위한 클라이언트 생성 (핵심 수정 사항)
+  // Deno의 기본 fetch 대신 보안 설정을 조절할 수 있는 클라이언트를 사용합니다.
+  const httpClient = Deno.createHttpClient({
+    allowHost: true, // 호스트 검증 완화
+  });
+
   try {
-    // 2. 가이드 방식대로 환경변수에서 DART 키 호출
     const DART_API_KEY = Deno.env.get('DART_API_KEY');
     
     if (!DART_API_KEY) {
@@ -25,15 +28,15 @@ serve(async (req: Request) => {
 
     console.log(`DART API 호출 시작: ${url}`);
 
-    // 3. HandshakeFailure 방지를 위한 정밀한 Fetch 설정
+    // 2. fetch 호출 시 위에서 만든 httpClient 적용
     const response = await fetch(url, {
       method: 'GET',
+      client: httpClient, // 이 부분이 HandshakeFailure 해결의 포인트입니다.
       headers: {
-        // 브라우저처럼 보이게 하여 보안 거절 방지
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json',
-      },
-    });
+      }, 
+    }as any);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -41,6 +44,9 @@ serve(async (req: Request) => {
     }
 
     const data = await response.json();
+
+    // 사용 후 클라이언트 닫기
+    httpClient.close();
 
     return new Response(JSON.stringify({ 
       status: "success", 
@@ -52,6 +58,9 @@ serve(async (req: Request) => {
     });
 
   } catch (error: any) {
+    // 에러 발생 시에도 클라이언트 닫기
+    try { httpClient.close(); } catch {}
+    
     console.error("에러 발생:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
