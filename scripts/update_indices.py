@@ -5,15 +5,19 @@ from pykrx import stock
 from supabase import create_client, Client
 from datetime import datetime, timedelta
 
-# Supabase 설정
-url: str = "https://rxcwqsolfrjhomeusyza.supabase.co"
-# 보안을 위해 Key는 GitHub Secrets 사용을 권장하지만, 요청하신 파일 구조를 유지합니다.
-key: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4Y3dxc29sZnJqaG9tZXVzeXphIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTkxNzMyMCwiZXhwIjoyMDgxNDkzMzIwfQ.q8qepH1kS6Smjjo8WyGVE7KM7ksKP6QGmU5_9mPv20o"
+# Supabase 설정 (GitHub Secrets에서 환경 변수로 로드)
+# GitHub Actions 설정(trigger.yml)에서 SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY를 넘겨줘야 합니다.
+url: str = os.environ.get("SUPABASE_URL")
+key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+if not url or not key:
+    print("🚨 에러: SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY 환경 변수가 설정되지 않았습니다.")
+    exit(1)
+
 supabase: Client = create_client(url, key)
 
 def get_latest_trading_date():
     """가장 최근 영업일 구하기 (pykrx 데이터 보장용)"""
-    # 오늘부터 역순으로 7일간 데이터를 확인하여 가장 최근 데이터가 있는 날짜 반환
     for i in range(7):
         target_date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
         df = stock.get_market_ohlcv_by_date(target_date, target_date, "1028")
@@ -52,20 +56,8 @@ def get_market_indices():
             })
             print(f"📊 KOSDAQ: {df_kosdaq['종가'].iloc[-1]} 수집 성공")
 
-        # 3. 환율 정보 (네이버 금융 크롤링 - pykrx에 없는 데이터 보충)
-        try:
-            exchange_url = "https://finance.naver.com/marketindex/exchangeDetail.naver?marketindexCd=FX_USDKRW"
-            res = requests.get(exchange_url, timeout=10)
-            # 환율 정보는 간단한 파싱으로 가져올 수 있으나, 
-            # 여기서는 기존 구조 유지를 위해 symbol만 추가하거나 생략 가능합니다.
-            # 필요시 'USD/KRW' 데이터를 추가하세요.
-            pass
-        except:
-            print("⚠️ 환율 정보 수집 건너뜀")
-
         # DB 업데이트
         if indices_data:
-            # symbol을 기준으로 upsert (on_conflict="symbol")
             supabase.table("market_indices").upsert(indices_data, on_conflict="symbol").execute()
             print("✅ Market Indices Update Complete!")
         else:
