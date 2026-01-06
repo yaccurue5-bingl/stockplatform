@@ -1,0 +1,8 @@
+requests
+pandas
+supabase
+pykrx
+urllib3
+groq
+opendartreader
+python-dotenv
