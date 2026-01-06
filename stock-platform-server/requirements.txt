@@ -1,6 +1,0 @@
-opendartreader
-google-genai
-supabase
-python-dotenv
-pandas
-groq

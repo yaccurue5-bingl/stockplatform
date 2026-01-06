@@ -1,8 +1,7 @@
-name: Market Data & DART Automation
+name: Market & DART Automation
 
 on:
   schedule:
-    # 기존에 설정된 크론 스케줄 유지
     - cron: "30,45 22 * * 0-4"
     - cron: "*/15 23 * * 0-4"
     - cron: "*/15 0-9 * * 1-5"
@@ -12,7 +11,6 @@ on:
 jobs:
   automation:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -23,21 +21,18 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: |
-          pip install requests pandas supabase pykrx urllib3
-          # 필요한 경우: pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      # 1단계: 기존 지수 업데이트 실행
       - name: Run Market Update
         run: python scripts/update_indices.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      # 2단계: 신규 DART 공시 수집 실행 (핸드쉐이크 에러 없음)
       - name: Run DART Crawler
         run: python scripts/dart_crawler.py
         env:
           DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
