@@ -17,9 +17,10 @@ def get_market_indices():
     ]
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://finance.daum.net/"
-    }
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://finance.daum.net/quotes/index", # 지수 페이지 리퍼러 추가
+    "Accept": "application/json, text/plain, */*"
+}
     
     indices_payload = []
 
