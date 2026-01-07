@@ -25,6 +25,11 @@ jobs:
         run: |
           pip install requests pandas supabase pykrx urllib3 groq
 
+      - name: Run Initialize Companies
+        run: python scripts/init_companies.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       # 1단계: 지수 정보 업데이트 (기존 방식 유지)
       - name: Run Market Indices Update
         run: python scripts/update_indices.py
