@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation'; // 뒤로가기 지원용
 import { supabase } from "../lib/supabase";
 import StockSentiment from '../components/StockSentiment';
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedId = searchParams.get('id'); // URL에서 ID 추출
+
   const [indices, setIndices] = useState<any[]>([]);
   const [disclosures, setDisclosures] = useState<any[]>([]);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,58 +27,43 @@ export default function Home() {
     fetchData();
   }, []);
 
-  // 1. 공시 목록 화면 (기존 레이아웃 유지)
-  if (!selectedItem) {
+  const selectedItem = disclosures.find(item => item.id.toString() === selectedId);
+
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white font-black">LOADING...</div>;
+
+  // 1. 상세 분석 화면
+  if (selectedItem) {
     return (
-      <div className="min-h-screen bg-[#F9FAFB] dark:bg-black text-slate-900">
-        <nav className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-gray-100 dark:bg-zinc-900 shadow-sm">
-          <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <span className="text-2xl font-black text-blue-600 tracking-tighter">KMI INSIGHT</span>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AI Financial Terminal</div>
-          </div>
+      <div className="min-h-screen bg-white dark:bg-black text-slate-900">
+        <nav className="p-6 bg-slate-50 dark:bg-zinc-900/50 border-b border-gray-100 dark:border-white/5">
+          <button 
+            onClick={() => router.back()} // 브라우저 뒤로가기 기능 활용
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-800 rounded-full shadow-sm border border-gray-200 dark:border-white/10 text-sm font-black text-blue-600 hover:bg-blue-50 transition-all uppercase tracking-widest"
+          >
+            <span className="text-lg">←</span> BACK TO LIST
+          </button>
         </nav>
 
-        <main className="max-w-7xl mx-auto px-6 py-12">
-          {/* Market Pulse Section */}
-          <section className="mb-16">
-            <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter dark:text-white">Market Pulse</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {indices.map((idx) => (
-                <div key={idx.symbol} className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-gray-100 dark:border-white/5 shadow-sm">
-                  <span className="text-[10px] font-black text-blue-500 uppercase">{idx.name}</span>
-                  <p className="text-3xl font-black mt-1 dark:text-white">{idx.price}</p>
-                  <p className={`text-sm font-black ${idx.change_rate >= 0 ? 'text-rose-500' : 'text-blue-500'}`}>
-                    {idx.change_rate >= 0 ? '▲' : '▼'} {Math.abs(idx.change_rate).toFixed(2)}%
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
+        <main className="max-w-4xl mx-auto px-6 py-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="mb-10">
+            <span className="text-blue-600 text-xs font-black uppercase tracking-[0.2em]">{selectedItem.corp_name}</span>
+            <h1 className="text-4xl font-black leading-tight mt-4 dark:text-white">
+              {selectedItem.report_nm}
+            </h1>
+            <p className="text-slate-400 mt-4 font-medium">Analyzed on {new Date(selectedItem.created_at).toLocaleString()}</p>
+          </div>
 
-          {/* Disclosure List Section */}
-          <section>
-            <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter dark:text-white">Live Disclosures</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {disclosures.map((item) => (
-                <div 
-                  key={item.id} 
-                  onClick={() => setSelectedItem(item)}
-                  className="cursor-pointer p-8 rounded-[2.5rem] border border-gray-100 bg-white dark:bg-zinc-900 dark:border-white/5 hover:border-blue-500 transition-all shadow-sm hover:shadow-xl group"
-                >
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider">{item.corp_name}</span>
-                  <h3 className="text-xl font-black leading-tight mt-2 mb-4 group-hover:text-blue-600 transition-colors dark:text-white">
-                    {item.report_nm}
-                  </h3>
-                  <div className="flex justify-between items-center mt-auto">
-                    <p className="text-[10px] text-slate-400 font-medium">
-                      {new Date(item.created_at).toLocaleDateString()}
-                    </p>
-                    <span className="px-3 py-1 bg-slate-100 dark:bg-white/10 rounded-full text-[8px] font-black uppercase text-slate-500">
-                      {item.importance || 'MID'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+          <section className="bg-slate-900 rounded-[3rem] p-10 shadow-2xl text-white">
+            {/* 🚀 AI 분석 결과 컴포넌트 호출 */}
+            <StockSentiment 
+              sentiment={selectedItem.sentiment} 
+              sentiment_score={selectedItem.sentiment_score} 
+              ai_summary={selectedItem.ai_summary} 
+            />
+
+            <div className="mt-12 pt-8 border-t border-white/10 flex justify-between items-center text-slate-500">
+              <span className="text-[10px] font-black uppercase">Importance: {selectedItem.importance || 'MID'}</span>
+              <a href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedItem.rcept_no}`} target="_blank" className="text-xs font-black text-blue-400 hover:underline">VIEW ORIGINAL DART ↗</a>
             </div>
           </section>
         </main>
@@ -82,53 +71,27 @@ export default function Home() {
     );
   }
 
-  // 2. 공시 상세 분석 화면 (클릭 시 전환되는 화면)
+  // 2. 목록 화면
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-slate-900">
-      <nav className="p-6">
-        <button 
-          onClick={() => setSelectedItem(null)}
-          className="flex items-center gap-2 text-xs font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-widest"
-        >
-          ← Back to List
-        </button>
-      </nav>
-
-      <main className="max-w-4xl mx-auto px-6 py-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="mb-12">
-          <span className="text-blue-600 text-xs font-black uppercase tracking-[0.2em]">{selectedItem.corp_name}</span>
-          <h1 className="text-4xl md:text-5xl font-black leading-tight mt-4 dark:text-white">
-            {selectedItem.report_nm}
-          </h1>
-          <p className="text-slate-400 mt-4 font-medium">
-            Analyzed on {new Date(selectedItem.created_at).toLocaleString('ko-KR')}
-          </p>
-        </div>
-
-        {/* AI 가공 데이터 영역 */}
-        <section className="bg-slate-900 rounded-[3rem] p-10 shadow-2xl text-white">
-          <StockSentiment 
-            sentiment={selectedItem.sentiment} 
-            sentiment_score={selectedItem.sentiment_score} 
-            ai_summary={selectedItem.ai_summary} 
-          />
-          
-          <div className="mt-12 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex gap-4">
-              <span className="text-[10px] font-black text-slate-500 uppercase">Importance: {selectedItem.importance}</span>
-              <span className="text-[10px] font-black text-slate-500 uppercase">Sector: {selectedItem.stock_code}</span>
-            </div>
-            <a 
-              href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedItem.rcept_no}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-black text-blue-400 hover:text-blue-300 underline underline-offset-4"
+    <div className="min-h-screen bg-[#F9FAFB] dark:bg-black p-6">
+      <div className="max-w-7xl mx-auto">
+        <h2 className="text-2xl font-black mb-8 dark:text-white uppercase tracking-tighter">Live Disclosures</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {disclosures.map((item) => (
+            <div 
+              key={item.id} 
+              onClick={() => router.push(`?id=${item.id}`)} // URL 파라미터 변경으로 상세 이동
+              className="cursor-pointer p-8 rounded-[2.5rem] border border-gray-100 bg-white dark:bg-zinc-900 hover:border-blue-500 transition-all shadow-sm group"
             >
-              VIEW ORIGINAL DART DOCUMENT ↗
-            </a>
-          </div>
-        </section>
-      </main>
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider">{item.corp_name}</span>
+              <h3 className="text-xl font-black leading-tight mt-2 mb-6 dark:text-white group-hover:text-blue-600">{item.report_nm}</h3>
+              <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-full text-[8px] font-black uppercase text-blue-600">
+                {item.importance || 'MID'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
