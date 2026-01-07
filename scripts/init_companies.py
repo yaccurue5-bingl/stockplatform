@@ -1,4 +1,5 @@
 import os
+import time
 from pykrx import stock
 from supabase import create_client, Client
 from datetime import datetime, timedelta
@@ -7,37 +8,48 @@ url = os.environ.get("SUPABASE_URL")
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(url, key)
 
-def run_init():
-    # 데이터가 확실히 존재하는 최근 영업일 기준
-    target_date = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
-    print(f"🏢 기업 정보 초기화 시작 (기준일: {target_date})")
+def get_nearest_business_day():
+    # 오늘부터 최대 10일 전까지 거슬러 올라가며 데이터가 있는 날짜 탐색
+    for i in range(10):
+        target_date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
+        df = stock.get_market_cap(target_date)
+        if not df.empty:
+            return target_date
+    return None
 
+def run():
+    target_date = get_nearest_business_day()
+    if not target_date:
+        print("🚨 최근 10일 내에 유효한 기업 데이터가 없습니다.")
+        return
+
+    print(f"🏢 기업 정보 수집 시작 (기준일: {target_date})")
+    
     try:
-        # 1. 전종목 시가총액/상장주식수 정보
+        # 시가총액 및 펀더멘털 데이터 가져오기
         df_cap = stock.get_market_cap(target_date)
-        # 2. 전종목 펀더멘털(PER, PBR, DIV 등) 정보
-        df_fund = stock.get_market_fundamental(target_date)
-
-        companies_payload = []
-        # 상위 200개 종목 위주로 먼저 수집 (속도 및 데이터 안정성)
+        
+        all_data = []
+        # 상위 200개 종목 수집 (에러 방지를 위해 index 존재 확인)
         for ticker in df_cap.index[:200]:
             name = stock.get_market_ticker_name(ticker)
+            try:
+                m_cap = int(df_cap.loc[ticker, "시가총액"])
+                all_data.append({
+                    "stock_code": ticker,
+                    "corp_name": name,
+                    "market_cap": m_cap,
+                    "updated_at": datetime.now().isoformat()
+                })
+            except KeyError:
+                continue
+
+        if all_data:
+            supabase.table("companies").upsert(all_data, on_conflict="stock_code").execute()
+            print(f"✅ {len(all_data)}개 기업 정보 업데이트 성공")
             
-            payload = {
-                "stock_code": ticker,
-                "corp_name": name,
-                "market_cap": int(df_cap.loc[ticker, "시가총액"]),
-                "operating_profit_margin": float(df_fund.loc[ticker, "PER"]) if ticker in df_fund.index else 0, # 예시로 PER 사용
-                "updated_at": datetime.now().isoformat()
-            }
-            companies_payload.append(payload)
-
-        if companies_payload:
-            supabase.table("companies").upsert(companies_payload, on_conflict="stock_code").execute()
-            print(f"✅ {len(companies_payload)}개 기업 정보 업데이트 완료")
-
     except Exception as e:
         print(f"🚨 기업 정보 수집 중 에러: {e}")
 
 if __name__ == "__main__":
-    run_init()
+    run()
