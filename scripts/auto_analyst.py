@@ -48,20 +48,39 @@ class AIAnalyst:
 
 def run():
     analyst = AIAnalyst()
-    res = supabase.table("disclosure_insights").select("*").is_("ai_summary", "null").limit(5).execute()
+    # 🚀 limit을 20으로 늘리고, ai_summary가 비어있는 항목 위주로 가져옵니다.
+    res = supabase.table("disclosure_insights") \
+        .select("*") \
+        .is_("ai_summary", "null") \
+        .order("created_at", { "ascending": False }) \
+        .limit(20) \
+        .execute()
     
+    if not res.data:
+        logger.info("✅ 분석할 새로운 공시가 없습니다.")
+        return
+
     for item in res.data:
+        # 제목 기반 분석 (본문 수집 로직이 없다면 제목만이라도 정확히 전달)
         result = analyst.analyze_content(item['corp_name'], item['report_nm'])
+        
         if result:
             update_data = {
                 "ai_summary": "\n".join(result.get("summary", [])),
                 "sentiment_score": result.get("sentiment_score"),
+                "sentiment": result.get("sentiment", "NEUTRAL"), # 🚀 이 줄이 빠지면 UI에 계속 분석중으로 뜹니다.
                 "importance": result.get("importance"),
                 "updated_at": datetime.now().isoformat()
             }
-            supabase.table("disclosure_insights").update(update_data).eq("id", item['id']).execute()
-            logger.info(f"✅ 분석 성공: {item['corp_name']}")
-        time.sleep(1)
+            
+            # DB 업데이트
+            try:
+                supabase.table("disclosure_insights").update(update_data).eq("id", item['id']).execute()
+                logger.info(f"✅ 분석 성공: {item['corp_name']}")
+            except Exception as e:
+                logger.error(f"❌ DB 업데이트 실패: {e}")
+        
+        time.sleep(1) # Groq API 속도 제한 방지
 
 if __name__ == "__main__":
     run()
