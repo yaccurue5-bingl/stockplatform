@@ -1,5 +1,6 @@
 import os
 import requests
+from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from datetime import datetime
 
@@ -8,49 +9,40 @@ key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(url, key)
 
 def get_market_indices():
-    print("🚀 Daum 금융 API 지수 수집 시작...")
+    print("🚀 네이버 금융 기반 지수 수집 시작...")
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     
-    # KOSPI, KOSDAQ 코드 정의
-    targets = [
-        {"code": "KOSPI", "symbol": "KOSPI"},
-        {"code": "KOSDAQ", "symbol": "KOSDAQ"}
-    ]
-    
-    headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Referer": "https://finance.daum.net/quotes/index", # 지수 페이지 리퍼러 추가
-    "Accept": "application/json, text/plain, */*"
-}
-    
-    indices_payload = []
-
-    for item in targets:
-        try:
-            api_url = f"https://finance.daum.net/api/indices/{item['code']}"
-            response = requests.get(api_url, headers=headers, timeout=10)
+    try:
+        res = requests.get("https://finance.naver.com/sise/", headers=headers, timeout=10)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 네이버 금융 셀렉터 (사용자 파일 기반)
+        indices_data = [
+            {"id": "KOSPI", "now": "#KOSPI_now", "rate": "#KOSPI_rate"},
+            {"id": "KOSDAQ", "now": "#KOSDAQ_now", "rate": "#KOSDAQ_rate"}
+        ]
+        
+        payload = []
+        for item in indices_data:
+            val = soup.select_one(item["now"]).text.replace(',', '')
+            rate_text = soup.select_one(item["rate"]).text.strip().replace('%', '')
+            # 부호(+/-) 처리
+            rate = float(rate_text)
             
-            if response.status_code == 200:
-                data = response.json()
-                price = data.get('tradePrice')
-                # 다음 API는 변화율을 0.0123 형태로 주므로 100을 곱함
-                change_rate = data.get('changeRate', 0) * 100
-                
-                indices_payload.append({
-                    "symbol": item['symbol'],
-                    "name": item['symbol'],
-                    "price": f"{price:,.2f}",
-                    "change_rate": round(float(change_rate), 2),
-                    "updated_at": datetime.now().isoformat()
-                })
-                print(f"📊 {item['symbol']} 수집 성공: {price}")
-            else:
-                print(f"❌ {item['symbol']} 응답 에러: {response.status_code}")
-        except Exception as e:
-            print(f"🚨 {item['symbol']} 처리 오류: {e}")
+            payload.append({
+                "symbol": item["id"],
+                "name": item["id"],
+                "price": val,
+                "change_rate": rate,
+                "updated_at": datetime.now().isoformat()
+            })
+            print(f"✅ {item['id']} 수집: {val} ({rate}%)")
 
-    if indices_payload:
-        supabase.table("market_indices").upsert(indices_payload, on_conflict="symbol").execute()
-        print("✅ 지수 업데이트 완료")
+        if payload:
+            supabase.table("market_indices").upsert(payload, on_conflict="symbol").execute()
+            
+    except Exception as e:
+        print(f"🚨 지수 수집 중 에러 발생: {e}")
 
 if __name__ == "__main__":
     get_market_indices()
