@@ -52,7 +52,7 @@ def run():
     res = supabase.table("disclosure_insights") \
         .select("*") \
         .is_("ai_summary", "null") \
-        .order("created_at", ascending=False) \
+        .order("created_at", desc=True) \
         .limit(20) \
         .execute()
     
