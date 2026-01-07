@@ -9,30 +9,25 @@ url = os.environ.get("SUPABASE_URL")
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(url, key)
 
+# scripts/update_indices.py 수정본
 def get_market_indices():
-    print("🚀 네이버 금융 기반 지수 수집 시작 (최신 셀렉터 적용)...")
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://finance.naver.com/'
-    }
-    
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
-        # 지수 정보가 가장 정확하게 노출되는 국내증시 메인 페이지
-        res = requests.get("https://finance.naver.com/sise/", headers=headers, timeout=10)
+        res = requests.get("https://finance.naver.com/", headers=headers, timeout=10)
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # 참고용 파일의 ID 방식(#KOSPI_now)이 안될 경우를 대비한 다중 경로 설정
+        # 더 포괄적인 셀렉터 사용
         targets = [
-            {"id": "KOSPI", "label": "코스피"},
-            {"id": "KOSDAQ", "label": "코스닥"}
+            {"id": "KOSPI", "selector": "#KOSPI_now, .num_area .num"},
+            {"id": "KOSDAQ", "selector": "#KOSDAQ_now, .box_quot.quot_kosdaq .num"}
         ]
         
         payload = []
         for item in targets:
-            # 1순위: ID로 찾기 (#KOSPI_now)
-            price_el = soup.select_one(f"#{item['id']}_now")
-            rate_el = soup.select_one(f"#{item['id']}_rate")
-            
+            element = soup.select_one(item['selector'])
+            if element:
+                price = element.text.replace(',', '').strip()
+                # ... 이하 생략 (동일)            
             # 2순위: ID가 실패할 경우 클래스 구조로 찾기
             if not price_el:
                 # 네이버 금융 페이지 내의 대체 경로 (예: .num_area .num)
