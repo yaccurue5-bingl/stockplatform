@@ -1,5 +1,5 @@
 import os
-import yfinance as yf
+import requests
 from supabase import create_client, Client
 from datetime import datetime
 
@@ -8,31 +8,44 @@ key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(url, key)
 
 def get_market_indices():
-    print("🚀 지수 수집 시작 (Yahoo Finance)...")
+    print("🚀 Daum 금융 API 지수 수집 시작...")
     
-    targets = [("^KS11", "KOSPI"), ("^KQ11", "KOSDAQ")]
+    # KOSPI, KOSDAQ 코드 정의
+    targets = [
+        {"code": "KOSPI", "symbol": "KOSPI"},
+        {"code": "KOSDAQ", "symbol": "KOSDAQ"}
+    ]
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "https://finance.daum.net/"
+    }
+    
     indices_payload = []
 
-    for ticker_symbol, name in targets:
+    for item in targets:
         try:
-            ticker = yf.Ticker(ticker_symbol)
-            hist = ticker.history(period="2d") # 어제와 오늘 데이터
+            api_url = f"https://finance.daum.net/api/indices/{item['code']}"
+            response = requests.get(api_url, headers=headers, timeout=10)
             
-            if len(hist) >= 2:
-                current_price = hist['Close'].iloc[-1]
-                prev_price = hist['Close'].iloc[-2]
-                change_rate = ((current_price - prev_price) / prev_price) * 100
+            if response.status_code == 200:
+                data = response.json()
+                price = data.get('tradePrice')
+                # 다음 API는 변화율을 0.0123 형태로 주므로 100을 곱함
+                change_rate = data.get('changeRate', 0) * 100
                 
                 indices_payload.append({
-                    "symbol": name,
-                    "name": name,
-                    "price": f"{current_price:,.2f}",
+                    "symbol": item['symbol'],
+                    "name": item['symbol'],
+                    "price": f"{price:,.2f}",
                     "change_rate": round(float(change_rate), 2),
                     "updated_at": datetime.now().isoformat()
                 })
-                print(f"📊 {name}: {current_price:,.2f} ({change_rate:.2f}%)")
+                print(f"📊 {item['symbol']} 수집 성공: {price}")
+            else:
+                print(f"❌ {item['symbol']} 응답 에러: {response.status_code}")
         except Exception as e:
-            print(f"🚨 {name} 실패: {e}")
+            print(f"🚨 {item['symbol']} 처리 오류: {e}")
 
     if indices_payload:
         supabase.table("market_indices").upsert(indices_payload, on_conflict="symbol").execute()
