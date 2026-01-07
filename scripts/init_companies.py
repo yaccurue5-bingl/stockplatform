@@ -1,5 +1,6 @@
 import os
 import requests
+import yfinance as yf
 from supabase import create_client, Client
 from datetime import datetime
 
@@ -8,39 +9,40 @@ key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(url, key)
 
 def run():
-    print("🏢 Daum 금융 시가총액 데이터 수집 시작...")
+    print("🏢 공시 기반 기업 정보 수집 시작...")
     
-    # 다음 금융 주식 리스트 API (KOSPI 상위 100개)
-    api_url = "https://finance.daum.net/api/quotes/sectors?sectorCode=001&limit=100&sort=marketCap&order=desc"
+    # 1. 최근 공시 종목 추출 (커플링)
+    res = supabase.table("disclosure_insights").select("stock_code, corp_name").execute()
+    stock_map = {item['stock_code']: item['corp_name'] for item in res.data if item.get('stock_code')}
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-        "Referer": "https://finance.daum.net/"
-    }
+    if not stock_map:
+        print("⚠️ 공시 데이터가 없습니다.")
+        return
 
-    try:
-        response = requests.get(api_url, headers=headers, timeout=10)
-        data = response.json()
-        
-        items = data.get('data', [])
-        all_companies = []
-        
-        for item in items:
+    all_companies = []
+    for code, name in stock_map.items():
+        try:
+            # 한국 종목은 코드 뒤에 .KS(코스피) 또는 .KQ(코스닥)가 붙어야 함
+            ticker_ks = yf.Ticker(f"{code}.KS")
+            m_cap = ticker_ks.info.get('marketCap')
+            
+            if not m_cap: # 코스피에 없으면 코스닥 시도
+                ticker_kq = yf.Ticker(f"{code}.KQ")
+                m_cap = ticker_kq.info.get('marketCap')
+
             all_companies.append({
-                "stock_code": item.get('symbolCode')[1:], # 'A005930' -> '005930'
-                "corp_name": item.get('name'),
-                "market_cap": int(item.get('marketCap', 0)),
+                "stock_code": code,
+                "corp_name": name,
+                "market_cap": m_cap if m_cap else 0,
                 "updated_at": datetime.now().isoformat()
             })
-            
-        if all_companies:
-            supabase.table("companies").upsert(all_companies, on_conflict="stock_code").execute()
-            print(f"✅ {len(all_companies)}개 기업 정보 업데이트 성공")
-        else:
-            print("⚠️ 데이터가 비어 있습니다.")
+            print(f"✅ {name}({code}) 시총: {m_cap}")
+        except Exception as e:
+            print(f"🚨 {code} 오류: {e}")
 
-    except Exception as e:
-        print(f"🚨 기업 정보 수집 에러: {e}")
+    if all_companies:
+        supabase.table("companies").upsert(all_companies, on_conflict="stock_code").execute()
+        print(f"🎉 {len(all_companies)}개 기업 동기화 완료")
 
 if __name__ == "__main__":
     run()

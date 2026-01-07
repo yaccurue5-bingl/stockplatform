@@ -1,139 +1,137 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import { supabase } from "../lib/supabase";
 
-// 사용자가 접속할 때마다 최신 데이터를 가져오도록 설정 (실시간성 확보)
-export const revalidate = 0;
+export default function Home() {
+  const [indices, setIndices] = useState<any[]>([]);
+  const [disclosures, setDisclosures] = useState<any[]>([]);
+  const [selectedItem, setSelectedItem] = useState<any>(null); // 클릭된 카드 상태
+  const [loading, setLoading] = useState(true);
 
-export default async function Home() {
-  /**
-   * 서버 측에서 데이터를 직접 가져오는 로직 (fetchData 역할)
-   * 1. market_indices: 상단 지수 정보
-   * 2. disclosure_insights: 하단 AI 공시 분석 리스트 (기존 companies 영역 대체)
-   */
-  const [indicesResult, disclosuresResult] = await Promise.all([
-    supabase
-      .from('market_indices')
-      .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(3),
-    supabase
-      .from('disclosure_insights')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50)
-  ]);
-
-  const indices = indicesResult.data || [];
-  const disclosures = disclosuresResult.data || [];
+  useEffect(() => {
+    async function fetchData() {
+      const [indicesRes, disclosuresRes] = await Promise.all([
+        supabase.from('market_indices').select('*').order('symbol', { ascending: true }),
+        supabase.from('disclosure_insights').select('*').order('created_at', { ascending: false }).limit(40)
+      ]);
+      setIndices(indicesRes.data || []);
+      setDisclosures(disclosuresRes.data || []);
+      setLoading(false);
+    }
+    fetchData();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] font-sans dark:bg-black text-slate-900">
-      {/* --- Global Navigation Bar --- */}
-      <nav className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-gray-100 dark:bg-zinc-900/95 dark:border-zinc-800 shadow-sm">
+    <div className="min-h-screen bg-[#F9FAFB] dark:bg-black text-slate-900">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md border-b border-gray-100 dark:bg-zinc-900 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center">
-            <span className="text-2xl font-black tracking-tighter text-blue-600 dark:text-blue-500 cursor-default">
-              KMI <span className="text-slate-900 dark:text-white ml-1">INSIGHT</span>
-            </span>
-          </div>
+          <span className="text-2xl font-black text-blue-600">KMI INSIGHT</span>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">AI Financial Terminal</div>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-12">
-        {/* --- Market Indices Section --- */}
-        <section className="mb-20">
-          <div className="flex items-center justify-between mb-10">
-            <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white uppercase">Market Pulse</h2>
-          </div>
+        {/* Market Pulse */}
+        <section className="mb-16">
+          <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter">Market Pulse</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {indices.length > 0 ? (
-              indices.map((index) => (
-                <div key={index.symbol} className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] shadow-sm border border-gray-50 dark:border-zinc-800 transition-all hover:shadow-xl hover:-translate-y-1">
-                  <div className="flex justify-between items-start mb-6">
-                    <span className="px-5 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-black rounded-full uppercase tracking-widest">
-                      {index.name}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white mb-2">{index.price}</span>
-                    <span className={`text-sm font-black ${index.change_rate >= 0 ? 'text-rose-500' : 'text-blue-500'}`}>
-                      {index.change_rate >= 0 ? '▲' : '▼'} {Math.abs(index.change_rate).toFixed(2)}%
-                    </span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-3 text-center py-10 text-slate-400 font-bold uppercase tracking-widest">지수 데이터를 불러오는 중...</div>
-            )}
+            {indices.map((idx) => (
+              <div key={idx.symbol} className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+                <span className="text-[10px] font-black text-blue-500 uppercase">{idx.name}</span>
+                <p className="text-3xl font-black mt-1">{idx.price}</p>
+                <p className={`text-sm font-black ${idx.change_rate >= 0 ? 'text-rose-500' : 'text-blue-500'}`}>
+                  {idx.change_rate >= 0 ? '▲' : '▼'} {Math.abs(idx.change_rate).toFixed(2)}%
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
-        {/* --- AI Disclosure Insights Section --- */}
-        <section>
-          <div className="flex items-center justify-between mb-10">
-            <h2 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white uppercase tracking-tighter">AI Disclosure Insights</h2>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Live Updates</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {disclosures.length > 0 ? (
-              disclosures.map((item) => (
-                <div key={item.id} className="group bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-[3rem] p-8 transition-all hover:border-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/5">
-                  <div className="flex justify-between items-start mb-8">
-                    <div className="flex flex-col gap-2">
-                      <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">{item.corp_name}</span>
-                      <h3 className="text-xl font-black text-slate-900 dark:text-white leading-tight group-hover:text-blue-600 transition-colors">
-                        {item.report_nm}
-                      </h3>
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Left: Disclosure List */}
+          <section className="flex-1">
+            <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter">Live Disclosures</h2>
+            <div className="space-y-4">
+              {disclosures.map((item) => (
+                <div 
+                  key={item.id} 
+                  onClick={() => setSelectedItem(item)}
+                  className={`cursor-pointer p-6 rounded-[2rem] border transition-all ${
+                    selectedItem?.id === item.id 
+                    ? 'border-blue-500 bg-blue-50/30 shadow-lg scale-[1.02]' 
+                    : 'border-gray-100 bg-white hover:border-blue-200'
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="text-[10px] font-black text-blue-600 uppercase">{item.corp_name}</span>
+                      <h3 className="text-lg font-black leading-tight mt-1">{item.report_nm}</h3>
                     </div>
-                    <span className={`px-4 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest ${
-                      item.importance === 'High' ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-500'
-                    }`}>
-                      {item.importance || 'Medium'}
+                    <span className={`px-3 py-1 rounded-full text-[8px] font-black ${item.importance === 'High' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'}`}>
+                      {item.importance || 'MID'}
                     </span>
                   </div>
-                  
-                  <div className="bg-slate-50 dark:bg-zinc-800/50 p-6 rounded-[2rem] mb-6">
-                    <p className="text-sm font-bold text-slate-600 dark:text-slate-400 leading-relaxed italic">
-                      "{item.ai_summary || 'AI가 공시 내용을 분석하고 있습니다.'}"
-                    </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Right: AI Analysis View (Fixed on scroll) */}
+          <section className="lg:w-[450px]">
+            <div className="sticky top-28 bg-slate-900 text-white p-8 rounded-[3rem] shadow-2xl min-h-[500px]">
+              {selectedItem ? (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="mb-8">
+                    <span className="text-blue-400 text-[10px] font-black uppercase tracking-widest">{selectedItem.corp_name} Analysis</span>
+                    <h3 className="text-2xl font-black leading-tight mt-2">{selectedItem.report_nm}</h3>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="flex gap-4">
-                      <div className="text-center">
-                        <p className="text-[8px] text-slate-400 font-black uppercase mb-1">Sentiment</p>
-                        <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{item.sentiment || 'Neutral'}</p>
-                      </div>
-                      <div className="text-center border-l border-slate-100 dark:border-zinc-800 pl-4">
-                        <p className="text-[8px] text-slate-400 font-black uppercase mb-1">Stock Code</p>
-                        <p className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">{item.stock_code}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[8px] text-slate-400 font-black uppercase mb-1">Published At</p>
-                      <p className="text-[10px] font-black text-slate-500 tracking-widest">
-                        {new Date(item.created_at).toLocaleDateString()}
+                  <div className="space-y-6">
+                    <div>
+                      <p className="text-slate-400 text-[10px] font-black uppercase mb-3">AI Executive Summary</p>
+                      <p className="text-sm leading-relaxed text-slate-200 bg-white/5 p-5 rounded-2xl border border-white/10 italic">
+                        "{selectedItem.ai_summary || "분석 데이터를 불러오는 중입니다."}"
                       </p>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                        <p className="text-slate-500 text-[8px] font-black uppercase mb-1">Sentiment</p>
+                        <p className={`text-sm font-black ${selectedItem.sentiment === 'Positive' ? 'text-green-400' : 'text-rose-400'}`}>
+                          {selectedItem.sentiment || 'NEUTRAL'}
+                        </p>
+                      </div>
+                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                        <p className="text-slate-500 text-[8px] font-black uppercase mb-1">Impact Score</p>
+                        <p className="text-sm font-black text-blue-400">{(selectedItem.sentiment_score * 100).toFixed(0)}% Intensity</p>
+                      </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-white/10">
+                      <a 
+                        href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedItem.rcept_no}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-2 text-xs font-black text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        VIEW ORIGINAL DART DOCUMENT ↗
+                      </a>
+                    </div>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="col-span-full text-center py-32 bg-white border border-dashed border-slate-100 rounded-[3rem] text-slate-300">
-                <p className="text-xl font-black uppercase tracking-widest animate-pulse">Synchronizing Master Data</p>
-              </div>
-            )}
-          </div>
-        </section>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center py-20">
+                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                    <span className="text-blue-500 text-2xl">⚡</span>
+                  </div>
+                  <p className="text-slate-400 font-black uppercase text-xs tracking-[0.2em]">Select a disclosure<br/>to initiate AI analysis</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
       </main>
-      
-      <footer className="mt-40 py-20 border-t border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-center px-6">
-        <span className="text-lg font-black tracking-tighter text-blue-600/40 block mb-8">KMI INSIGHT</span>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">© 2026 Financial AI Terminal. All rights reserved.</p>
-      </footer>
     </div>
   );
 }
