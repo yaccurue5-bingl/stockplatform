@@ -56,4 +56,4 @@ jobs:
         run: python scripts/auto_analyst.py
         # trigger.yml 마지막 단계에 추가
       - name: Trigger Vercel Deploy
-        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
+        run: curl -X POST ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
