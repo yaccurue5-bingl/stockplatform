@@ -63,12 +63,21 @@ function DisclosureDashboard() {
               </div>
             </div>
             
-            {/* AI 분석 결과 컴포넌트 호출 - DB 컬럼값 직접 전달 */}
-            <StockSentiment 
-              sentiment={selectedItem.sentiment} 
-              sentiment_score={selectedItem.sentiment_score} 
-              ai_summary={selectedItem.ai_summary} 
-            />
+            {/* 수정된 코드: 데이터가 있을 때만 컴포넌트를 보여줍니다 */}
+{selectedItem.ai_summary ? (
+  <StockSentiment 
+    sentiment={selectedItem.sentiment} 
+    sentiment_score={selectedItem.sentiment_score} 
+    ai_summary={selectedItem.ai_summary} 
+  />
+) : (
+  <div className="bg-white/5 rounded-3xl p-8 border border-dashed border-white/20 text-center">
+    <p className="text-blue-400 font-bold animate-pulse">
+      AI가 공시 내용을 심층 분석하고 있습니다. 잠시만 기다려 주세요...
+    </p>
+    <p className="text-[10px] text-slate-500 mt-2 uppercase">Analysis in progress</p>
+  </div>
+)}
 
             <div className="mt-16 pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="flex gap-6">
