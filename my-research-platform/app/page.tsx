@@ -131,11 +131,11 @@ function DisclosureDashboard() {
                   {/* 🔄 수동 새로고침 버튼 */}
                   <button
                     onClick={() => {
-                      // selectedId가 null이 아닐 때만 실행되도록 보장
-                      if (selectedId) {
-                        refreshSelectedItem(selectedId);
-                      }
-                    }}
+                   // selectedId가 null이 아닐 때만 실행되도록 보장
+                   if (selectedId) {
+                   refreshSelectedItem(selectedId);
+                    }
+                   }}
                     className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-full text-xs font-black transition-colors"
                   >
                     지금 새로고침
@@ -197,15 +197,42 @@ function DisclosureDashboard() {
             <span className="w-2 h-8 bg-blue-600 rounded-full"></span> Market Pulse
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {indices.map((idx) => (
-              <div key={idx.symbol} className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-shadow">
-                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{idx.name}</span>
-                <p className="text-4xl font-black mt-2 dark:text-white tracking-tighter">{idx.price}</p>
-                <div className={`inline-flex items-center mt-3 px-3 py-1 rounded-full text-xs font-black ${idx.change_rate >= 0 ? 'bg-rose-50 text-rose-500' : 'bg-blue-50 text-blue-500'}`}>
-                  {idx.change_rate >= 0 ? '▲' : '▼'} {Math.abs(idx.change_rate).toFixed(2)}%
+            {indices.map((idx) => {
+              const isPositive = idx.change_rate >= 0;
+              const displayName = idx.name || idx.symbol;
+              
+              return (
+                <div key={idx.symbol} className="bg-white dark:bg-zinc-900 p-8 rounded-[2.5rem] border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-shadow">
+                  <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{displayName}</span>
+                  <p className="text-4xl font-black mt-2 dark:text-white tracking-tighter">{idx.price}</p>
+                  
+                  {/* 등락 정보 */}
+                  <div className="flex items-center gap-2 mt-3">
+                    <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black ${
+                      isPositive ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
+                    }`}>
+                      <span className={`mr-1 ${isPositive ? 'text-rose-600' : 'text-blue-600'}`}>
+                        {isPositive ? '▲' : '▼'}
+                      </span>
+                      {Math.abs(idx.change_rate).toFixed(2)}%
+                    </div>
+                    
+                    {idx.change_value && (
+                      <span className={`text-xs font-bold ${
+                        isPositive ? 'text-rose-600' : 'text-blue-600'
+                      }`}>
+                        {isPositive ? '+' : ''}{idx.change_value}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* 마지막 업데이트 시간 */}
+                  <p className="text-[8px] text-slate-400 mt-3 font-medium">
+                    Updated: {new Date(idx.updated_at).toLocaleTimeString('ko-KR')}
+                  </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
