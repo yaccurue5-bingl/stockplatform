@@ -13,6 +13,26 @@ function DisclosureDashboard() {
   const [indices, setIndices] = useState<any[]>([]);
   const [disclosures, setDisclosures] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // 🔄 선택된 항목을 실시간으로 새로고침하는 함수
+  const refreshSelectedItem = async (id: string) => {
+    try {
+      const { data } = await supabase
+        .from('disclosure_insights')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (data) {
+        setDisclosures(prev => 
+          prev.map(item => item.id.toString() === id ? data : item)
+        );
+      }
+    } catch (error) {
+      console.error('Failed to refresh item:', error);
+    }
+  };
 
   useEffect(() => {
     async function fetchData() {
@@ -27,14 +47,36 @@ function DisclosureDashboard() {
     fetchData();
   }, []);
 
+  // 🔄 선택된 항목이 분석 중이면 5초마다 자동 새로고침
+  useEffect(() => {
+    if (!selectedId) return;
+
+    const selectedItem = disclosures.find(item => item.id.toString() === selectedId);
+    if (!selectedItem) return;
+
+    const isAnalyzing = selectedItem.analysis_status !== 'completed' || 
+                       !selectedItem.ai_summary || 
+                       !selectedItem.sentiment || 
+                       typeof selectedItem.sentiment_score !== 'number';
+
+    if (isAnalyzing) {
+      console.log('🔄 AI 분석 중... 5초 후 자동 새로고침');
+      const interval = setInterval(() => {
+        refreshSelectedItem(selectedId);
+      }, 5000); // 5초마다 새로고침
+
+      return () => clearInterval(interval);
+    }
+  }, [selectedId, disclosures]);
+
   const selectedItem = disclosures.find(item => item.id.toString() === selectedId);
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white font-black italic">LOADING KMI INSIGHT...</div>;
 
-  // 상세 분석 화면
+  // 상세 화면
   if (selectedItem) {
-    // ✅ AI 분석이 완료되었는지 체크: ai_summary, sentiment, sentiment_score 모두 있어야 함
-    const isAnalysisComplete = selectedItem.ai_summary && 
+    const isAnalysisComplete = selectedItem.analysis_status === 'completed' &&
+                               selectedItem.ai_summary && 
                                selectedItem.sentiment && 
                                typeof selectedItem.sentiment_score === 'number';
 
@@ -69,7 +111,6 @@ function DisclosureDashboard() {
               )}
             </div>
             
-            {/* ✅ 모든 AI 분석 데이터가 준비되었을 때만 표시 */}
             {isAnalysisComplete ? (
               <StockSentiment 
                 sentiment={selectedItem.sentiment} 
@@ -83,12 +124,30 @@ function DisclosureDashboard() {
                   <p className="text-blue-400 font-bold">
                     AI가 공시 내용을 심층 분석하고 있습니다
                   </p>
-                  <p className="text-[10px] text-slate-500 uppercase">Analysis in progress</p>
-                  {/* 디버깅용: 어떤 데이터가 없는지 표시 */}
-                  <div className="text-[8px] text-slate-600 mt-4 text-left bg-slate-900/50 p-3 rounded">
-                    <p>• AI Summary: {selectedItem.ai_summary ? '✓' : '✗ (처리중)'}</p>
-                    <p>• Sentiment: {selectedItem.sentiment ? '✓' : '✗ (처리중)'}</p>
-                    <p>• Score: {typeof selectedItem.sentiment_score === 'number' ? '✓' : '✗ (처리중)'}</p>
+                  <p className="text-[10px] text-slate-500 uppercase">
+                    {selectedItem.analysis_status === 'failed' ? '분석 실패 - 재시도 중' : '5초 후 자동 새로고침'}
+                  </p>
+                  
+                  {/* 🔄 수동 새로고침 버튼 */}
+                  <button
+                    onClick={() => {
+                      // selectedId가 null이 아닐 때만 실행되도록 보장
+                      if (selectedId) {
+                        refreshSelectedItem(selectedId);
+                      }
+                    }}
+                    className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-full text-xs font-black transition-colors"
+                  >
+                    지금 새로고침
+                  </button>
+
+                  {/* 디버깅 정보 */}
+                  <div className="text-[8px] text-slate-600 mt-4 text-left bg-slate-900/50 p-3 rounded w-full">
+                    <p>• Status: {selectedItem.analysis_status || 'unknown'}</p>
+                    <p>• AI Summary: {selectedItem.ai_summary ? '✓' : '✗ (대기중)'}</p>
+                    <p>• Sentiment: {selectedItem.sentiment ? '✓' : '✗ (대기중)'}</p>
+                    <p>• Score: {typeof selectedItem.sentiment_score === 'number' ? '✓' : '✗ (대기중)'}</p>
+                    <p>• Last Update: {new Date(selectedItem.updated_at).toLocaleTimeString()}</p>
                   </div>
                 </div>
               </div>
@@ -98,11 +157,11 @@ function DisclosureDashboard() {
               <div className="flex gap-6">
                 <div className="flex flex-col">
                   <span className="text-[8px] text-slate-500 font-black uppercase">Importance</span>
-                  <span className="text-xs font-black text-slate-300">{selectedItem.importance || 'MID'}</span>
+                  <span className="text-xs font-black text-slate-300">{selectedItem.importance || 'MEDIUM'}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[8px] text-slate-500 font-black uppercase">Sector Code</span>
-                  <span className="text-xs font-black text-slate-300">{selectedItem.stock_code}</span>
+                  <span className="text-xs font-black text-slate-300">{selectedItem.stock_code || 'N/A'}</span>
                 </div>
               </div>
               <a 
@@ -157,7 +216,10 @@ function DisclosureDashboard() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {disclosures.map((item) => {
-              const hasAnalysis = item.ai_summary && item.sentiment && typeof item.sentiment_score === 'number';
+              const isComplete = item.analysis_status === 'completed' && 
+                               item.ai_summary && 
+                               item.sentiment && 
+                               typeof item.sentiment_score === 'number';
               
               return (
                 <div 
@@ -165,12 +227,12 @@ function DisclosureDashboard() {
                   onClick={() => router.push(`?id=${item.id}`)}
                   className="cursor-pointer group p-8 rounded-[3rem] border border-gray-100 bg-white dark:bg-zinc-900 dark:border-white/5 hover:border-blue-500 dark:hover:border-blue-600 transition-all shadow-sm hover:shadow-2xl hover:-translate-y-1 duration-300 relative"
                 >
-                  {/* ✅ 분석 완료 여부 뱃지 */}
-                  {!hasAnalysis && (
+                  {/* 분석 상태 뱃지 */}
+                  {!isComplete && (
                     <div className="absolute top-4 right-4">
                       <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 text-[8px] font-black rounded-full">
                         <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
-                        분석중
+                        {item.analysis_status === 'processing' ? '분석중' : '대기중'}
                       </span>
                     </div>
                   )}
@@ -182,9 +244,11 @@ function DisclosureDashboard() {
                   <div className="flex justify-between items-center pt-4 border-t border-gray-50 dark:border-white/5">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{new Date(item.created_at).toLocaleDateString()}</p>
                     <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                      item.importance === 'HIGH' ? 'bg-rose-500 text-white' : 'bg-blue-50 text-blue-600'
+                      item.importance === 'HIGH' ? 'bg-rose-500 text-white' : 
+                      item.importance === 'MEDIUM' ? 'bg-blue-50 text-blue-600' :
+                      'bg-slate-100 text-slate-600'
                     }`}>
-                      {item.importance || 'MID'}
+                      {item.importance || 'PENDING'}
                     </span>
                   </div>
                 </div>
