@@ -54,6 +54,13 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python scripts/auto_analyst.py
-        # trigger.yml 마지막 단계에 추가
+        # trigger.yml 수정
       - name: Trigger Vercel Deploy
-        run: curl -X POST ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        env:
+          DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "❌ Error: VERCEL_DEPLOY_HOOK_URL is empty. Check your GitHub Secrets."
+            exit 1
+          fi
+          curl -X POST "$DEPLOY_URL"
