@@ -31,10 +31,18 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
 export default async function StockPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
 
-  const [insightRes, companyRes] = await Promise.all([
-    supabase.from('disclosure_insights').select('*').eq('stock_code', code).order('created_at', { ascending: false }).limit(1).single(),
-    supabase.from('companies').select('*').eq('stock_code', code).single()
-  ]);
+  // page.tsx 의 insightRes 호출 부분 수정
+const [insightRes, companyRes] = await Promise.all([
+  supabase
+    .from('disclosure_insights')
+    .select('*')
+    .eq('stock_code', code)
+    .not('ai_summary', 'is', null) // 🚀 AI 요약이 있는 것만 가져오기
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single(),
+  supabase.from('companies').select('*').eq('stock_code', code).single()
+]);
 
   // 타입을 ExtendedInsight로 캐스팅하여 하단 StockSentiment 호출 시 에러를 방지합니다.
   const insight = insightRes.data as ExtendedInsight;
