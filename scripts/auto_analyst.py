@@ -16,6 +16,7 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 if not GROQ_API_KEY:
     logger.error("❌ GROQ_API_KEY가 설정되지 않았습니다. GitHub Secrets를 확인하세요.")
+    exit(1)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 groq_client = Groq(api_key=GROQ_API_KEY)
@@ -23,32 +24,78 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 class AIAnalyst:
     def __init__(self):
         self.system_prompt = """
-        Analyze the Korean stock disclosure and provide a JSON response.
-        1. Headline: English (max 10 words).
-        2. Summary: 3 bullet points in English.
-        3. Sentiment Score: -1.0 to 1.0.
-        4. Importance: High/Medium/Low.
+You are an expert Korean stock market analyst. Analyze the disclosure and respond ONLY with valid JSON.
+
+Required JSON format:
+{
+  "headline": "Brief English headline (max 10 words)",
+  "summary": ["Bullet point 1", "Bullet point 2", "Bullet point 3"],
+  "sentiment": "POSITIVE or NEGATIVE or NEUTRAL",
+  "sentiment_score": 0.75,
+  "importance": "HIGH or MEDIUM or LOW"
+}
+
+Rules:
+- sentiment_score: -1.0 (very negative) to 1.0 (very positive)
+- POSITIVE: good news (earnings up, partnerships, expansion)
+- NEGATIVE: bad news (losses, lawsuits, recalls)
+- NEUTRAL: routine filings
+- HIGH importance: M&A, major contracts, earnings surprises
+- MEDIUM: regular earnings, minor partnerships
+- LOW: procedural filings, routine updates
         """
 
     def analyze_content(self, corp_name, title):
         try:
-            # 중단된 llama3-70b-8192 대신 llama-3.3-70b-versatile 사용
             response = groq_client.chat.completions.create(
                 model="llama-3.3-70b-versatile", 
                 messages=[
                     {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": f"Company: {corp_name}\nTitle: {title}"}
+                    {"role": "user", "content": f"Company: {corp_name}\nDisclosure Title: {title}"}
                 ],
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
+                temperature=0.3  # 일관성 있는 분석을 위해 낮은 온도 사용
             )
-            return json.loads(response.choices[0].message.content)
+            
+            result = json.loads(response.choices[0].message.content)
+            
+            # ✅ 필수 필드 검증
+            required_fields = ["sentiment", "sentiment_score", "importance", "summary"]
+            for field in required_fields:
+                if field not in result:
+                    logger.warning(f"⚠️ Missing field '{field}' in Groq response, using default")
+                    if field == "sentiment":
+                        result[field] = "NEUTRAL"
+                    elif field == "sentiment_score":
+                        result[field] = 0.0
+                    elif field == "importance":
+                        result[field] = "MEDIUM"
+                    elif field == "summary":
+                        result[field] = ["분석 정보 없음"]
+            
+            # ✅ sentiment_score 범위 검증 (-1.0 ~ 1.0)
+            score = float(result.get("sentiment_score", 0.0))
+            result["sentiment_score"] = max(-1.0, min(1.0, score))
+            
+            # ✅ sentiment 대문자 변환
+            result["sentiment"] = result.get("sentiment", "NEUTRAL").upper()
+            
+            # ✅ importance 대문자 변환
+            result["importance"] = result.get("importance", "MEDIUM").upper()
+            
+            return result
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON Parse Error: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Groq Analysis Error: {e}")
+            logger.error(f"❌ Groq Analysis Error: {e}")
             return None
 
 def run():
     analyst = AIAnalyst()
-    # 🚀 limit을 20으로 늘리고, ai_summary가 비어있는 항목 위주로 가져옵니다.
+    
+    # ✅ ai_summary가 NULL인 항목만 가져오기 (dart_crawler가 NULL로 저장하므로 작동함)
     res = supabase.table("disclosure_insights") \
         .select("*") \
         .is_("ai_summary", "null") \
@@ -60,27 +107,45 @@ def run():
         logger.info("✅ 분석할 새로운 공시가 없습니다.")
         return
 
+    logger.info(f"🔍 {len(res.data)}건의 공시를 분석합니다...")
+    
+    success_count = 0
+    fail_count = 0
+    
     for item in res.data:
-        # 제목 기반 분석 (본문 수집 로직이 없다면 제목만이라도 정확히 전달)
+        logger.info(f"📊 분석 중: {item['corp_name']} - {item['report_nm'][:50]}...")
+        
+        # Groq API 호출
         result = analyst.analyze_content(item['corp_name'], item['report_nm'])
-        print(f"DEBUG: Groq API Result -> {result}")
+        
         if result:
+            # ✅ summary 리스트를 줄바꿈 문자열로 변환
+            summary_text = "\n".join(result.get("summary", []))
+            
             update_data = {
-                "ai_summary": "\n".join(result.get("summary", [])),
-                "sentiment_score": result.get("sentiment_score"),
-                "sentiment": result.get("sentiment", "NEUTRAL"), # 🚀 이 줄이 빠지면 UI에 계속 분석중으로 뜹니다.
-                "importance": result.get("importance"),
+                "ai_summary": summary_text,
+                "sentiment": result.get("sentiment", "NEUTRAL"),
+                "sentiment_score": result.get("sentiment_score", 0.0),
+                "importance": result.get("importance", "MEDIUM"),
                 "updated_at": datetime.now().isoformat()
             }
             
             # DB 업데이트
             try:
                 supabase.table("disclosure_insights").update(update_data).eq("id", item['id']).execute()
-                logger.info(f"✅ 분석 성공: {item['corp_name']}")
+                logger.info(f"✅ 분석 성공: {item['corp_name']} | Sentiment: {update_data['sentiment']} ({update_data['sentiment_score']:.2f}) | Importance: {update_data['importance']}")
+                success_count += 1
             except Exception as e:
-                logger.error(f"❌ DB 업데이트 실패: {e}")
+                logger.error(f"❌ DB 업데이트 실패 (ID: {item['id']}): {e}")
+                fail_count += 1
+        else:
+            logger.warning(f"⚠️ 분석 실패: {item['corp_name']}")
+            fail_count += 1
         
-        time.sleep(1) # Groq API 속도 제한 방지
+        # Groq API 속도 제한 방지 (분당 30회 제한 대비)
+        time.sleep(2.5)
+    
+    logger.info(f"🎉 분석 완료 - 성공: {success_count}건, 실패: {fail_count}건")
 
 if __name__ == "__main__":
     run()
