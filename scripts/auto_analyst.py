@@ -63,7 +63,7 @@ def run():
     for item in res.data:
         # 제목 기반 분석 (본문 수집 로직이 없다면 제목만이라도 정확히 전달)
         result = analyst.analyze_content(item['corp_name'], item['report_nm'])
-        
+        print(f"DEBUG: Groq API Result -> {result}")
         if result:
             update_data = {
                 "ai_summary": "\n".join(result.get("summary", [])),
