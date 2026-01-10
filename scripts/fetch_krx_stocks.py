@@ -28,7 +28,7 @@ def fetch_krx_data(url, market_name):
     full_url = f"{url}?auth_key={auth_key}"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
         'AUTH_KEY': '564E0F836F9E4A6EA9D3A5D6E826D046A2173128'
     }
     
