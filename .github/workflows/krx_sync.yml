@@ -1,0 +1,27 @@
+# .github/workflows/krx_sync.yml
+name: KRX Data Sync
+
+on:
+  schedule:
+    - cron: '30 0 * * 1-5' # 오전 9시 30분 (KST)
+    - cron: '30 7 * * 1-5' # 오후 4시 30분 (KST)
+  workflow_dispatch: # 수동 실행 버튼
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: |
+          pip install requests supabase
+      - name: Run Script
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          KRX_API_KEY: ${{ secrets.KRX_API_KEY }}
+        run: python fetch_krx_market.py
