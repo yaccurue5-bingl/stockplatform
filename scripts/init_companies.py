@@ -1,61 +1,77 @@
-import os
 import requests
-import time
-from supabase import create_client, Client
+import os
 from datetime import datetime
+from supabase import create_client
 
-url = os.environ.get("SUPABASE_URL")
-key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-supabase: Client = create_client(url, key)
+# 설정 환경변수
+SUPABASE_URL = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+SUPABASE_KEY = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+KRX_API_KEY = os.getenv("KRX_API_KEY")
 
-def run():
-    print("🏢 Daum 금융 기반 기업 정보 동기화 시작...")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def fetch_krx(url):
+    """KRX API 공통 호출 함수"""
+    headers = {"AUTH_KEY": KRX_API_KEY}
+    try:
+        res = requests.get(url, headers=headers)
+        return res.json().get('OutBlock_1', []) if res.status_code == 200 else []
+    except:
+        return []
+
+def init_companies():
+    # 1. API 주소 설정 (기본정보 + 일별매매정보)
+    # 코스피/코스닥 각각 호출하여 합칩니다.
+    urls = [
+        "https://data-dbg.krx.co.kr/svc/apis/sto/stk_isu_base_info", # 코스피 기본
+        "https://data-dbg.krx.co.kr/svc/apis/sto/ksq_isu_base_info", # 코스닥 기본
+        "https://data-dbg.krx.co.kr/svc/apis/sto/stk_bydd_trd",      # 코스피 시세
+        "https://data-dbg.krx.co.kr/svc/apis/sto/ksq_bydd_trd"       # 코스닥 시세
+    ]
     
-    # 공시 데이터에서 종목 코드 추출
-    res = supabase.table("disclosure_insights").select("stock_code").execute()
-    stock_codes = list(set([item['stock_code'] for item in res.data if item.get('stock_code')]))
+    print("🚀 KRX 데이터 수집 시작...")
     
-    if not stock_codes:
-        print("⚠️ 업데이트할 종목 코드가 없습니다.")
-        return
+    # 데이터를 종목코드(ISU_SRT_CD) 기준으로 병합하기 위해 딕셔너리 사용
+    company_map = {}
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Referer": "https://finance.daum.net/"
-    }
-
-    all_companies = []
-    for code in stock_codes:
-        try:
-            # 다음 금융 API는 종목코드 앞에 A를 붙여야 함
-            api_url = f"https://finance.daum.net/api/quotes/A{code}"
-            response = requests.get(api_url, headers=headers, timeout=10)
+    for i, url in enumerate(urls):
+        data = fetch_krx(url)
+        for item in data:
+            code = item.get('ISU_SRT_CD')
+            if not code: continue
             
-            # 500 에러나 404 에러 시 해당 종목만 스킵
-            if response.status_code != 200:
-                print(f"⚠️ {code} 종목 건너뜀 (HTTP {response.status_code})")
-                continue
+            if code not in company_map:
+                company_map[code] = {"stock_code": code}
+            
+            # 숫자 클리닝 함수
+            def to_int(v): return int(str(v).replace(',', '')) if v and v != '-' else 0
 
-            data = response.json()
-            if data and 'name' in data:
-                all_companies.append({
-                    "stock_code": code,
-                    "corp_name": data.get('name'),
-                    "market_cap": int(data.get('marketCap', 0)),
+            # i < 2 는 기본정보, i >= 2 는 시세정보
+            if i < 2:
+                company_map[code].update({
+                    "corp_name": item.get('ISU_NM'),
+                    "market_type": item.get('MKT_NM'),
+                    "sector": item.get('IND_TP_NM')
+                })
+            else:
+                company_map[code].update({
+                    "close_price": to_int(item.get('TDD_CLSPRC')),
+                    "market_cap": to_int(item.get('MKTCAP')),
+                    "volume": to_int(item.get('ACC_TRDVOL')),
+                    "trade_value": to_int(item.get('ACC_TRDVAL')),
                     "updated_at": datetime.now().isoformat()
                 })
-                print(f"✅ {data.get('name')}({code}) 수집 완료")
-            
-            # 500 에러 방지를 위해 요청 간 간격 조절
-            time.sleep(1.0) 
 
-        except Exception as e:
-            print(f"🚨 {code} 수집 중 에러 발생: {e}")
-            continue
+    # 2. Supabase Upsert (리스트로 변환하여 전송)
+    final_list = list(company_map.values())
+    print(f"📦 총 {len(final_list)}개 종목 DB 반영 중...")
+    
+    # 성능을 위해 100개씩 끊어서 처리
+    for i in range(0, len(final_list), 100):
+        chunk = final_list[i:i+100]
+        supabase.table("companies").upsert(chunk).execute()
 
-    if all_companies:
-        supabase.table("companies").upsert(all_companies, on_conflict="stock_code").execute()
-        print(f"🎉 {len(all_companies)}개 기업 정보 동기화 완료")
+    print("✅ 모든 종목 정보와 시세 데이터가 동기화되었습니다.")
 
 if __name__ == "__main__":
-    run()
+    init_companies()
