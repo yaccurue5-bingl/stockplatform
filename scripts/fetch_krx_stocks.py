@@ -23,6 +23,11 @@ def fetch_krx_data(url, market_name):
     - 인증키 불필요
     - OutBlock_1 배열로 응답
     """
+    # 마이페이지에서 확인한 실제 키값을 변수에 저장
+    auth_key = "564E0F836F9E4A6EA9D3A5D6E826D046A2173128" 
+    
+    # URL 뒤에 인증키 파라미터 추가
+    full_url = f"{url}?auth_key={auth_key}"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json'
