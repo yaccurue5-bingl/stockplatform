@@ -3,214 +3,217 @@ import os
 from datetime import datetime, timedelta
 from supabase import create_client
 import time
+import xml.etree.ElementTree as ET
 
 # Supabase 설정
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-# KRX 인증키
-KRX_AUTH_KEY = os.getenv("KRX_API_KEY", "564E0F836F9E4A6EA9D3A5D6E826D046A2173128 ")
+# 공공데이터포털 API 키
+DATA_GO_KR_KEY = os.getenv("DATA_GO_KR_API_KEY", "")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("❌ Supabase 환경 변수 누락")
     exit(1)
 
+if not DATA_GO_KR_KEY:
+    print("❌ DATA_GO_KR_API_KEY 환경 변수 누락")
+    print("   https://www.data.go.kr/data/15094808/openapi.do 에서 발급받으세요")
+    exit(1)
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# KRX Open API 엔드포인트
-KRX_APIS = {
-    "kospi_base": "https://data-dbg.krx.co.kr/svc/apis/sto/stk_isu_base_info",
-    "kosdaq_base": "https://data-dbg.krx.co.kr/svc/apis/sto/ksq_isu_base_info",
-    "kospi_trade": "https://data-dbg.krx.co.kr/svc/apis/sto/stk_bydd_trd",
-    "kosdaq_trade": "https://data-dbg.krx.co.kr/svc/apis/sto/ksq_bydd_trd"
-}
+# API 엔드포인트
+API_URL = "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo"
 
 def get_previous_business_day():
     """
     직전 영업일 계산
-    - KRX는 당일 데이터 제공 안 함
-    - 주말/공휴일 고려
-    
-    예시:
-    - 금요일 실행 → 목요일 반환
-    - 토요일 실행 → 금요일 반환
-    - 일요일 실행 → 금요일 반환
-    - 월요일 실행 → 금요일 반환
+    - 금요일 데이터는 차주 월요일 오후 1시에 제공
+    - 기준일자로부터 영업일 하루 뒤 업데이트
     """
     today = datetime.now()
-    weekday = today.weekday()  # 0=월, 1=화, 2=수, 3=목, 4=금, 5=토, 6=일
+    weekday = today.weekday()
     
-    if weekday == 5:  # 토요일
-        days_back = 1  # 금요일
-    elif weekday == 6:  # 일요일
-        days_back = 2  # 금요일
-    elif weekday == 0:  # 월요일
+    # 월요일 오후 1시 이전 → 지난주 목요일 데이터
+    if weekday == 0 and today.hour < 13:
+        days_back = 4  # 목요일
+    # 월요일 오후 1시 이후 → 지난주 금요일 데이터
+    elif weekday == 0:
         days_back = 3  # 금요일
-    else:  # 화~금
-        days_back = 1  # 전날
+    # 토요일 → 금요일 데이터 (월요일에 업데이트됨)
+    elif weekday == 5:
+        days_back = 1  # 금요일
+    # 일요일 → 금요일 데이터
+    elif weekday == 6:
+        days_back = 2  # 금요일
+    # 화~금요일 → 전날 데이터 (오후 1시 기준)
+    else:
+        days_back = 1 if today.hour >= 13 else 2
     
     business_day = today - timedelta(days=days_back)
-    date_str = business_day.strftime('%Y%m%d')
-    
-    print(f"   📅 오늘: {today.strftime('%Y-%m-%d %A')}")
-    print(f"   📅 직전 영업일: {business_day.strftime('%Y-%m-%d %A')} ({date_str})")
-    
-    return date_str
+    return business_day.strftime('%Y%m%d')
 
-def fetch_krx_data(url, market_name, bas_dt):
+def fetch_stock_data(bas_dt, page_no=1, num_of_rows=1000):
     """
-    KRX Open API 호출
-    bas_dt: 기준일자 (YYYYMMDD)
+    공공데이터포털 API로 주식시세 조회
     """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-        'AUTH_KEY': KRX_AUTH_KEY
-    }
-    
-    # 기준일자 파라미터 추가
     params = {
-        'auth_key': KRX_AUTH_KEY,
-        'basDt': bas_dt  # 🔑 직전 영업일
+        'serviceKey': DATA_GO_KR_KEY,
+        'numOfRows': num_of_rows,
+        'pageNo': page_no,
+        'resultType': 'xml',
+        'basDt': bas_dt  # 기준일자 (YYYYMMDD)
     }
     
     try:
-        print(f"📡 {market_name} 요청 중... (기준일: {bas_dt})")
-        
-        # 1차 시도: 헤더 + 쿼리 파라미터
-        response = requests.get(url, headers=headers, params=params, timeout=30)
-        
-        if response.status_code != 200:
-            print(f"⚠️ HTTP {response.status_code}, 헤더만 재시도...")
-            # 2차 시도: 헤더만
-            response = requests.get(url, headers=headers, timeout=30)
+        response = requests.get(API_URL, params=params, timeout=30)
         
         if response.status_code != 200:
             print(f"❌ HTTP {response.status_code}")
-            print(f"   응답: {response.text[:300]}")
-            return []
+            print(f"   응답: {response.text[:500]}")
+            return None, 0
         
-        data = response.json()
+        # XML 파싱
+        root = ET.fromstring(response.content)
         
-        # 응답 구조 확인
-        if 'OutBlock_1' not in data:
-            print(f"⚠️ {market_name}: 예상치 못한 응답 구조")
-            print(f"   응답 키: {list(data.keys())}")
-            print(f"   전체 응답: {data}")
-            return []
+        # 결과 코드 확인
+        result_code = root.find('.//resultCode')
+        result_msg = root.find('.//resultMsg')
         
-        items = data.get('OutBlock_1', [])
+        if result_code is not None and result_code.text != '00':
+            print(f"❌ API 오류: {result_code.text} - {result_msg.text if result_msg is not None else 'Unknown'}")
+            return None, 0
         
-        if not items:
-            print(f"⚠️ {market_name}: 데이터 없음 (영업일 확인 필요)")
-            return []
+        # 전체 결과 수
+        total_count_elem = root.find('.//totalCount')
+        total_count = int(total_count_elem.text) if total_count_elem is not None else 0
         
-        print(f"✅ {market_name}: {len(items)}개 종목")
-        return items
+        # items 파싱
+        items = []
+        for item in root.findall('.//item'):
+            items.append({
+                'basDt': item.findtext('basDt', ''),
+                'srtnCd': item.findtext('srtnCd', ''),
+                'isinCd': item.findtext('isinCd', ''),
+                'itmsNm': item.findtext('itmsNm', ''),
+                'mrktCtg': item.findtext('mrktCtg', ''),
+                'clpr': item.findtext('clpr', '0'),
+                'vs': item.findtext('vs', '0'),
+                'fltRt': item.findtext('fltRt', '0'),
+                'mkp': item.findtext('mkp', '0'),
+                'hipr': item.findtext('hipr', '0'),
+                'lopr': item.findtext('lopr', '0'),
+                'trqu': item.findtext('trqu', '0'),
+                'trPrc': item.findtext('trPrc', '0'),
+                'lstgStCnt': item.findtext('lstgStCnt', '0'),
+                'mrktTotAmt': item.findtext('mrktTotAmt', '0')
+            })
         
-    except requests.exceptions.Timeout:
-        print(f"⏱️ {market_name}: 타임아웃 (30초)")
-        return []
+        return items, total_count
+        
     except Exception as e:
-        print(f"🚨 {market_name} 오류: {e}")
+        print(f"🚨 API 호출 오류: {e}")
         import traceback
         traceback.print_exc()
-        return []
+        return None, 0
 
-def clean_number(value):
-    """숫자 변환"""
-    if not value or value == '-':
-        return 0
-    try:
-        return int(str(value).replace(',', '').replace(' ', ''))
-    except:
-        return 0
+def transform_to_db_format(api_data):
+    """
+    API 응답을 DB 형식으로 변환
+    """
+    companies = []
+    
+    for item in api_data:
+        try:
+            companies.append({
+                'stock_code': item['srtnCd'],  # 단축코드 (6자리)
+                'full_code': item['isinCd'],   # ISIN코드 (12자리)
+                'corp_name': item['itmsNm'],   # 종목명
+                'market_type': item['mrktCtg'], # KOSPI/KOSDAQ/KONEX
+                'close_price': int(item['clpr']) if item['clpr'] else 0,
+                'open_price': int(item['mkp']) if item['mkp'] else 0,
+                'high_price': int(item['hipr']) if item['hipr'] else 0,
+                'low_price': int(item['lopr']) if item['lopr'] else 0,
+                'volume': int(item['trqu']) if item['trqu'] else 0,
+                'trade_value': int(item['trPrc']) if item['trPrc'] else 0,
+                'market_cap': int(item['mrktTotAmt']) if item['mrktTotAmt'] else 0,
+                'listed_shares': int(item['lstgStCnt']) if item['lstgStCnt'] else 0,
+                'updated_at': datetime.now().isoformat()
+            })
+        except Exception as e:
+            print(f"⚠️ 변환 실패: {e}")
+            continue
+    
+    return companies
 
-def merge_stock_data():
-    """KRX API 데이터 병합"""
+def run():
+    """메인 실행"""
     print(f"\n{'='*70}")
-    print(f"🚀 KRX Open API 전종목 데이터 수집")
+    print(f"🚀 공공데이터포털 주식시세 정보 수집")
     print(f"   시작 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
     # 직전 영업일 계산
     bas_dt = get_previous_business_day()
-    print(f"   📅 기준일자: {bas_dt} (직전 영업일)")
-    print(f"   🔑 인증키: {KRX_AUTH_KEY[:20]}...")
+    print(f"   📅 기준일자: {bas_dt}")
+    print(f"   🔑 API Key: {DATA_GO_KR_KEY[:20]}...")
     print(f"{'='*70}\n")
     
-    # 1. 기본 정보 수집
-    print("📊 Step 1/4: KOSPI 기본정보")
-    kospi_base = fetch_krx_data(KRX_APIS['kospi_base'], 'KOSPI 기본정보', bas_dt)
-    time.sleep(1)
+    # 1차 API 호출 (총 개수 확인)
+    print("📊 1차 조회: 총 종목 수 확인")
+    first_page, total_count = fetch_stock_data(bas_dt, page_no=1, num_of_rows=100)
     
-    print("\n📊 Step 2/4: KOSDAQ 기본정보")
-    kosdaq_base = fetch_krx_data(KRX_APIS['kosdaq_base'], 'KOSDAQ 기본정보', bas_dt)
-    time.sleep(1)
+    if first_page is None:
+        print("\n❌ API 호출 실패")
+        print("\n원인:")
+        print("1. API 키가 잘못되었거나 활성화되지 않음")
+        print("2. 오늘이 데이터 갱신 시간 이전 (평일 오후 1시 이후 확인)")
+        print("3. https://www.data.go.kr/data/15094808/openapi.do 에서 키 확인")
+        return False
     
-    # 2. 매매 정보 수집
-    print("\n💹 Step 3/4: KOSPI 매매정보")
-    kospi_trade = fetch_krx_data(KRX_APIS['kospi_trade'], 'KOSPI 매매정보', bas_dt)
-    time.sleep(1)
+    print(f"   ✅ 총 {total_count:,}개 종목 확인\n")
     
-    print("\n💹 Step 4/4: KOSDAQ 매매정보")
-    kosdaq_trade = fetch_krx_data(KRX_APIS['kosdaq_trade'], 'KOSDAQ 매매정보', bas_dt)
+    # 전체 데이터 수집
+    all_items = []
+    num_of_rows = 1000  # 한 번에 1000개씩
+    total_pages = (total_count // num_of_rows) + 1
     
-    # 3. 데이터 병합
-    print("\n🔄 데이터 병합 중...")
-    merged = {}
+    print(f"📡 전체 데이터 수집 중 ({total_pages}페이지)...")
     
-    # 기본 정보
-    for item in kospi_base + kosdaq_base:
-        code = item.get('ISU_SRT_CD')
-        if not code:
-            continue
+    for page in range(1, total_pages + 1):
+        items, _ = fetch_stock_data(bas_dt, page_no=page, num_of_rows=num_of_rows)
         
-        merged[code] = {
-            'stock_code': code,
-            'full_code': item.get('ISU_CD', ''),
-            'corp_name': item.get('ISU_ABBRV', ''),
-            'corp_name_full': item.get('ISU_NM', ''),
-            'market_type': item.get('MKT_NM', ''),
-            'sector': item.get('SECT_TP_NM', ''),
-            'updated_at': datetime.now().isoformat()
-        }
+        if items:
+            all_items.extend(items)
+            print(f"   ✅ 페이지 {page}/{total_pages}: {len(items)}개 수집")
+        else:
+            print(f"   ⚠️ 페이지 {page} 실패")
+        
+        # API 요청 제한 방지 (초당 30 tps)
+        time.sleep(0.5)
     
-    # 매매 정보
-    for item in kospi_trade + kosdaq_trade:
-        code = item.get('ISU_SRT_CD')
-        if code in merged:
-            merged[code].update({
-                'close_price': clean_number(item.get('TDD_CLSPRC')),
-                'open_price': clean_number(item.get('TDD_OPNPRC')),
-                'high_price': clean_number(item.get('TDD_HGPRC')),
-                'low_price': clean_number(item.get('TDD_LWPRC')),
-                'market_cap': clean_number(item.get('MKTCAP')),
-                'volume': clean_number(item.get('ACC_TRDVOL')),
-                'trade_value': clean_number(item.get('ACC_TRDVAL')),
-                'listed_shares': clean_number(item.get('LIST_SHRS'))
-            })
+    print(f"\n📦 총 {len(all_items):,}개 종목 수집 완료\n")
     
-    companies = list(merged.values())
-    print(f"\n📦 병합 완료: 총 {len(companies)}개 종목\n")
+    if not all_items:
+        print("❌ 수집된 데이터 없음")
+        return False
+    
+    # 데이터 변환
+    print("🔄 데이터 변환 중...")
+    companies = transform_to_db_format(all_items)
+    print(f"   ✅ {len(companies):,}개 종목 변환 완료\n")
     
     # 샘플 출력
     if companies:
         sample = companies[0]
         print("📋 샘플 데이터:")
-        print(f"   종목코드: {sample.get('stock_code')}")
-        print(f"   종목명: {sample.get('corp_name')}")
-        print(f"   시장: {sample.get('market_type')}")
-        print(f"   종가: {sample.get('close_price'):,}원")
-        print(f"   시가총액: {sample.get('market_cap'):,}백만원\n")
+        print(f"   종목코드: {sample['stock_code']}")
+        print(f"   종목명: {sample['corp_name']}")
+        print(f"   시장: {sample['market_type']}")
+        print(f"   종가: {sample['close_price']:,}원")
+        print(f"   시가총액: {sample['market_cap']:,}백만원\n")
     
-    return companies
-
-def save_to_supabase(companies):
-    """Supabase 저장"""
-    if not companies:
-        print("❌ 저장할 데이터 없음")
-        return False
-    
+    # Supabase 저장
     print("💾 Supabase 저장 중...\n")
     batch_size = 100
     success = 0
@@ -228,43 +231,21 @@ def save_to_supabase(companies):
             
             success += len(batch)
             print(f"   ✅ Batch {batch_num}: {len(batch)}개 저장")
-            time.sleep(0.5)
+            time.sleep(0.3)
             
         except Exception as e:
             failed += len(batch)
             print(f"   ❌ Batch {batch_num} 실패: {str(e)[:100]}")
     
     print(f"\n{'='*70}")
-    print(f"🎉 저장 완료!")
-    print(f"   - 성공: {success}개")
-    print(f"   - 실패: {failed}개")
+    print(f"🎉 동기화 완료!")
+    print(f"   - 기준일자: {bas_dt}")
+    print(f"   - 성공: {success:,}개")
+    print(f"   - 실패: {failed:,}개")
     print(f"   - 완료 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*70}\n")
     
     return success > 0
-
-def run():
-    """메인 실행"""
-    try:
-        companies = merge_stock_data()
-        
-        if not companies:
-            print("\n❌ KRX API에서 데이터를 가져오지 못했습니다.")
-            print("\n원인:")
-            print("1. 오늘이 공휴일이거나 주말일 수 있습니다.")
-            print("2. KRX API 서비스별 신청이 승인되지 않았을 수 있습니다.")
-            print("3. https://openapi.krx.co.kr/ → 마이페이지 → API 이용현황 확인")
-            print("\n대안: 네이버 금융 API 사용 권장")
-            return False
-        
-        success = save_to_supabase(companies)
-        return success
-        
-    except Exception as e:
-        print(f"\n🚨 예상치 못한 오류: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
 
 if __name__ == "__main__":
     success = run()
