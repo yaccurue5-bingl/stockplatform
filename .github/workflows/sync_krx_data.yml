@@ -65,3 +65,8 @@ jobs:
           echo "========================================"
           echo "작업 완료 시간: $(date +'%Y-%m-%d %H:%M:%S')"
           echo "========================================"
+          - name: Trigger Vercel Deploy
+      - name: Trigger Vercel Deploy
+        if: SUCCESS()
+        run: |
+          curl -x POST ${{secrets.VERCEL_DEPLOY_HOOK_URL }}
