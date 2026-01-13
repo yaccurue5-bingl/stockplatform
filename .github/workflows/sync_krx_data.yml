@@ -1,4 +1,3 @@
-# .github/workflows/sync_krx_data.yml
 name: KRX Market Data Sync
 
 on:
@@ -45,7 +44,7 @@ jobs:
             exit 1
           fi
       
-      - name: Sync Market Indices (KOSPI, KOSDAQ, USD/KRW)
+      - name: Sync Market Indices
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -58,6 +57,7 @@ jobs:
           else
             echo "⚠️ 지수 데이터 동기화 실패 (계속 진행)"
           fi
+        continue-on-error: true
       
       - name: Summary
         if: always()
@@ -65,8 +65,7 @@ jobs:
           echo "========================================"
           echo "작업 완료 시간: $(date +'%Y-%m-%d %H:%M:%S')"
           echo "========================================"
-          - name: Trigger Vercel Deploy
-     # - name: Trigger Vercel Deploy
-      #  if: SUCCESS()
-       # run: |
-        #  curl -x POST ${{secrets.VERCEL_DEPLOY_HOOK_URL }}
+      - name: Trigger Vercel Deploy
+        if: SUCCESS()
+        run: |
+          curl -x POST ${{secrets.VERCEL_DEPLOY_HOOK_URL }}
