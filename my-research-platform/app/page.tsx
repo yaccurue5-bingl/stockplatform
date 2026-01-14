@@ -69,7 +69,7 @@ function DisclosureDashboard() {
         .from('disclosure_insights')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
       
       if (data) {
         setDisclosures(prev => 
@@ -98,7 +98,7 @@ function DisclosureDashboard() {
         .from('companies')
         .select('*')
         .eq('stock_code', stockCode)
-        .single();
+        .maybeSingle();
       
       if (error) {
         console.log(`종목 정보 없음: ${stockCode}`);
