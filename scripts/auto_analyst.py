@@ -53,7 +53,8 @@ Scoring rules:
                     {"role": "user", "content": f"Company: {corp_name}\nDisclosure: {title}"}
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.2
+                temperature=0.2,
+                max_tokens=1000  # 토큰 제한 추가
             )
             
             result = json.loads(response.choices[0].message.content)
@@ -75,6 +76,9 @@ Scoring rules:
             
             return result
             
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON 파싱 오류: {e}")
+            return None
         except Exception as e:
             logger.error(f"❌ Groq API Error: {e}")
             return None
@@ -82,10 +86,11 @@ Scoring rules:
 def run():
     analyst = AIAnalyst()
     
-    # ✅ analysis_status가 'pending'인 항목만 조회
+    # ✅ pending 상태이고 재시도 횟수가 3회 미만인 항목만 조회
     res = supabase.table("disclosure_insights") \
         .select("*") \
         .eq("analysis_status", "pending") \
+        .or_("analysis_retry_count.is.null,analysis_retry_count.lt.3") \
         .order("created_at", desc=True) \
         .limit(20) \
         .execute()
@@ -96,15 +101,22 @@ def run():
 
     logger.info(f"🔍 {len(res.data)}건 분석 시작...")
     
+    success_count = 0
+    fail_count = 0
+    
     for item in res.data:
-        # 🔄 분석 시작 - 상태를 'processing'으로 변경
+        # 📄 분석 시작 - 상태를 'processing'으로 변경
         try:
             supabase.table("disclosure_insights") \
-                .update({"analysis_status": "processing"}) \
+                .update({
+                    "analysis_status": "processing",
+                    "updated_at": datetime.now().isoformat()
+                }) \
                 .eq("id", item['id']) \
                 .execute()
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"❌ 상태 업데이트 실패: {e}")
+            continue
         
         logger.info(f"📊 분석 중: {item['corp_name']} - {item['report_nm'][:50]}...")
         
@@ -128,21 +140,26 @@ def run():
                     .eq("id", item['id']) \
                     .execute()
                 
+                success_count += 1
                 logger.info(f"✅ 완료: {item['corp_name']} | {update_data['sentiment']} ({update_data['sentiment_score']:.2f}) | {update_data['importance']}")
             except Exception as e:
+                fail_count += 1
                 logger.error(f"❌ DB 업데이트 실패: {e}")
                 # 실패 시 상태를 'failed'로 변경
                 try:
+                    retry_count = item.get('analysis_retry_count', 0) + 1
                     supabase.table("disclosure_insights") \
                         .update({
                             "analysis_status": "failed",
-                            "analysis_retry_count": item.get('analysis_retry_count', 0) + 1
+                            "analysis_retry_count": retry_count,
+                            "updated_at": datetime.now().isoformat()
                         }) \
                         .eq("id", item['id']) \
                         .execute()
                 except:
                     pass
         else:
+            fail_count += 1
             logger.warning(f"⚠️ 분석 실패: {item['corp_name']}")
             # 분석 실패 시 상태 업데이트
             try:
@@ -153,14 +170,24 @@ def run():
                 supabase.table("disclosure_insights") \
                     .update({
                         "analysis_status": new_status,
-                        "analysis_retry_count": retry_count
+                        "analysis_retry_count": retry_count,
+                        "updated_at": datetime.now().isoformat()
                     }) \
                     .eq("id", item['id']) \
                     .execute()
+                
+                logger.info(f"   재시도 횟수: {retry_count}/3 | 상태: {new_status}")
             except:
                 pass
         
-        time.sleep(2.5)  # API 속도 제한 방지
+        # API 속도 제한 방지
+        time.sleep(2.5)
+    
+    logger.info(f"\n{'='*70}")
+    logger.info(f"🎉 분석 완료")
+    logger.info(f"   - 성공: {success_count}건")
+    logger.info(f"   - 실패: {fail_count}건")
+    logger.info(f"{'='*70}\n")
 
 if __name__ == "__main__":
     run()
