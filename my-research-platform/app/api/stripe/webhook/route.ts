@@ -31,7 +31,8 @@ export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const body = await req.text(); // raw body 가져오기
-  const signature = headers().get('stripe-signature');
+  const headersList = await headers();
+  const signature = headersList.get('stripe-signature');
 
   if (!signature) {
     console.error('[Webhook] Missing stripe-signature header');
@@ -120,7 +121,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  */
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
-  const user = await getUserByStripeCustomerId(customerId);
+  const user = await getUserByStripeCustomerId(customerId) as any;
 
   if (!user) {
     console.warn(`[Webhook] User not found for customer: ${customerId}`);
@@ -156,7 +157,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
  */
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
-  const user = await getUserByStripeCustomerId(customerId);
+  const user = await getUserByStripeCustomerId(customerId) as any;
 
   if (!user) {
     console.warn(`[Webhook] User not found for customer: ${customerId}`);
@@ -176,7 +177,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
  */
 async function handlePaymentFailed(invoice: Stripe.Invoice) {
   const customerId = invoice.customer as string;
-  const user = await getUserByStripeCustomerId(customerId);
+  const user = await getUserByStripeCustomerId(customerId) as any;
 
   if (!user) {
     console.warn(`[Webhook] User not found for customer: ${customerId}`);

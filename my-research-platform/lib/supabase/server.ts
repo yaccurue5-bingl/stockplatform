@@ -36,9 +36,9 @@ export async function createServerClient() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: any) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            cookiesToSet.forEach(({ name, value, options }: any) =>
               cookieStore.set(name, value, options)
             );
           } catch {
@@ -108,7 +108,7 @@ export async function getUserPlan(userId: string) {
  * 사용자가 PRO 플랜인지 확인
  */
 export async function isProUser(userId: string): Promise<boolean> {
-  const plan = await getUserPlan(userId);
+  const plan = await getUserPlan(userId) as any;
   return plan?.plan === 'PRO' && plan?.subscription_status === 'active';
 }
 
@@ -128,6 +128,7 @@ export async function updateUserStripeInfo(
 
   const { error } = await supabase
     .from('users')
+    // @ts-expect-error - Supabase type inference issue
     .update(data)
     .eq('id', userId);
 

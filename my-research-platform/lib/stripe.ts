@@ -9,13 +9,9 @@
 
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('Missing STRIPE_SECRET_KEY environment variable');
-}
-
-// Stripe 클라이언트 초기화
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-12-18.acacia', // 최신 API 버전
+// Stripe 클라이언트 초기화 (빌드 타임에는 환경 변수가 없을 수 있음)
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder', {
+  apiVersion: '2025-02-24.acacia', // 최신 API 버전
   typescript: true,
 });
 
