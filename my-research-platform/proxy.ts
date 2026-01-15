@@ -1,5 +1,5 @@
 /**
- * Next.js Middleware (경비원 역할)
+ * Next.js Proxy (경비원 역할)
  *
  * 모든 요청이 페이지에 도달하기 전에 이 파일을 거쳐갑니다.
  *
@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import type { Database } from '@/types/database';
 
-export async function middleware(req: NextRequest) {
+export default async function proxy(req: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request: req,
   });
@@ -121,7 +121,7 @@ export async function middleware(req: NextRequest) {
   return supabaseResponse;
 }
 
-// Middleware가 실행될 경로 설정
+// Proxy가 실행될 경로 설정
 export const config = {
   matcher: [
     /*
