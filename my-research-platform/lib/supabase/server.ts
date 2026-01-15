@@ -15,7 +15,7 @@
  * ```
  */
 
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient as createSSRServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import type { Database } from '@/types/database';
@@ -25,9 +25,29 @@ import type { Database } from '@/types/database';
  * ✅ 쿠키에서 JWT 토큰 읽어서 사용자 인증
  * ✅ RLS 정책 적용됨
  */
-export function createServerClient() {
-  const cookieStore = cookies();
-  return createServerComponentClient<Database>({ cookies: () => cookieStore });
+export async function createServerClient() {
+  const cookieStore = await cookies();
+
+  return createSSRServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Server Component에서는 쿠키 설정이 불가능할 수 있음
+          }
+        },
+      },
+    }
+  );
 }
 
 /**
@@ -54,7 +74,7 @@ export function createServiceClient() {
  * 현재 로그인한 사용자 정보 가져오기
  */
 export async function getUser() {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error || !user) {
@@ -68,7 +88,7 @@ export async function getUser() {
  * 사용자의 플랜 정보 확인
  */
 export async function getUserPlan(userId: string) {
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   const { data, error } = await supabase
     .from('users')

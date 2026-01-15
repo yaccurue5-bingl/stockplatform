@@ -5,8 +5,9 @@
  *
  * 예시:
  * ```tsx
- * import { supabase } from '@/lib/supabase/client';
+ * import { createClient } from '@/lib/supabase/client';
  *
+ * const supabase = createClient();
  * const { data, error } = await supabase.auth.signInWithPassword({
  *   email: 'user@example.com',
  *   password: 'password123',
@@ -14,17 +15,32 @@
  * ```
  */
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
 import type { Database } from '@/types/database';
 
-// 브라우저에서 사용하는 Supabase 클라이언트
-// ✅ 자동으로 쿠키에서 JWT 토큰 읽어옴
-export const supabase = createClientComponentClient<Database>();
+// 브라우저용 Supabase 클라이언트 생성 함수
+export function createClient() {
+  return createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+
+// 편의를 위한 싱글톤 인스턴스
+let supabaseInstance: ReturnType<typeof createClient> | null = null;
+
+export function getSupabase() {
+  if (!supabaseInstance) {
+    supabaseInstance = createClient();
+  }
+  return supabaseInstance;
+}
 
 /**
  * 로그인 헬퍼 함수
  */
 export async function signIn(email: string, password: string) {
+  const supabase = getSupabase();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -41,6 +57,7 @@ export async function signIn(email: string, password: string) {
  * 회원가입 헬퍼 함수
  */
 export async function signUp(email: string, password: string) {
+  const supabase = getSupabase();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -60,6 +77,7 @@ export async function signUp(email: string, password: string) {
  * 로그아웃 헬퍼 함수
  */
 export async function signOut() {
+  const supabase = getSupabase();
   const { error } = await supabase.auth.signOut();
 
   if (error) {
@@ -71,6 +89,7 @@ export async function signOut() {
  * Google OAuth 로그인
  */
 export async function signInWithGoogle() {
+  const supabase = getSupabase();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -89,6 +108,7 @@ export async function signInWithGoogle() {
  * 현재 사용자 정보 가져오기
  */
 export async function getCurrentUser() {
+  const supabase = getSupabase();
   const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error) {
@@ -102,6 +122,7 @@ export async function getCurrentUser() {
  * 사용자 플랜 정보 가져오기
  */
 export async function getUserPlan(userId: string) {
+  const supabase = getSupabase();
   const { data, error } = await supabase
     .from('users')
     .select('plan, subscription_status')
