@@ -31,8 +31,8 @@ export async function middleware(req: NextRequest) {
         getAll() {
           return req.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+        setAll(cookiesToSet: any) {
+          cookiesToSet.forEach(({ name, value, options }: any) => {
             req.cookies.set(name, value);
             supabaseResponse.cookies.set(name, value, options);
           });
@@ -107,7 +107,7 @@ export async function middleware(req: NextRequest) {
       .from('users')
       .select('plan, subscription_status')
       .eq('id', session.user.id)
-      .single();
+      .single() as any;
 
     const isPro = user?.plan === 'PRO' && user?.subscription_status === 'active';
 
