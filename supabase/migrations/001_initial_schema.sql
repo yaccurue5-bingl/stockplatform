@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS public.market_indices (
 -- users 테이블 RLS
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
+-- 기존 정책 삭제 (재실행 시 충돌 방지)
+DROP POLICY IF EXISTS "Users can view their own data" ON public.users;
+DROP POLICY IF EXISTS "Users can update their own email" ON public.users;
+DROP POLICY IF EXISTS "Users can insert their own data" ON public.users;
+
 -- ✅ 사용자는 자기 자신의 데이터만 조회 가능
 CREATE POLICY "Users can view their own data"
   ON public.users
@@ -64,7 +69,7 @@ CREATE POLICY "Users can update their own email"
   ON public.users
   FOR UPDATE
   USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id AND plan = OLD.plan AND stripe_customer_id = OLD.stripe_customer_id);
+  WITH CHECK (auth.uid() = id);
 
 -- ✅ 회원가입 시 자동으로 users 레코드 생성 (Supabase Function에서 처리)
 CREATE POLICY "Users can insert their own data"
@@ -75,6 +80,8 @@ CREATE POLICY "Users can insert their own data"
 -- companies 테이블 RLS
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Authenticated users can view companies" ON public.companies;
+
 -- ✅ 모든 로그인 사용자는 종목 정보 조회 가능 (읽기 전용)
 CREATE POLICY "Authenticated users can view companies"
   ON public.companies
@@ -83,6 +90,8 @@ CREATE POLICY "Authenticated users can view companies"
 
 -- disclosure_insights 테이블 RLS
 ALTER TABLE public.disclosure_insights ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "FREE users can view recent insights" ON public.disclosure_insights;
 
 -- ✅ FREE 사용자는 최근 7일 데이터만 조회 가능
 CREATE POLICY "FREE users can view recent insights"
@@ -110,6 +119,8 @@ CREATE POLICY "FREE users can view recent insights"
 
 -- market_indices 테이블 RLS
 ALTER TABLE public.market_indices ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Authenticated users can view market indices" ON public.market_indices;
 
 -- ✅ 모든 로그인 사용자는 시장 지수 조회 가능
 CREATE POLICY "Authenticated users can view market indices"
@@ -139,6 +150,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 기존 트리거 삭제 (재실행 시 충돌 방지)
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
+DROP TRIGGER IF EXISTS update_companies_updated_at ON public.companies;
+
 -- users 테이블 updated_at 트리거
 CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON public.users
@@ -161,8 +176,15 @@ BEGIN
   INSERT INTO public.users (id, email, plan)
   VALUES (NEW.id, NEW.email, 'FREE');
   RETURN NEW;
+EXCEPTION
+  WHEN unique_violation THEN
+    -- 이미 존재하는 경우 무시
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 기존 트리거 삭제
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 -- auth.users 테이블에 새 사용자 생성 시 트리거
 CREATE TRIGGER on_auth_user_created
