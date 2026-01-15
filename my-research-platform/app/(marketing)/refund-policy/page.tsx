@@ -262,7 +262,7 @@ export default function RefundPolicyPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">•</span>
-                <strong>Unplanned Outage (>24h):</strong> Contact us for service credit
+                <strong>Unplanned Outage (&gt;24h):</strong> Contact us for service credit
               </li>
             </ul>
           </div>
