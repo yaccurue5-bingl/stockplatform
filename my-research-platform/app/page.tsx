@@ -2,450 +2,387 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'K-MarketInsight - Korean Stock Market Intelligence for Global Investors',
-  description: 'AI-powered English analysis of Korean stock market (KOSPI/KOSDAQ). Get real-time disclosures, market insights, and AI summaries translated from Korean.',
-  keywords: ['Korean stocks', 'KOSPI', 'KOSDAQ', 'stock analysis', 'AI translation', 'Korean market', 'stock research', 'DART', 'KRX'],
-  openGraph: {
-    title: 'K-MarketInsight - Korean Stock Market Intelligence',
-    description: 'AI-powered English analysis of Korean stock market disclosures',
-    type: 'website',
-  },
+  title: 'K-Market Insight - Korean Stock Market Intelligence for Global Investors',
+  description: 'AI-powered analysis and translation of KOSPI & KOSDAQ public announcements',
+  keywords: ['Korean stocks', 'KOSPI', 'KOSDAQ', 'stock analysis', 'AI translation', 'Korean market', 'DART'],
 };
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-blue-900">
+    <div className="bg-gray-950 text-white font-sans min-h-screen">
+      {/* Fixed Sidebar */}
+      <div className="fixed left-0 top-0 h-full w-16 bg-black border-r border-gray-800 flex flex-col items-center py-6 z-50">
+        <Link href="/" className="mb-12">
+          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg">
+            K
+          </div>
+        </Link>
+
+        <div className="flex-1 flex flex-col items-center space-y-6">
+          <Link href="/" className="text-white bg-blue-600 p-3 rounded-lg">
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 576 512">
+              <path d="M575.8 255.5c0 18-15 32.1-32 32.1h-32l.7 160.2c0 2.7-.2 5.4-.5 8.1V472c0 22.1-17.9 40-40 40H456c-1.1 0-2.2 0-3.3-.1c-1.4 .1-2.8 .1-4.2 .1H416 392c-22.1 0-40-17.9-40-40V448 384c0-17.7-14.3-32-32-32H256c-17.7 0-32 14.3-32 32v64 24c0 22.1-17.9 40-40 40H160 128.1c-1.5 0-3-.1-4.5-.2c-1.2 .1-2.4 .2-3.6 .2H104c-22.1 0-40-17.9-40-40V360c0-.9 0-1.9 .1-2.8V287.6H32c-18 0-32-14-32-32.1c0-9 3-17 10-24L266.4 8c7-7 15-8 22-8s15 2 21 7L564.8 231.5c8 7 12 15 11 24z"/>
+            </svg>
+          </Link>
+
+          <Link href="/signup" className="text-gray-500 hover:text-white p-3 rounded-lg transition">
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 512 512">
+              <path d="M64 64c0-17.7-14.3-32-32-32S0 46.3 0 64V400c0 44.2 35.8 80 80 80H480c17.7 0 32-14.3 32-32s-14.3-32-32-32H80c-8.8 0-16-7.2-16-16V64zm406.6 86.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L320 210.7l-57.4-57.4c-12.5-12.5-32.8-12.5-45.3 0l-112 112c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L240 221.3l57.4 57.4c12.5 12.5 32.8 12.5 45.3 0l128-128z"/>
+            </svg>
+          </Link>
+
+          <Link href="/signup" className="text-gray-500 hover:text-white p-3 rounded-lg transition">
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 384 512">
+              <path d="M64 0C28.7 0 0 28.7 0 64V448c0 35.3 28.7 64 64 64H320c35.3 0 64-28.7 64-64V160H256c-17.7 0-32-14.3-32-32V0H64zM256 0V128H384L256 0zM112 256H272c8.8 0 16 7.2 16 16s-7.2 16-16 16H112c-8.8 0-16-7.2-16-16s7.2-16 16-16zm0 64H272c8.8 0 16 7.2 16 16s-7.2 16-16 16H112c-8.8 0-16-7.2-16-16s7.2-16 16-16zm0 64H272c8.8 0 16 7.2 16 16s-7.2 16-16 16H112c-8.8 0-16-7.2-16-16s7.2-16 16-16z"/>
+            </svg>
+          </Link>
+
+          <Link href="/signup" className="text-gray-500 hover:text-white p-3 rounded-lg transition">
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 448 512">
+              <path d="M224 0c-17.7 0-32 14.3-32 32V51.2C119 66 64 130.6 64 208v18.8c0 47-17.3 92.4-48.5 127.6l-7.4 8.3c-8.4 9.4-10.4 22.9-5.3 34.4S19.4 416 32 416H416c12.6 0 24-7.4 29.2-18.9s3.1-25-5.3-34.4l-7.4-8.3C401.3 319.2 384 273.9 384 226.8V208c0-77.4-55-142-128-156.8V32c0-17.7-14.3-32-32-32zm45.3 493.3c12-12 18.7-28.3 18.7-45.3H224 160c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7z"/>
+            </svg>
+          </Link>
+
+          <Link href="/signup" className="text-gray-500 hover:text-white p-3 rounded-lg transition">
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 384 512">
+              <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z"/>
+            </svg>
+          </Link>
+        </div>
+
+        <Link href="/signup" className="text-gray-500 hover:text-white p-3 rounded-lg transition">
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 512 512">
+            <path d="M495.9 166.6c3.2 8.7 .5 18.4-6.4 24.6l-43.3 39.4c1.1 8.3 1.7 16.8 1.7 25.4s-.6 17.1-1.7 25.4l43.3 39.4c6.9 6.2 9.6 15.9 6.4 24.6c-4.4 11.9-9.7 23.3-15.8 34.3l-4.7 8.1c-6.6 11-14 21.4-22.1 31.2c-5.9 7.2-15.7 9.6-24.5 6.8l-55.7-17.7c-13.4 10.3-28.2 18.9-44 25.4l-12.5 57.1c-2 9.1-9 16.3-18.2 17.8c-13.8 2.3-28 3.5-42.5 3.5s-28.7-1.2-42.5-3.5c-9.2-1.5-16.2-8.7-18.2-17.8l-12.5-57.1c-15.8-6.5-30.6-15.1-44-25.4L83.1 425.9c-8.8 2.8-18.6 .3-24.5-6.8c-8.1-9.8-15.5-20.2-22.1-31.2l-4.7-8.1c-6.1-11-11.4-22.4-15.8-34.3c-3.2-8.7-.5-18.4 6.4-24.6l43.3-39.4C64.6 273.1 64 264.6 64 256s.6-17.1 1.7-25.4L22.4 191.2c-6.9-6.2-9.6-15.9-6.4-24.6c4.4-11.9 9.7-23.3 15.8-34.3l4.7-8.1c6.6-11 14-21.4 22.1-31.2c5.9-7.2 15.7-9.6 24.5-6.8l55.7 17.7c13.4-10.3 28.2-18.9 44-25.4l12.5-57.1c2-9.1 9-16.3 18.2-17.8C227.3 1.2 241.5 0 256 0s28.7 1.2 42.5 3.5c9.2 1.5 16.2 8.7 18.2 17.8l12.5 57.1c15.8 6.5 30.6 15.1 44 25.4l55.7-17.7c8.8-2.8 18.6-.3 24.5 6.8c8.1 9.8 15.5 20.2 22.1 31.2l4.7 8.1c6.1 11 11.4 22.4 15.8 34.3zM256 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160z"/>
+          </svg>
+        </Link>
+      </div>
+
       {/* Header */}
-      <header className="border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">K</span>
+      <header className="ml-16 bg-black border-b border-gray-800 px-8 py-5">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-semibold mb-1">K-Market Insight</h1>
+            <p className="text-sm text-gray-400">Korean Stock Market Intelligence for Global Investors</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search disclosures..."
+                className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 pl-10 w-80 text-sm focus:outline-none focus:border-blue-600"
+              />
+              <svg className="absolute left-3 top-3 w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 512 512">
+                <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+              </svg>
+            </div>
+            <button className="bg-gray-900 hover:bg-gray-800 rounded-lg px-4 py-2 text-sm transition flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 512 512">
+                <path d="M352 256c0 22.2-1.2 43.6-3.3 64H163.3c-2.2-20.4-3.3-41.8-3.3-64s1.2-43.6 3.3-64H348.7c2.2 20.4 3.3 41.8 3.3 64zm28.8-64H503.9c5.3 20.5 8.1 41.9 8.1 64s-2.8 43.5-8.1 64H380.8c2.1-20.6 3.2-42 3.2-64s-1.1-43.4-3.2-64zm112.6-32H376.7c-10-63.9-29.8-117.4-55.3-151.6c78.3 20.7 142 77.5 171.9 151.6zm-149.1 0H167.7c6.1-36.4 15.5-68.6 27-94.7c10.5-23.6 22.2-40.7 33.5-51.5C239.4 3.2 248.7 0 256 0s16.6 3.2 27.8 13.8c11.3 10.8 23 27.9 33.5 51.5c11.6 26 20.9 58.2 27 94.7zm-209 0H18.6C48.6 85.9 112.2 29.1 190.6 8.4C165.1 42.6 145.3 96.1 135.3 160zM8.1 192H131.2c-2.1 20.6-3.2 42-3.2 64s1.1 43.4 3.2 64H8.1C2.8 299.5 0 278.1 0 256s2.8-43.5 8.1-64zM194.7 446.6c-11.6-26-20.9-58.2-27-94.6H344.3c-6.1 36.4-15.5 68.6-27 94.6c-10.5 23.6-22.2 40.7-33.5 51.5C272.6 508.8 263.3 512 256 512s-16.6-3.2-27.8-13.8c-11.3-10.8-23-27.9-33.5-51.5zM135.3 352c10 63.9 29.8 117.4 55.3 151.6C112.2 482.9 48.6 426.1 18.6 352H135.3zm358.1 0c-30 74.1-93.6 130.9-171.9 151.6c25.5-34.2 45.2-87.7 55.3-151.6H493.4z"/>
+              </svg>
+              EN
+            </button>
+            <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-2 text-sm transition font-medium">
+              Sign Up
+            </Link>
+            <Link href="/login">
+              <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-700 transition">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 448 512">
+                  <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512H418.3c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304H178.3z"/>
+                </svg>
               </div>
-              <h1 className="text-2xl font-bold text-white">K-MarketInsight</h1>
-            </div>
-            <div className="flex gap-4">
-              <Link
-                href="/login"
-                className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/signup"
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-              >
-                Start Free
-              </Link>
-            </div>
+            </Link>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center">
-          <h2 className="text-5xl font-bold text-white mb-6">
-            Korean Stock Market Intelligence
-            <br />
-            <span className="text-blue-400">For Global Investors</span>
-          </h2>
-          <p className="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
-            AI-powered English analysis of Korean stock disclosures (KOSPI/KOSDAQ).
-            Break the language barrier and make informed investment decisions.
-          </p>
-          <div className="flex justify-center gap-4">
-            <Link
-              href="/signup"
-              className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-lg"
-            >
-              Get Started Free
-            </Link>
-            <Link
-              href="#features"
-              className="px-8 py-4 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors text-lg"
-            >
-              Learn More
-            </Link>
-          </div>
-        </div>
-
-        {/* Market Indices */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
-            <div className="text-gray-400 text-sm font-medium mb-2">KOSPI</div>
-            <div className="text-3xl font-bold text-white mb-1">2,520.15</div>
-            <div className="text-green-400 text-sm font-medium">+15.32 (+0.61%)</div>
-          </div>
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
-            <div className="text-gray-400 text-sm font-medium mb-2">KOSDAQ</div>
-            <div className="text-3xl font-bold text-white mb-1">745.80</div>
-            <div className="text-green-400 text-sm font-medium">+8.45 (+1.15%)</div>
-          </div>
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
-            <div className="text-gray-400 text-sm font-medium mb-2">USD/KRW</div>
-            <div className="text-3xl font-bold text-white mb-1">1,329.50</div>
-            <div className="text-red-400 text-sm font-medium">-5.30 (-0.40%)</div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="bg-gray-900/50 py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h3 className="text-4xl font-bold text-white mb-4">
-              Why K-MarketInsight?
-            </h3>
-            <p className="text-xl text-gray-400">
-              Everything you need to analyze Korean stocks in English
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-              <div className="w-12 h-12 bg-blue-600/20 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <h4 className="text-xl font-bold text-white mb-3">Real-Time AI Translation</h4>
-              <p className="text-gray-400">
-                Get instant English summaries of Korean corporate disclosures from DART.
-                AI-powered analysis highlights key insights and risks.
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-              <div className="w-12 h-12 bg-green-600/20 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <h4 className="text-xl font-bold text-white mb-3">Comprehensive Market Data</h4>
-              <p className="text-gray-400">
-                Access real-time stock prices, financial reports, and market indices.
-                All KRX data integrated in one platform.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-              <div className="w-12 h-12 bg-purple-600/20 rounded-lg flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <h4 className="text-xl font-bold text-white mb-3">Verified Data Sources</h4>
-              <p className="text-gray-400">
-                Official data from DART (Korean SEC) and KRX.
-                Reliable, accurate, and compliant with Korean regulations.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Latest Disclosures Preview */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-12">
-          <h3 className="text-4xl font-bold text-white mb-4">
-            Latest Corporate Disclosures
-          </h3>
-          <p className="text-xl text-gray-400">
-            Stay updated with real-time Korean stock market news
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Sample Disclosure Cards */}
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 hover:border-blue-500 transition-colors">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h4 className="text-lg font-bold text-white">Samsung Electronics</h4>
-                <p className="text-sm text-gray-400">005930</p>
-              </div>
-              <span className="px-3 py-1 bg-blue-600/20 text-blue-400 text-xs font-medium rounded-full">
-                Q4 Earnings
-              </span>
-            </div>
-            <p className="text-gray-300 mb-4">
-              AI Summary: Strong Q4 performance with semiconductor division showing 35% YoY growth.
-              Operating profit exceeded analyst expectations.
-            </p>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">2 hours ago</span>
-              <Link href="/signup" className="text-blue-400 hover:text-blue-300 font-medium">
-                Read Analysis →
-              </Link>
-            </div>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 hover:border-blue-500 transition-colors">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h4 className="text-lg font-bold text-white">Hyundai Motor</h4>
-                <p className="text-sm text-gray-400">005380</p>
-              </div>
-              <span className="px-3 py-1 bg-green-600/20 text-green-400 text-xs font-medium rounded-full">
-                Major Contract
-              </span>
-            </div>
-            <p className="text-gray-300 mb-4">
-              AI Summary: Secured $2.5B EV battery supply contract with US manufacturer.
-              Expected to boost 2026 revenue by 12%.
-            </p>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">5 hours ago</span>
-              <Link href="/signup" className="text-blue-400 hover:text-blue-300 font-medium">
-                Read Analysis →
-              </Link>
-            </div>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 hover:border-blue-500 transition-colors">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h4 className="text-lg font-bold text-white">NAVER Corporation</h4>
-                <p className="text-sm text-gray-400">035420</p>
-              </div>
-              <span className="px-3 py-1 bg-purple-600/20 text-purple-400 text-xs font-medium rounded-full">
-                Product Launch
-              </span>
-            </div>
-            <p className="text-gray-300 mb-4">
-              AI Summary: Launched AI-powered search assistant targeting global markets.
-              Partnership with major cloud providers announced.
-            </p>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">1 day ago</span>
-              <Link href="/signup" className="text-blue-400 hover:text-blue-300 font-medium">
-                Read Analysis →
-              </Link>
-            </div>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 hover:border-blue-500 transition-colors">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h4 className="text-lg font-bold text-white">SK Hynix</h4>
-                <p className="text-sm text-gray-400">000660</p>
-              </div>
-              <span className="px-3 py-1 bg-yellow-600/20 text-yellow-400 text-xs font-medium rounded-full">
-                Stock Split
-              </span>
-            </div>
-            <p className="text-gray-300 mb-4">
-              AI Summary: Board approved 5-for-1 stock split to improve liquidity.
-              Expected completion by March 2026.
-            </p>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">1 day ago</span>
-              <Link href="/signup" className="text-blue-400 hover:text-blue-300 font-medium">
-                Read Analysis →
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-center mt-12">
-          <Link
-            href="/signup"
-            className="inline-block px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-          >
-            Access All Disclosures - Sign Up Free
-          </Link>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section className="bg-gray-900/50 py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h3 className="text-4xl font-bold text-white mb-4">
-              Simple, Transparent Pricing
-            </h3>
-            <p className="text-xl text-gray-400">
-              Start free, upgrade when you need more
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {/* Free Plan */}
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-              <div className="text-center mb-6">
-                <h4 className="text-2xl font-bold text-white mb-2">FREE</h4>
-                <div className="text-4xl font-bold text-white mb-2">$0</div>
-                <p className="text-gray-400">Forever free</p>
-              </div>
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-300">Latest disclosures feed</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-300">Basic AI summaries</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-300">Market indices tracking</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span className="text-gray-500">Full stock analysis</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  <span className="text-gray-500">Advanced AI insights</span>
-                </li>
-              </ul>
-              <Link
-                href="/signup"
-                className="block w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg text-center transition-colors"
-              >
-                Get Started
-              </Link>
-            </div>
-
-            {/* PRO Plan */}
-            <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 backdrop-blur-sm border-2 border-blue-500 rounded-xl p-8 relative">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                <span className="px-4 py-1 bg-blue-600 text-white text-sm font-bold rounded-full">
-                  MOST POPULAR
-                </span>
-              </div>
-              <div className="text-center mb-6">
-                <h4 className="text-2xl font-bold text-white mb-2">PRO</h4>
-                <div className="text-4xl font-bold text-white mb-2">$49</div>
-                <p className="text-gray-400">per month</p>
-              </div>
-              <ul className="space-y-4 mb-8">
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-white font-medium">Everything in FREE</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-white">Detailed stock analysis</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-white">Advanced AI insights</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-white">Financial report analysis</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-white">Priority support</span>
-                </li>
-              </ul>
-              <Link
-                href="/signup"
-                className="block w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-center transition-colors"
-              >
-                Start PRO Trial
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-12 text-center">
-          <h3 className="text-4xl font-bold text-white mb-4">
-            Ready to Unlock Korean Market Insights?
-          </h3>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join global investors analyzing Korean stocks with AI-powered intelligence.
-            Start your free account today.
-          </p>
-          <Link
-            href="/signup"
-            className="inline-block px-10 py-4 bg-white hover:bg-gray-100 text-blue-600 font-bold rounded-lg transition-colors text-lg"
-          >
-            Get Started Free - No Credit Card Required
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-800 mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold">K</span>
+      {/* Main Content */}
+      <main className="ml-16">
+        {/* Hero Banner */}
+        <section className="bg-gradient-to-r from-blue-900 to-blue-700 px-8 py-12">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="inline-block bg-blue-800 bg-opacity-50 rounded-full px-4 py-1 text-xs font-medium mb-4">
+                  <span className="inline-block w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                  LIVE - Market Open
                 </div>
-                <span className="text-white font-bold text-lg">K-MarketInsight</span>
+                <h2 className="text-3xl font-bold mb-3">Real-time Korean Market Disclosures</h2>
+                <p className="text-blue-100 text-lg mb-6">AI-powered analysis and translation of KOSPI & KOSDAQ public announcements</p>
+                <div className="flex items-center space-x-6">
+                  <div>
+                    <div className="text-sm text-blue-200 mb-1">KOSPI</div>
+                    <div className="text-2xl font-bold">2,645.38</div>
+                    <div className="text-green-400 text-sm">+1.24%</div>
+                  </div>
+                  <div className="h-12 w-px bg-blue-600"></div>
+                  <div>
+                    <div className="text-sm text-blue-200 mb-1">KOSDAQ</div>
+                    <div className="text-2xl font-bold">876.52</div>
+                    <div className="text-red-400 text-sm">-0.68%</div>
+                  </div>
+                  <div className="h-12 w-px bg-blue-600"></div>
+                  <div>
+                    <div className="text-sm text-blue-200 mb-1">USD/KRW</div>
+                    <div className="text-2xl font-bold">1,332.50</div>
+                    <div className="text-green-400 text-sm">+0.15%</div>
+                  </div>
+                </div>
               </div>
-              <p className="text-gray-400 text-sm">
-                Korean Stock Market Intelligence for Global Investors
-              </p>
-            </div>
-
-            <div>
-              <h5 className="text-white font-semibold mb-4">Product</h5>
-              <ul className="space-y-2">
-                <li><a href="#features" className="text-gray-400 hover:text-white text-sm transition-colors">Features</a></li>
-                <li><a href="#pricing" className="text-gray-400 hover:text-white text-sm transition-colors">Pricing</a></li>
-                <li><Link href="/signup" className="text-gray-400 hover:text-white text-sm transition-colors">Sign Up</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h5 className="text-white font-semibold mb-4">Resources</h5>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Documentation</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">API</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Support</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h5 className="text-white font-semibold mb-4">Legal</h5>
-              <ul className="space-y-2">
-                <li><a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Terms of Service</a></li>
-                <li><a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Cookie Policy</a></li>
-              </ul>
+              <div className="w-96 h-48 bg-blue-800 bg-opacity-30 rounded-xl p-4">
+                <div className="text-xs text-blue-200 mb-2">Today's Disclosure Volume</div>
+                <div className="flex items-end justify-between h-32">
+                  <div className="w-8 bg-blue-500 rounded-t" style={{height: '45%'}}></div>
+                  <div className="w-8 bg-blue-500 rounded-t" style={{height: '62%'}}></div>
+                  <div className="w-8 bg-blue-500 rounded-t" style={{height: '78%'}}></div>
+                  <div className="w-8 bg-blue-500 rounded-t" style={{height: '55%'}}></div>
+                  <div className="w-8 bg-blue-500 rounded-t" style={{height: '88%'}}></div>
+                  <div className="w-8 bg-blue-600 rounded-t" style={{height: '100%'}}></div>
+                  <div className="w-8 bg-blue-400 rounded-t opacity-50" style={{height: '35%'}}></div>
+                </div>
+                <div className="flex justify-between text-xs text-blue-300 mt-2">
+                  <span>Mon</span>
+                  <span>Tue</span>
+                  <span>Wed</span>
+                  <span>Thu</span>
+                  <span>Fri</span>
+                  <span className="font-bold">Today</span>
+                  <span className="opacity-50">Avg</span>
+                </div>
+              </div>
             </div>
           </div>
+        </section>
 
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center">
-            <p className="text-gray-400 text-sm">
-              © 2026 K-MarketInsight. All rights reserved.
-            </p>
+        {/* Latest Disclosures */}
+        <section className="px-8 py-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-semibold mb-1">Latest Disclosures</h3>
+                <p className="text-sm text-gray-400">AI-analyzed and translated in real-time</p>
+              </div>
+              <div className="flex space-x-2">
+                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium">All</button>
+                <button className="bg-gray-900 text-gray-400 hover:text-white px-4 py-2 rounded-lg text-sm transition">Material</button>
+                <button className="bg-gray-900 text-gray-400 hover:text-white px-4 py-2 rounded-lg text-sm transition">Financial</button>
+                <button className="bg-gray-900 text-gray-400 hover:text-white px-4 py-2 rounded-lg text-sm transition">Corporate</button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {/* Disclosure Card 1 */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center font-bold">SS</div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Samsung Electronics</h4>
+                      <p className="text-sm text-gray-400">005930 • KOSPI</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500 mb-1">2 minutes ago</div>
+                    <span className="inline-block bg-red-900 bg-opacity-30 text-red-400 text-xs px-3 py-1 rounded-full font-medium">High Impact</span>
+                  </div>
+                </div>
+                <h5 className="font-medium mb-2">Q4 2024 Earnings Report - Revenue Exceeds Expectations</h5>
+                <p className="text-sm text-gray-400 mb-3">Samsung Electronics reported Q4 revenue of 67.4 trillion KRW, up 11.2% YoY, driven by strong semiconductor and mobile divisions. Operating profit reached 6.6 trillion KRW...</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex space-x-2">
+                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Financial Results</span>
+                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Quarterly Report</span>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm">
+                    <Link href="/signup" className="text-gray-400 hover:text-white transition">
+                      Save
+                    </Link>
+                    <Link href="/signup" className="text-blue-500 hover:text-blue-400 transition">
+                      Read Full Analysis →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* Disclosure Card 2 */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center font-bold">HM</div>
+                    <div>
+                      <h4 className="font-semibold text-lg">Hyundai Motor</h4>
+                      <p className="text-sm text-gray-400">005380 • KOSPI</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500 mb-1">15 minutes ago</div>
+                    <span className="inline-block bg-orange-900 bg-opacity-30 text-orange-400 text-xs px-3 py-1 rounded-full font-medium">Medium Impact</span>
+                  </div>
+                </div>
+                <h5 className="font-medium mb-2">Strategic Partnership with Battery Manufacturer Announced</h5>
+                <p className="text-sm text-gray-400 mb-3">Hyundai Motor announced a strategic partnership with LG Energy Solution for next-generation EV battery development, with total investment of 2.5 trillion KRW over 5 years...</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex space-x-2">
+                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Partnership</span>
+                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">EV</span>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm">
+                    <Link href="/signup" className="text-gray-400 hover:text-white transition">
+                      Save
+                    </Link>
+                    <Link href="/signup" className="text-blue-500 hover:text-blue-400 transition">
+                      Read Full Analysis →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* Disclosure Card 3 */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center font-bold">NV</div>
+                    <div>
+                      <h4 className="font-semibold text-lg">NAVER Corporation</h4>
+                      <p className="text-sm text-gray-400">035420 • KOSPI</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500 mb-1">32 minutes ago</div>
+                    <span className="inline-block bg-blue-900 bg-opacity-30 text-blue-400 text-xs px-3 py-1 rounded-full font-medium">Low Impact</span>
+                  </div>
+                </div>
+                <h5 className="font-medium mb-2">Board Meeting Results - Dividend Policy Update</h5>
+                <p className="text-sm text-gray-400 mb-3">NAVER's board of directors approved a revised dividend policy with increased payout ratio to 20%, effective from FY2025. Annual dividend expected to increase by 15%...</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex space-x-2">
+                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Corporate Governance</span>
+                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Dividend</span>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm">
+                    <Link href="/signup" className="text-gray-400 hover:text-white transition">
+                      Save
+                    </Link>
+                    <Link href="/signup" className="text-blue-500 hover:text-blue-400 transition">
+                      Read Full Analysis →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* Disclosure Card 4 */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-yellow-600 rounded-lg flex items-center justify-center font-bold">SK</div>
+                    <div>
+                      <h4 className="font-semibold text-lg">SK Hynix</h4>
+                      <p className="text-sm text-gray-400">000660 • KOSPI</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500 mb-1">1 hour ago</div>
+                    <span className="inline-block bg-green-900 bg-opacity-30 text-green-400 text-xs px-3 py-1 rounded-full font-medium">Positive</span>
+                  </div>
+                </div>
+                <h5 className="font-medium mb-2">New HBM4 Memory Technology Development Milestone Achieved</h5>
+                <p className="text-sm text-gray-400 mb-3">SK Hynix successfully developed next-generation HBM4 memory technology, exceeding performance benchmarks. Mass production scheduled for Q3 2025, targeting AI chip market...</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex space-x-2">
+                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Technology</span>
+                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">R&D</span>
+                  </div>
+                  <div className="flex items-center space-x-4 text-sm">
+                    <Link href="/signup" className="text-gray-400 hover:text-white transition">
+                      Save
+                    </Link>
+                    <Link href="/signup" className="text-blue-500 hover:text-blue-400 transition">
+                      Read Full Analysis →
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* View More */}
+            <div className="text-center mt-8">
+              <Link href="/signup" className="inline-block bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-600 rounded-lg px-8 py-3 text-sm font-medium transition">
+                View All Disclosures →
+              </Link>
+            </div>
           </div>
-        </div>
-      </footer>
+        </section>
+
+        {/* Features Section */}
+        <section className="px-8 py-16 bg-gray-900">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <h3 className="text-3xl font-bold mb-4">Why K-MarketInsight?</h3>
+              <p className="text-gray-400">Everything you need to analyze Korean stocks in English</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="bg-gray-950 border border-gray-800 rounded-xl p-6">
+                <div className="w-12 h-12 bg-blue-600 bg-opacity-20 rounded-lg flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-bold mb-2">Real-Time AI Translation</h4>
+                <p className="text-gray-400 text-sm">
+                  Get instant English summaries of Korean corporate disclosures from DART. AI-powered analysis highlights key insights.
+                </p>
+              </div>
+
+              <div className="bg-gray-950 border border-gray-800 rounded-xl p-6">
+                <div className="w-12 h-12 bg-green-600 bg-opacity-20 rounded-lg flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-bold mb-2">Comprehensive Market Data</h4>
+                <p className="text-gray-400 text-sm">
+                  Access real-time stock prices, financial reports, and market indices. All KRX data integrated in one platform.
+                </p>
+              </div>
+
+              <div className="bg-gray-950 border border-gray-800 rounded-xl p-6">
+                <div className="w-12 h-12 bg-purple-600 bg-opacity-20 rounded-lg flex items-center justify-center mb-4">
+                  <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <h4 className="text-lg font-bold mb-2">Verified Data Sources</h4>
+                <p className="text-gray-400 text-sm">
+                  Official data from DART (Korean SEC) and KRX. Reliable, accurate, and compliant with Korean regulations.
+                </p>
+              </div>
+            </div>
+
+            <div className="text-center mt-12">
+              <Link href="/pricing" className="inline-block bg-blue-600 hover:bg-blue-700 rounded-lg px-8 py-3 font-medium transition">
+                View Pricing Plans
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="px-8 py-8 border-t border-gray-800">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-400">
+                © 2026 K-MarketInsight. All rights reserved.
+              </div>
+              <div className="flex space-x-6 text-sm">
+                <Link href="/terms" className="text-gray-400 hover:text-white transition">Terms</Link>
+                <Link href="/privacy" className="text-gray-400 hover:text-white transition">Privacy</Link>
+                <Link href="/refund-policy" className="text-gray-400 hover:text-white transition">Refund Policy</Link>
+                <Link href="/pricing" className="text-gray-400 hover:text-white transition">Pricing</Link>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </main>
     </div>
   );
 }
