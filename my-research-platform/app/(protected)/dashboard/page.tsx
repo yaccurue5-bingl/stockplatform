@@ -2,8 +2,7 @@
 
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { supabase } from "../lib/supabase";
-import StockSentiment from '../components/StockSentiment';
+import { getSupabase } from "@/lib/supabase/client";
 
 function DisclosureDashboard() {
   const router = useRouter();
@@ -65,19 +64,20 @@ function DisclosureDashboard() {
   // ✅ 무한 로딩 방지 (문제 2 해결)
   const refreshSelectedItem = async (id: string) => {
     try {
+      const supabase = getSupabase();
       const { data } = await supabase
         .from('disclosure_insights')
         .select('*')
         .eq('id', id)
         .maybeSingle();
-      
+
       if (data) {
-        setDisclosures(prev => 
-          prev.map(item => item.id.toString() === id ? data : item)
+        setDisclosures(prev =>
+          prev.map(item => item.id.toString() === id ? data as any : item)
         );
-        
-        if (data.stock_code) {
-          fetchStockInfo(data.stock_code);
+
+        if ((data as any).stock_code) {
+          fetchStockInfo((data as any).stock_code);
         }
       }
     } catch (error) {
@@ -94,6 +94,7 @@ function DisclosureDashboard() {
     }
 
     try {
+      const supabase = getSupabase();
       const { data, error } = await supabase
         .from('companies')
         .select('*')
@@ -108,7 +109,7 @@ function DisclosureDashboard() {
       
       if (data) {
         setStockInfo(data);
-        console.log(`✅ 종목 정보 로드: ${data.corp_name}`);
+        console.log(`✅ 종목 정보 로드: ${(data as any).corp_name}`);
       }
     } catch (error) {
       console.error('Failed to fetch stock info:', error);
@@ -119,6 +120,7 @@ function DisclosureDashboard() {
   useEffect(() => {
     async function fetchData() {
       try {
+        const supabase = getSupabase();
         const [indicesRes, disclosuresRes] = await Promise.all([
           supabase.from('market_indices').select('*').order('symbol', { ascending: true }),
           supabase.from('disclosure_insights')
@@ -275,11 +277,25 @@ function DisclosureDashboard() {
               
               {/* ✅ 분석 완료 / 실패 / 진행중 처리 (문제 2 해결) */}
               {isAnalysisComplete ? (
-                <StockSentiment 
-                  sentiment={selectedItem.sentiment} 
-                  sentiment_score={selectedItem.sentiment_score} 
-                  ai_summary={selectedItem.ai_summary} 
-                />
+                <div className="bg-slate-800/50 rounded-3xl p-8 border border-slate-700/50">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="text-4xl">
+                      {selectedItem.sentiment === 'POSITIVE' ? '😊' :
+                       selectedItem.sentiment === 'NEGATIVE' ? '😟' : '😐'}
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-white">
+                        {selectedItem.sentiment || 'NEUTRAL'}
+                      </div>
+                      <div className="text-slate-400">
+                        Score: {selectedItem.sentiment_score || 0}/100
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-slate-300 whitespace-pre-wrap">
+                    {selectedItem.ai_summary || 'No summary available'}
+                  </div>
+                </div>
               ) : isFailed ? (
                 <div className="bg-rose-500/10 rounded-3xl p-8 border border-rose-500/20 text-center">
                   <div className="flex flex-col items-center gap-4">
