@@ -54,7 +54,7 @@ export default function PricingPage() {
             <div className="text-center mb-8">
               <h3 className="text-3xl font-bold text-white mb-4">AI Analysis Reports</h3>
               <div className="text-6xl font-bold text-white mb-2">$19.99</div>
-              <p className="text-blue-200 text-lg">One-time payment</p>
+              <p className="text-blue-200 text-lg">per month</p>
             </div>
 
             <div className="bg-blue-950/30 rounded-xl p-6 mb-8">
@@ -151,7 +151,7 @@ export default function PricingPage() {
               href="/signup"
               className="block w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-lg text-center transition-colors shadow-lg"
             >
-              Get Instant Access - $19.99
+              Subscribe - $19.99/month
             </Link>
 
             <p className="text-center text-sm text-blue-200 mt-4">
@@ -178,10 +178,10 @@ export default function PricingPage() {
 
             <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
               <h4 className="text-lg font-bold text-white mb-2">
-                Is this a subscription or one-time payment?
+                Is this a subscription?
               </h4>
               <p className="text-gray-400">
-                This is a one-time payment of $19.99. There are no recurring charges.
+                Yes, this is a monthly subscription at $19.99/month. You can cancel anytime.
               </p>
             </div>
 
