@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Refund Policy - K-MarketInsight',
-  description: 'Our refund and cancellation policy for K-MarketInsight subscriptions',
+  description: '7-day refund policy for digital content purchases',
 };
 
 export default function RefundPolicyPage() {
@@ -24,287 +24,140 @@ export default function RefundPolicyPage() {
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <h1 className="text-5xl font-bold text-white mb-4">Refund Policy</h1>
-        <p className="text-gray-400 mb-12">Last updated: January 15, 2026</p>
+        <p className="text-gray-400 mb-12">Last updated: January 16, 2026</p>
 
-        <div className="prose prose-invert prose-lg max-w-none">
-          <div className="bg-green-900/20 border border-green-700/50 rounded-xl p-6 mb-8">
-            <p className="text-green-200 leading-relaxed">
-              We want you to be completely satisfied with K-MarketInsight. If you're not happy with your purchase,
-              we offer a 30-day money-back guarantee.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">1. 30-Day Money-Back Guarantee</h2>
-            <p className="text-gray-300 mb-4">
-              For PRO plan subscriptions, you can request a full refund within 30 days of your initial purchase if:
-            </p>
-            <ul className="space-y-2 text-gray-300">
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                This is your first subscription with K-MarketInsight
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                The request is made within 30 days of the original purchase date
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                You have not violated our Terms of Service
-              </li>
-            </ul>
-            <p className="text-blue-200 mt-4 text-sm">
-              No questions asked - if you're not satisfied, we'll refund you.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">2. How to Request a Refund</h2>
-            <p className="text-gray-300 mb-4">To request a refund:</p>
-            <ol className="space-y-3 text-gray-300">
-              <li className="flex items-start gap-3">
-                <span className="text-blue-400 font-bold">1.</span>
-                <div>
-                  Email us at <a href="mailto:support@k-marketinsight.com" className="text-blue-400 hover:text-blue-300 underline">support@k-marketinsight.com</a> with subject "Refund Request"
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-blue-400 font-bold">2.</span>
-                <div>
-                  Include your account email and order number (found in your purchase confirmation email)
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-blue-400 font-bold">3.</span>
-                <div>
-                  Optionally, let us know why you're requesting a refund (helps us improve)
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-blue-400 font-bold">4.</span>
-                <div>
-                  We'll process your refund within 5-7 business days
-                </div>
-              </li>
-            </ol>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">3. Subscription Renewals</h2>
-            <p className="text-gray-300 mb-4">
-              For subscription renewals (after the first 30 days):
-            </p>
-            <ul className="space-y-2 text-gray-300">
-              <li className="flex items-start gap-2">
-                <span className="text-yellow-400">•</span>
-                <strong>No refunds for renewal charges</strong> - You must cancel before the renewal date
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-yellow-400">•</span>
-                <strong>Prorated refunds:</strong> Not available for partial months
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-yellow-400">•</span>
-                <strong>Cancellation:</strong> Takes effect at the end of the billing period
-              </li>
-            </ul>
-            <p className="text-gray-400 mt-4 text-sm">
-              Example: If you cancel on March 15, your access continues until March 31 (no refund for remaining days).
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">4. How to Cancel Your Subscription</h2>
-            <p className="text-gray-300 mb-4">
-              You can cancel your subscription anytime:
-            </p>
-            <ol className="space-y-3 text-gray-300">
-              <li className="flex items-start gap-3">
-                <span className="text-blue-400 font-bold">1.</span>
-                <div>
-                  Log in to your K-MarketInsight account
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-blue-400 font-bold">2.</span>
-                <div>
-                  Go to Settings → Billing
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-blue-400 font-bold">3.</span>
-                <div>
-                  Click "Cancel Subscription"
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="text-blue-400 font-bold">4.</span>
-                <div>
-                  Confirm cancellation
-                </div>
-              </li>
-            </ol>
-            <p className="text-green-200 mt-4">
-              Your access will continue until the end of your current billing period.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">5. Exceptions to Refund Policy</h2>
-            <p className="text-gray-300 mb-4">
-              We cannot provide refunds in the following cases:
-            </p>
-            <ul className="space-y-2 text-gray-300">
-              <li className="flex items-start gap-2">
-                <span className="text-red-400">✗</span>
-                Accounts terminated for Terms of Service violations
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400">✗</span>
-                Refund requests made after 30 days of initial purchase
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400">✗</span>
-                Previous refunds already received for same account
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400">✗</span>
-                Fraudulent or abusive refund requests
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400">✗</span>
-                FREE plan (no purchase required)
-              </li>
-            </ul>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">6. Refund Processing Time</h2>
-            <p className="text-gray-300 mb-4">
-              Once your refund request is approved:
-            </p>
-            <ul className="space-y-2 text-gray-300">
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                <strong>Processing:</strong> 5-7 business days
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                <strong>Credit/Debit Cards:</strong> 5-10 business days to appear on statement
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                <strong>PayPal:</strong> 3-5 business days
-              </li>
-            </ul>
-            <p className="text-gray-400 mt-4 text-sm">
-              Refunds are issued to the original payment method only.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">7. Chargebacks</h2>
-            <div className="bg-red-900/20 border border-red-700/50 rounded-lg p-4 mb-4">
-              <p className="text-red-200 font-medium">⚠️ Important Notice</p>
+        <div className="bg-yellow-900/20 border-2 border-yellow-600/50 rounded-xl p-6 mb-12">
+          <div className="flex items-start gap-3">
+            <svg className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <h3 className="text-yellow-200 font-bold mb-2">Important Notice</h3>
+              <p className="text-yellow-100 text-sm">
+                Due to the digital nature of our service, refunds are subject to the conditions below.
+              </p>
             </div>
-            <p className="text-gray-300 mb-4">
-              If you dispute a charge with your bank without contacting us first:
-            </p>
-            <ul className="space-y-2 text-gray-300">
-              <li className="flex items-start gap-2">
-                <span className="text-red-400">•</span>
-                Your account will be immediately suspended
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400">•</span>
-                We may not be able to provide a refund after chargeback
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-red-400">•</span>
-                Future access to K-MarketInsight may be blocked
-              </li>
-            </ul>
-            <p className="text-yellow-200 mt-4">
-              Please contact us first - we're happy to help resolve any billing issues!
+          </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Eligibility for Refund</h2>
+            <div className="space-y-4 text-gray-300">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <p>
+                  <strong>Refund requests must be made within 7 days of the initial purchase</strong>
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <p>
+                  <strong>A full refund is available only if no paid AI analysis content has been accessed</strong>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Limitations</h2>
+            <div className="space-y-4 text-gray-300">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p>
+                  If a user has accessed two (2) or more paid AI analysis reports, <strong>a refund may be restricted or declined</strong>
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p>
+                  Once digital content has been accessed, it is considered delivered
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Rationale</h2>
+            <p className="text-gray-300 leading-relaxed">
+              This policy is in place due to the instant-access and non-returnable nature of digital content.
+              Once AI analysis reports are accessed, the digital product has been delivered and consumed,
+              similar to downloading an ebook or streaming a movie.
             </p>
           </div>
 
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">8. Annual Plans</h2>
-            <p className="text-gray-300 mb-4">
-              For annual subscriptions:
+          <div className="bg-blue-900/20 border border-blue-600/50 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">How to Request a Refund</h2>
+            <p className="text-blue-100 leading-relaxed mb-4">
+              Please contact us at:
             </p>
-            <ul className="space-y-2 text-gray-300">
-              <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
-                30-day money-back guarantee applies (full refund)
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-yellow-400">•</span>
-                After 30 days: No refunds for remaining months
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-yellow-400">•</span>
-                Cancellation takes effect at the end of 12-month period
-              </li>
-            </ul>
+            <a
+              href="mailto:support@k-marketinsight.com"
+              className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium text-lg"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+              </svg>
+              support@k-marketinsight.com
+            </a>
+            <p className="text-blue-200 text-sm mt-4">
+              All refunds are processed through Paddle, our payment processor. Please allow 5-10 business days for refunds to appear in your account.
+            </p>
           </div>
 
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold text-white mb-4">9. Service Outages</h2>
-            <p className="text-gray-300 mb-4">
-              If we experience extended service downtime:
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Processing Time</h2>
+            <p className="text-gray-300 leading-relaxed">
+              Approved refunds are typically processed within 5-10 business days. The refund will be returned to your original payment method.
+            </p>
+          </div>
+
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Exceptions</h2>
+            <p className="text-gray-300 leading-relaxed mb-4">
+              We reserve the right to make exceptions to this policy on a case-by-case basis for:
             </p>
             <ul className="space-y-2 text-gray-300">
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">•</span>
-                <strong>Planned Maintenance:</strong> No compensation (we notify in advance)
+                Technical issues preventing access to purchased content
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">•</span>
-                <strong>Unplanned Outage (&gt;24h):</strong> Contact us for service credit
+                Billing errors or duplicate charges
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400">•</span>
+                Service outages affecting content delivery
               </li>
             </ul>
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">10. Questions?</h2>
-            <p className="text-gray-300 leading-relaxed mb-4">
-              Have questions about our refund policy? We're here to help:
-            </p>
-            <div className="text-gray-300">
-              <p>Email: <a href="mailto:support@k-marketinsight.com" className="text-blue-400 hover:text-blue-300 underline">support@k-marketinsight.com</a></p>
-              <p className="mt-2">Response time: Within 24 hours (business days)</p>
-            </div>
-          </div>
-
-          <div className="bg-blue-900/20 border border-blue-700/50 rounded-xl p-6 mt-8">
-            <h3 className="text-xl font-bold text-white mb-3">💡 Before Requesting a Refund</h3>
-            <p className="text-blue-200 mb-3">
-              Not satisfied with the service? Let us help! Common issues we can solve:
-            </p>
-            <ul className="space-y-2 text-blue-200">
-              <li className="flex items-start gap-2">
-                <span>•</span>
-                Technical difficulties - our support team can help troubleshoot
-              </li>
-              <li className="flex items-start gap-2">
-                <span>•</span>
-                Feature questions - we provide onboarding assistance
-              </li>
-              <li className="flex items-start gap-2">
-                <span>•</span>
-                Data accuracy concerns - we can verify and correct issues
-              </li>
-            </ul>
-            <p className="text-blue-200 mt-3">
-              Contact us at <a href="mailto:support@k-marketinsight.com" className="underline">support@k-marketinsight.com</a> - we want to make it right!
+            <h2 className="text-2xl font-bold text-white mb-4">Contact Information</h2>
+            <p className="text-gray-300 leading-relaxed">
+              For questions about this Refund Policy or to request a refund, please contact:
+              <br /><br />
+              <strong className="text-white">Email:</strong>
+              <a href="mailto:support@k-marketinsight.com" className="text-blue-400 hover:text-blue-300 underline ml-2">
+                support@k-marketinsight.com
+              </a>
             </p>
           </div>
         </div>
 
+        {/* Back to Home */}
         <div className="mt-12 text-center">
-          <Link href="/" className="text-blue-400 hover:text-blue-300 font-medium">
+          <Link href="/" className="text-blue-400 hover:text-blue-300 transition-colors">
             ← Back to Home
           </Link>
         </div>
@@ -318,14 +171,14 @@ export default function RefundPolicyPage() {
               © 2026 K-MarketInsight. All rights reserved.
             </p>
             <div className="flex gap-6">
-              <Link href="/pricing" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Pricing
-              </Link>
               <Link href="/terms" className="text-gray-400 hover:text-white text-sm transition-colors">
                 Terms of Service
               </Link>
               <Link href="/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">
                 Privacy Policy
+              </Link>
+              <Link href="/refund-policy" className="text-white text-sm font-medium">
+                Refund Policy
               </Link>
             </div>
           </div>

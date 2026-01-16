@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Pricing - K-MarketInsight',
-  description: 'Choose the perfect plan for your Korean stock market research needs',
+  description: 'Get instant access to AI-powered market analysis reports',
 };
 
 export default function PricingPage() {
@@ -24,7 +24,7 @@ export default function PricingPage() {
                 Sign In
               </Link>
               <Link href="/signup" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                Start Free
+                Get Started
               </Link>
             </div>
           </div>
@@ -35,99 +35,59 @@ export default function PricingPage() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
           <h2 className="text-5xl font-bold text-white mb-4">
-            Simple, Transparent Pricing
+            AI-Powered Market Analysis
           </h2>
           <p className="text-xl text-gray-400">
-            Start free, upgrade when you need more
+            Get instant access to professional-grade insights
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-          {/* Free Plan */}
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl p-8 hover:border-gray-600 transition-colors">
-            <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-white mb-2">FREE</h3>
-              <div className="text-5xl font-bold text-white mb-2">$0</div>
-              <p className="text-gray-400">Forever free</p>
-            </div>
-
-            <ul className="space-y-4 mb-8">
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">Latest Disclosures Feed</div>
-                  <div className="text-sm text-gray-400">Real-time Korean corporate disclosures</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">Basic AI Summaries</div>
-                  <div className="text-sm text-gray-400">English translations of key disclosures</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">Market Indices Tracking</div>
-                  <div className="text-sm text-gray-400">KOSPI, KOSDAQ, USD/KRW</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <div>
-                  <div className="text-gray-500 font-medium line-through">Full Stock Analysis</div>
-                  <div className="text-sm text-gray-600">PRO only</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <div>
-                  <div className="text-gray-500 font-medium line-through">Advanced AI Insights</div>
-                  <div className="text-sm text-gray-600">PRO only</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-gray-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <div>
-                  <div className="text-gray-500 font-medium line-through">Financial Report Analysis</div>
-                  <div className="text-sm text-gray-600">PRO only</div>
-                </div>
-              </li>
-            </ul>
-
-            <Link
-              href="/signup"
-              className="block w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg text-center transition-colors"
-            >
-              Get Started Free
-            </Link>
-          </div>
-
-          {/* PRO Plan */}
-          <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 backdrop-blur-sm border-2 border-blue-500 rounded-2xl p-8 relative hover:border-blue-400 transition-colors">
+        <div className="max-w-2xl mx-auto">
+          {/* Main Pricing Card */}
+          <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 backdrop-blur-sm border-2 border-blue-500 rounded-2xl p-10 relative hover:border-blue-400 transition-colors">
             <div className="absolute -top-4 left-1/2 -translate-x-1/2">
               <span className="px-4 py-1 bg-blue-600 text-white text-sm font-bold rounded-full">
-                MOST POPULAR
+                INSTANT ACCESS
               </span>
             </div>
 
             <div className="text-center mb-8">
-              <h3 className="text-2xl font-bold text-white mb-2">PRO</h3>
-              <div className="text-5xl font-bold text-white mb-2">$49</div>
-              <p className="text-blue-200">per month</p>
+              <h3 className="text-3xl font-bold text-white mb-4">AI Analysis Reports</h3>
+              <div className="text-6xl font-bold text-white mb-2">$19.99</div>
+              <p className="text-blue-200 text-lg">One-time payment</p>
+            </div>
+
+            <div className="bg-blue-950/30 rounded-xl p-6 mb-8">
+              <h4 className="text-white font-semibold mb-3">Product Summary</h4>
+              <p className="text-blue-100 text-sm leading-relaxed">
+                Get instant access to AI-powered market analysis reports designed to help you make faster, smarter decisions.
+              </p>
+              <ul className="mt-4 space-y-2 text-blue-100 text-sm">
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  AI-driven insights and structured analysis
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  On-demand digital reports
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  Instant access after payment
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  No physical delivery required
+                </li>
+              </ul>
             </div>
 
             <ul className="space-y-4 mb-8">
@@ -136,8 +96,8 @@ export default function PricingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <div>
-                  <div className="text-white font-bold">Everything in FREE</div>
-                  <div className="text-sm text-blue-200">Plus premium features</div>
+                  <div className="text-white font-medium">Real-Time Market Analysis</div>
+                  <div className="text-sm text-blue-200">AI-powered insights on Korean stocks (KOSPI & KOSDAQ)</div>
                 </div>
               </li>
               <li className="flex items-start gap-3">
@@ -146,7 +106,7 @@ export default function PricingPage() {
                 </svg>
                 <div>
                   <div className="text-white font-medium">Detailed Stock Analysis</div>
-                  <div className="text-sm text-blue-200">Deep dive into company financials</div>
+                  <div className="text-sm text-blue-200">Deep dive into company financials and disclosures</div>
                 </div>
               </li>
               <li className="flex items-start gap-3">
@@ -154,8 +114,8 @@ export default function PricingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <div>
-                  <div className="text-white font-medium">Advanced AI Insights</div>
-                  <div className="text-sm text-blue-200">Sentiment analysis & predictions</div>
+                  <div className="text-white font-medium">Sentiment Analysis & Predictions</div>
+                  <div className="text-sm text-blue-200">AI-driven market sentiment and trend forecasting</div>
                 </div>
               </li>
               <li className="flex items-start gap-3">
@@ -163,36 +123,40 @@ export default function PricingPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <div>
-                  <div className="text-white font-medium">Financial Report Analysis</div>
-                  <div className="text-sm text-blue-200">Quarterly & annual reports</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">Historical Data Access</div>
-                  <div className="text-sm text-blue-200">5+ years of disclosure history</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">Priority Support</div>
-                  <div className="text-sm text-blue-200">Email support within 24h</div>
+                  <div className="text-white font-medium">English Translation</div>
+                  <div className="text-sm text-blue-200">Korean disclosures translated to English instantly</div>
                 </div>
               </li>
             </ul>
 
+            {/* Refund Notice */}
+            <div className="bg-yellow-900/20 border border-yellow-600/50 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <div className="text-sm">
+                  <div className="text-yellow-200 font-semibold mb-1">Refund Notice</div>
+                  <p className="text-yellow-100">
+                    <strong>7-day refund available if no paid analysis has been accessed.</strong>
+                  </p>
+                  <p className="text-yellow-200/80 mt-2 text-xs">
+                    결제 즉시 디지털 콘텐츠가 제공되며, 콘텐츠 접근 여부에 따라 환불 가능 여부가 달라질 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <Link
               href="/signup"
-              className="block w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-center transition-colors"
+              className="block w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-lg text-center transition-colors shadow-lg"
             >
-              Start PRO Trial
+              Get Instant Access - $19.99
             </Link>
+
+            <p className="text-center text-sm text-blue-200 mt-4">
+              Secure payment processed by Paddle
+            </p>
           </div>
         </div>
 
@@ -205,15 +169,6 @@ export default function PricingPage() {
           <div className="space-y-6">
             <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
               <h4 className="text-lg font-bold text-white mb-2">
-                Can I switch plans anytime?
-              </h4>
-              <p className="text-gray-400">
-                Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately, and we'll prorate any differences.
-              </p>
-            </div>
-
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
-              <h4 className="text-lg font-bold text-white mb-2">
                 What payment methods do you accept?
               </h4>
               <p className="text-gray-400">
@@ -223,10 +178,10 @@ export default function PricingPage() {
 
             <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
               <h4 className="text-lg font-bold text-white mb-2">
-                Is there a free trial for PRO?
+                Is this a subscription or one-time payment?
               </h4>
               <p className="text-gray-400">
-                Yes! PRO plan comes with a 14-day free trial. No credit card required to start.
+                This is a one-time payment of $19.99. There are no recurring charges.
               </p>
             </div>
 
@@ -235,7 +190,16 @@ export default function PricingPage() {
                 What's your refund policy?
               </h4>
               <p className="text-gray-400">
-                We offer a 30-day money-back guarantee. If you're not satisfied, contact us for a full refund. See our <Link href="/refund-policy" className="text-blue-400 hover:text-blue-300">Refund Policy</Link> for details.
+                We offer a 7-day refund if no paid AI analysis content has been accessed. Due to the digital nature of the service, refunds may be restricted once content is accessed. See our <Link href="/refund-policy" className="text-blue-400 hover:text-blue-300 underline">Refund Policy</Link> for full details.
+              </p>
+            </div>
+
+            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
+              <h4 className="text-lg font-bold text-white mb-2">
+                When do I get access after payment?
+              </h4>
+              <p className="text-gray-400">
+                You get immediate access to paid AI analysis content right after successful payment. All content is delivered digitally.
               </p>
             </div>
           </div>
