@@ -13,7 +13,8 @@ import type { Database } from '@/types/database';
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
-  const redirectTo = requestUrl.searchParams.get('redirectTo') || '/dashboard';
+  const type = requestUrl.searchParams.get('type');
+  const redirectTo = requestUrl.searchParams.get('redirectTo') || '/';
 
   if (code) {
     const cookieStore = await cookies();
@@ -42,10 +43,15 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      // 이메일 확인인 경우 confirm 페이지로 리다이렉트
+      if (type === 'signup' || type === 'email') {
+        return NextResponse.redirect(new URL('/auth/confirm', request.url));
+      }
+      // 일반 로그인인 경우 대시보드로
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }
   }
 
-  // 에러 발생 시 로그인 페이지로
-  return NextResponse.redirect(new URL('/login?error=auth_failed', request.url));
+  // 에러 발생 시에도 confirm 페이지로 (에러가 발생해도 인증은 완료될 수 있음)
+  return NextResponse.redirect(new URL('/auth/confirm', request.url));
 }

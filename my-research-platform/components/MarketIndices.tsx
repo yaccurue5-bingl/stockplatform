@@ -24,8 +24,8 @@ export default function MarketIndices() {
     // 초기 로드
     fetchIndices();
 
-    // 30초마다 업데이트
-    const interval = setInterval(fetchIndices, 30000);
+    // 5분마다 업데이트 (Yahoo Finance API 호출 제한 고려)
+    const interval = setInterval(fetchIndices, 300000);
 
     return () => clearInterval(interval);
   }, []);

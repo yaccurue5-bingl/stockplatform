@@ -8,7 +8,7 @@ import { signIn, signInWithGoogle } from '@/lib/supabase/client';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirectTo') || '/dashboard';
+  const redirectTo = searchParams.get('redirectTo') || '/';
   const error = searchParams.get('error');
 
   const [email, setEmail] = useState('');
