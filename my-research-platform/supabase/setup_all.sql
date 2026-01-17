@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS disclosure_insights (
   sentiment_score NUMERIC(3, 2),
   importance TEXT,
   analysis_status TEXT DEFAULT 'pending',
+  analysis_retry_count INTEGER DEFAULT 0,
 
   -- Sonnet 심층 분석 결과
   sonnet_analyzed BOOLEAN DEFAULT FALSE,
