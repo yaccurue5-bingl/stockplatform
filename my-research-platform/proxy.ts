@@ -113,15 +113,16 @@ export default async function proxy(req: NextRequest) {
   // 4. PRO 플랜 체크 (종목 상세 페이지)
   // -----------------------------------
   if (pathname.startsWith('/stock/')) {
-    const { data: user } = await supabase
-      .from('users')
-      .select('plan, subscription_status')
-      .eq('id', session.user.id)
-      .single() as any;
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('plan_type, status')
+      .eq('user_id', session.user.id)
+      .eq('status', 'active')
+      .maybeSingle() as { data: { plan_type: string; status: string } | null };
 
-    const isPro = user?.plan === 'PRO' && user?.subscription_status === 'active';
+    const isPremium = subscription?.plan_type === 'premium';
 
-    if (!isPro) {
+    if (!isPremium) {
       const dashboardUrl = new URL('/dashboard', req.url);
       dashboardUrl.searchParams.set('upgrade', 'true');
       return NextResponse.redirect(dashboardUrl);
