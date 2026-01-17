@@ -9,12 +9,11 @@ export async function GET() {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 최신 지수 데이터 가져오기 (코스피, 코스닥, USD/KRW)
+    // scripts/update_indices.py와 동일한 필드명 사용: symbol, price, change_rate
     const { data: indices, error } = await supabase
       .from('market_indices')
       .select('*')
-      .in('index_code', ['KOSPI', 'KOSDAQ', 'USDKRW'])
-      .order('recorded_at', { ascending: false })
-      .limit(3);
+      .in('symbol', ['KOSPI', 'KOSDAQ', 'USDKRW']);
 
     if (error) {
       console.error('Error fetching market indices:', error);
@@ -26,7 +25,7 @@ export async function GET() {
       });
     }
 
-    // 데이터를 index_code별로 정리
+    // 데이터를 symbol별로 정리
     const result: any = {
       KOSPI: { value: 2645.38, change: 1.24 },
       KOSDAQ: { value: 876.52, change: -0.68 },
@@ -35,9 +34,12 @@ export async function GET() {
 
     if (indices && indices.length > 0) {
       indices.forEach((index: any) => {
-        result[index.index_code] = {
-          value: index.current_value,
-          change: index.change_percent
+        // price는 "2,645.38" 형식의 문자열이므로 파싱 필요
+        const priceValue = parseFloat(index.price.replace(/,/g, ''));
+
+        result[index.symbol] = {
+          value: priceValue,
+          change: index.change_rate
         };
       });
     }
