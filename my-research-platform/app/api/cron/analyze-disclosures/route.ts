@@ -8,6 +8,7 @@ import {
   type DartDisclosure,
 } from '@/lib/api/dart';
 import { analyzeDisclosure, analyzeBundledDisclosures } from '@/lib/api/groq';
+import { analyzeBySonnet } from '@/lib/api/claude';
 import {
   isDisclosureProcessed,
   registerDisclosureHash,
@@ -309,6 +310,84 @@ export async function GET(req: NextRequest) {
     console.log(`📊 Hash stats: ${duplicateCount} duplicates skipped, ${revisionCount} revisions processed, ${sonnetSkippedCount} sonnet calls skipped`);
     console.log(`🔀 Shard stats: ${shardSkippedCount} stocks skipped (not in current window)`);
 
+    // 🎯 Sonnet 샘플 분석 (가장 중요한 공시 1개)
+    // 무료 사용자도 볼 수 있도록 샘플 제공
+    let sonnetSampleAnalyzed = false;
+    const ENABLE_SONNET_SAMPLE = process.env.ENABLE_SONNET_SAMPLE === 'true' || true; // 기본 활성화
+
+    if (ENABLE_SONNET_SAMPLE && successCount > 0) {
+      try {
+        console.log('🎯 Selecting most important disclosure for Sonnet sample analysis...');
+
+        // 가장 중요한 공시 선택 (importance='high' 우선, 그 다음 sentiment_score 극단값)
+        const { data: candidates } = await supabase
+          .from('disclosure_insights')
+          .select('*')
+          .eq('analysis_status', 'completed')
+          .is('sonnet_analyzed', null)
+          .order('analyzed_at', { ascending: false })
+          .limit(20);
+
+        if (candidates && candidates.length > 0) {
+          // 중요도 우선 정렬
+          const sorted = candidates.sort((a, b) => {
+            // importance 비교 (HIGH > MEDIUM > LOW)
+            const importanceScore = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+            const scoreA = importanceScore[a.importance as keyof typeof importanceScore] || 0;
+            const scoreB = importanceScore[b.importance as keyof typeof importanceScore] || 0;
+
+            if (scoreA !== scoreB) return scoreB - scoreA;
+
+            // sentiment_score 극단값 우선 (0.0 또는 1.0에 가까운 것)
+            const extremeA = Math.abs(a.sentiment_score - 0.5);
+            const extremeB = Math.abs(b.sentiment_score - 0.5);
+            return extremeB - extremeA;
+          });
+
+          const selectedDisclosure = sorted[0];
+
+          console.log(`🎯 Selected for Sonnet: ${selectedDisclosure.corp_name} - ${selectedDisclosure.report_nm}`);
+          console.log(`   Importance: ${selectedDisclosure.importance}, Sentiment: ${selectedDisclosure.sentiment} (${selectedDisclosure.sentiment_score})`);
+
+          // Sonnet으로 심층 분석
+          const sonnetResult = await analyzeBySonnet(
+            selectedDisclosure.corp_name,
+            selectedDisclosure.stock_code,
+            selectedDisclosure.report_nm,
+            selectedDisclosure.ai_summary || selectedDisclosure.report_nm
+          );
+
+          // DB 업데이트 (Sonnet 분석 결과 + 샘플 플래그)
+          const { error: updateError } = await supabase
+            .from('disclosure_insights')
+            .update({
+              sonnet_analyzed: true,
+              sonnet_summary: sonnetResult.summary,
+              sonnet_detailed_analysis: sonnetResult.detailed_analysis,
+              sonnet_investment_implications: sonnetResult.investment_implications,
+              sonnet_risk_factors: sonnetResult.risk_factors,
+              sonnet_key_metrics: sonnetResult.key_metrics,
+              sonnet_tokens_used: sonnetResult.tokens_used,
+              sonnet_analyzed_at: new Date().toISOString(),
+              is_sample_disclosure: true, // 무료 사용자도 볼 수 있는 샘플
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', selectedDisclosure.id);
+
+          if (updateError) {
+            console.error('❌ Failed to save Sonnet analysis:', updateError);
+          } else {
+            console.log(`✅ Sonnet sample analysis saved (${sonnetResult.tokens_used} tokens)`);
+            sonnetSampleAnalyzed = true;
+          }
+        } else {
+          console.log('ℹ️ No suitable disclosure found for Sonnet sample');
+        }
+      } catch (error) {
+        console.error('❌ Sonnet sample analysis failed:', error);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       analyzed: successCount,
@@ -318,6 +397,7 @@ export async function GET(req: NextRequest) {
       duplicates_skipped: duplicateCount,
       revisions_processed: revisionCount,
       sonnet_skipped: sonnetSkippedCount,
+      sonnet_sample_analyzed: sonnetSampleAnalyzed,
       shard_skipped: shardSkippedCount,
       sharding: {
         window: shardingStatus.current.window,
