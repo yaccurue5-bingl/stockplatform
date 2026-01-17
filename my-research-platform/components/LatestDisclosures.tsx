@@ -97,11 +97,12 @@ export default function LatestDisclosures() {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
-  const handleCardClick = (stockCode: string) => {
-    if (stockCode) {
+  const handleCardClick = (stockCode: string, disclosureId: string) => {
+    if (stockCode && stockCode !== 'null' && stockCode !== '') {
       router.push(`/stock/${stockCode}`);
     } else {
-      router.push('/signup');
+      // 종목코드가 없는 공시는 dashboard로 보내서 상세보기
+      router.push(`/dashboard?id=${disclosureId}`);
     }
   };
 
@@ -156,7 +157,7 @@ export default function LatestDisclosures() {
         <div
           key={disclosure.id}
           className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer"
-          onClick={() => handleCardClick(disclosure.stock_code)}
+          onClick={() => handleCardClick(disclosure.stock_code, disclosure.id)}
         >
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center space-x-3">
