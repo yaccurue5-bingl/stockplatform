@@ -54,11 +54,14 @@ CREATE INDEX IF NOT EXISTS idx_disclosure_insights_sonnet_analyzed ON disclosure
 
 ALTER TABLE disclosure_insights ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Authenticated users can view all disclosures"
+-- RLS 정책 (기존 정책 삭제 후 재생성)
+DROP POLICY IF EXISTS "Authenticated users can view all disclosures" ON disclosure_insights;
+CREATE POLICY "Authenticated users can view all disclosures"
 ON disclosure_insights FOR SELECT
 USING (auth.role() = 'authenticated');
 
-CREATE POLICY IF NOT EXISTS "Service role can manage disclosures"
+DROP POLICY IF EXISTS "Service role can manage disclosures" ON disclosure_insights;
+CREATE POLICY "Service role can manage disclosures"
 ON disclosure_insights FOR ALL
 USING (auth.jwt() ->> 'role' = 'service_role');
 
@@ -233,11 +236,14 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Users can view own profile"
+-- RLS 정책
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
+CREATE POLICY "Users can view own profile"
 ON profiles FOR SELECT
 USING (auth.uid() = id);
 
-CREATE POLICY IF NOT EXISTS "Users can update own profile"
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+CREATE POLICY "Users can update own profile"
 ON profiles FOR UPDATE
 USING (auth.uid() = id);
 
@@ -259,7 +265,9 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Users can view own subscription"
+-- RLS 정책
+DROP POLICY IF EXISTS "Users can view own subscription" ON subscriptions;
+CREATE POLICY "Users can view own subscription"
 ON subscriptions FOR SELECT
 USING (auth.uid() = user_id);
 
