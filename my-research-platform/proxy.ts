@@ -80,11 +80,21 @@ export default async function proxy(req: NextRequest) {
   // -----------------------------------
   const publicPaths = [
     '/',
-    '/login',
-    '/signup',
     '/auth/callback',
+    '/auth/confirm',
     '/api/stripe/webhook', // Stripe Webhook은 서명 검증으로 보호됨
   ];
+
+  // 로그인한 사용자가 /login, /signup 접근 시 홈으로 리다이렉트
+  const authPaths = ['/login', '/signup'];
+  if (session && authPaths.some((path) => pathname.startsWith(path))) {
+    return NextResponse.redirect(new URL('/', req.url));
+  }
+
+  // /login, /signup은 로그인 안한 사용자만 접근 가능
+  if (authPaths.some((path) => pathname.startsWith(path))) {
+    return supabaseResponse;
+  }
 
   if (publicPaths.some((path) => pathname.startsWith(path))) {
     return supabaseResponse;
