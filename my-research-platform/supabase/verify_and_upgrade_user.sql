@@ -1,8 +1,28 @@
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- 테스트 계정 확인 및 Premium 업그레이드
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--
+-- ⚠️ 주의:
+-- 이 스크립트를 실행하기 전에 reset_and_setup.sql 또는
+-- setup_all.sql을 먼저 실행하여 profiles와 subscriptions
+-- 테이블이 생성되어 있어야 합니다!
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 -- 1. 현재 계정 상태 확인
+DO $$
+DECLARE
+  v_tables_exist INTEGER;
+BEGIN
+  -- profiles와 subscriptions 테이블 존재 확인
+  SELECT COUNT(*) INTO v_tables_exist
+  FROM information_schema.tables
+  WHERE table_name IN ('profiles', 'subscriptions');
+
+  IF v_tables_exist < 2 THEN
+    RAISE EXCEPTION '❌ profiles 또는 subscriptions 테이블이 존재하지 않습니다. reset_and_setup.sql을 먼저 실행하세요!';
+  END IF;
+END $$;
+
 SELECT
   u.id as user_id,
   u.email,
