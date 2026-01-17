@@ -8,6 +8,15 @@ import {
   type DartDisclosure,
 } from '@/lib/api/dart';
 import { analyzeDisclosure, analyzeBundledDisclosures } from '@/lib/api/groq';
+import {
+  isDisclosureProcessed,
+  registerDisclosureHash,
+  isRevisionDisclosure,
+  invalidateOriginalDisclosure,
+  getCurrentTimeBucket,
+  isBundleSonnetCalled,
+  registerBundleSonnet,
+} from '@/lib/hash';
 
 // Supabase 클라이언트 (서버 전용)
 const supabase = createClient(
@@ -60,17 +69,48 @@ export async function GET(req: NextRequest) {
 
     console.log(`📋 Found ${allDisclosures.length} disclosures from DART`);
 
-    // 2. 중요 공시만 필터링 (실시간 처리 대상)
-    const importantDisclosures = allDisclosures.filter(d => {
-      // 분기/반기보고서 제외
-      if (isPeriodicReport(d.report_nm)) {
-        console.log(`⏭️ Skipping periodic report: ${d.report_nm}`);
-        return false;
-      }
-      return true;
-    });
+    // 2. Hash 중복 확인 (1차 방어선)
+    const newDisclosures: DartDisclosure[] = [];
+    let duplicateCount = 0;
+    let revisionCount = 0;
 
-    const filteredDisclosures = filterImportantDisclosures(importantDisclosures);
+    for (const disclosure of allDisclosures) {
+      // 분기/반기보고서 제외
+      if (isPeriodicReport(disclosure.report_nm)) {
+        console.log(`⏭️ Skipping periodic report: ${disclosure.report_nm}`);
+        continue;
+      }
+
+      // 정정공시 감지 (3차 방어선)
+      const isRevision = isRevisionDisclosure(disclosure.report_nm);
+      if (isRevision) {
+        revisionCount++;
+        console.log(`🔄 Revision detected: ${disclosure.report_nm}`);
+        // 정정공시는 기존 공시를 무효화하고 재처리
+        // (TODO: originalRceptNo 추출 로직 필요 시 추가)
+      }
+
+      // 중복 확인 (정정공시는 중복 체크 통과)
+      if (!isRevision) {
+        const alreadyProcessed = await isDisclosureProcessed(
+          disclosure.corp_code,
+          disclosure.rcept_no
+        );
+
+        if (alreadyProcessed) {
+          duplicateCount++;
+          console.log(`⏭️ Skipping duplicate: ${disclosure.corp_name} - ${disclosure.report_nm}`);
+          continue;
+        }
+      }
+
+      newDisclosures.push(disclosure);
+    }
+
+    console.log(`📋 Found ${allDisclosures.length} disclosures (${duplicateCount} duplicates, ${revisionCount} revisions)`);
+
+    // 3. 중요 공시만 필터링 (실시간 처리 대상)
+    const filteredDisclosures = filterImportantDisclosures(newDisclosures);
 
     console.log(`✨ ${filteredDisclosures.length} important disclosures to analyze`);
 
@@ -90,6 +130,11 @@ export async function GET(req: NextRequest) {
     let successCount = 0;
     let failCount = 0;
     let totalTokensUsed = 0;
+    let sonnetSkippedCount = 0;
+
+    // 현재 시간 bucket
+    const currentTimeBucket = getCurrentTimeBucket();
+    const now = new Date();
 
     // 4. 종목별 분석 (묶음 처리로 토큰 절약)
     for (const [stockCode, disclosures] of grouped.entries()) {
@@ -123,7 +168,7 @@ export async function GET(req: NextRequest) {
 
         totalTokensUsed += analysisResult.tokens_used;
 
-        // 5. DB에 저장
+        // 5. DB에 저장 + Hash 등록
         for (const disclosure of disclosures) {
           const { error: insertError } = await supabase
             .from('disclosure_insights')
@@ -150,10 +195,51 @@ export async function GET(req: NextRequest) {
             failCount++;
           } else {
             successCount++;
+
+            // Hash 등록 (중복 방지)
+            const isRevision = isRevisionDisclosure(disclosure.report_nm);
+            await registerDisclosureHash({
+              corpCode: disclosure.corp_code,
+              rceptNo: disclosure.rcept_no,
+              corpName: corpName,
+              reportName: disclosure.report_nm,
+              isRevision: isRevision,
+            });
           }
         }
 
         console.log(`✅ ${corpName}: ${analysisResult.sentiment} (${analysisResult.sentiment_score}), ${analysisResult.importance}`);
+
+        // ⚠️ Sonnet 분석 (베타 서비스 전까지 비활성화)
+        // 무료 토큰 세션 내에서만 사용
+        const USE_SONNET = false; // TODO: 베타 서비스 시 true로 변경
+
+        if (USE_SONNET) {
+          // Bundle Hash 확인 (2차 방어선)
+          const alreadyCalled = await isBundleSonnetCalled(
+            disclosures[0].corp_code,
+            now,
+            currentTimeBucket
+          );
+
+          if (alreadyCalled) {
+            console.log(`⏭️ Sonnet already called for ${corpName} in this time bucket`);
+            sonnetSkippedCount++;
+          } else {
+            // TODO: Sonnet 분석 호출
+            // const sonnetResult = await analyzeSonnet(...);
+
+            // Bundle Hash 등록
+            await registerBundleSonnet({
+              corpCode: disclosures[0].corp_code,
+              date: now,
+              timeBucket: currentTimeBucket,
+              corpName: corpName,
+              disclosureCount: disclosures.length,
+              tokensUsed: 0, // sonnetResult.tokens_used
+            });
+          }
+        }
 
         // 토큰 사용량 체크 (무료 세션 보호)
         if (totalTokensUsed > 5000) {
@@ -168,6 +254,7 @@ export async function GET(req: NextRequest) {
     }
 
     console.log(`✅ Analysis completed: ${successCount} succeeded, ${failCount} failed, ${totalTokensUsed} tokens used`);
+    console.log(`📊 Hash stats: ${duplicateCount} duplicates skipped, ${revisionCount} revisions processed, ${sonnetSkippedCount} sonnet calls skipped`);
 
     return NextResponse.json({
       success: true,
@@ -175,6 +262,9 @@ export async function GET(req: NextRequest) {
       failed: failCount,
       tokens_used: totalTokensUsed,
       stocks_analyzed: grouped.size,
+      duplicates_skipped: duplicateCount,
+      revisions_processed: revisionCount,
+      sonnet_skipped: sonnetSkippedCount,
       timestamp: new Date().toISOString(),
     });
 
