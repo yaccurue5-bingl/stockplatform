@@ -22,6 +22,10 @@ import {
   isHotStock,
   getShardingStatus,
 } from '@/lib/sharding';
+import {
+  checkHotStockTriggers,
+  promoteToHotStock,
+} from '@/lib/hot-stocks';
 
 // Supabase 클라이언트 (서버 전용)
 const supabase = createClient(
@@ -234,6 +238,29 @@ export async function GET(req: NextRequest) {
         }
 
         console.log(`✅ ${corpName}: ${analysisResult.sentiment} (${analysisResult.sentiment_score}), ${analysisResult.importance}`);
+
+        // 🔥 Hot Stock 트리거 확인 (베타 서비스 전까지 비활성화)
+        const USE_HOT_STOCKS = process.env.ENABLE_HOT_STOCKS === 'true' || false;
+
+        if (USE_HOT_STOCKS) {
+          const triggerCheck = await checkHotStockTriggers(corpCode, stockCode, corpName);
+
+          if (triggerCheck.shouldPromote) {
+            const promoted = await promoteToHotStock(
+              corpCode,
+              stockCode,
+              corpName,
+              triggerCheck.reason!,
+              triggerCheck.reasonDetail,
+              triggerCheck.triggerValue,
+              triggerCheck.triggerThreshold
+            );
+
+            if (promoted) {
+              console.log(`🔥 Promoted ${corpName} to hot stock: ${triggerCheck.reason}`);
+            }
+          }
+        }
 
         // ⚠️ Sonnet 분석 (베타 서비스 전까지 비활성화)
         // 무료 토큰 세션 내에서만 사용
