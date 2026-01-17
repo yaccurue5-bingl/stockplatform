@@ -17,6 +17,11 @@ import {
   isBundleSonnetCalled,
   registerBundleSonnet,
 } from '@/lib/hash';
+import {
+  shouldProcessNow,
+  isHotStock,
+  getShardingStatus,
+} from '@/lib/sharding';
 
 // Supabase 클라이언트 (서버 전용)
 const supabase = createClient(
@@ -53,6 +58,10 @@ export async function GET(req: NextRequest) {
   }
 
   console.log('🤖 Disclosure analysis started (DART + Groq)...');
+
+  // Sharding status (for monitoring)
+  const shardingStatus = getShardingStatus();
+  console.log(`📊 Sharding: window ${shardingStatus.current.window} (${shardingStatus.current.range}), ${shardingStatus.config.shardCount} shards`);
 
   try {
     // 1. DART에서 최신 공시 가져오기 (상장사만, 최근 1일)
@@ -131,15 +140,31 @@ export async function GET(req: NextRequest) {
     let failCount = 0;
     let totalTokensUsed = 0;
     let sonnetSkippedCount = 0;
+    let shardSkippedCount = 0;
 
     // 현재 시간 bucket
     const currentTimeBucket = getCurrentTimeBucket();
     const now = new Date();
 
-    // 4. 종목별 분석 (묶음 처리로 토큰 절약)
+    // 4. 종목별 분석 (묶음 처리로 토큰 절약 + Sharding)
     for (const [stockCode, disclosures] of grouped.entries()) {
       try {
         const corpName = disclosures[0].corp_name;
+        const corpCode = disclosures[0].corp_code;
+
+        // 🔀 Sharding: 현재 window에 해당하지 않으면 스킵
+        const isHot = isHotStock(corpCode);
+        const shouldProcess = shouldProcessNow(corpCode, now);
+
+        if (!isHot && !shouldProcess) {
+          shardSkippedCount++;
+          console.log(`⏭️ Shard skip: ${corpName} (not in current window)`);
+          continue;
+        }
+
+        if (isHot) {
+          console.log(`🔥 Hot stock: ${corpName} (bypassing shard)`);
+        }
 
         console.log(`🔍 Analyzing ${corpName} (${stockCode}): ${disclosures.length} disclosures`);
 
@@ -255,6 +280,7 @@ export async function GET(req: NextRequest) {
 
     console.log(`✅ Analysis completed: ${successCount} succeeded, ${failCount} failed, ${totalTokensUsed} tokens used`);
     console.log(`📊 Hash stats: ${duplicateCount} duplicates skipped, ${revisionCount} revisions processed, ${sonnetSkippedCount} sonnet calls skipped`);
+    console.log(`🔀 Shard stats: ${shardSkippedCount} stocks skipped (not in current window)`);
 
     return NextResponse.json({
       success: true,
@@ -265,6 +291,12 @@ export async function GET(req: NextRequest) {
       duplicates_skipped: duplicateCount,
       revisions_processed: revisionCount,
       sonnet_skipped: sonnetSkippedCount,
+      shard_skipped: shardSkippedCount,
+      sharding: {
+        window: shardingStatus.current.window,
+        range: shardingStatus.current.range,
+        shard_count: shardingStatus.config.shardCount,
+      },
       timestamp: new Date().toISOString(),
     });
 
