@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import MarketIndices from '@/components/MarketIndices';
 import LatestDisclosures from '@/components/LatestDisclosures';
+import UserButton from '@/components/UserButton';
 
 export const metadata: Metadata = {
   title: 'K-Market Insight - Korean Stock Market Intelligence for Global Investors',
@@ -83,16 +84,7 @@ export default function LandingPage() {
               </svg>
               EN
             </button>
-            <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-2 text-sm transition font-medium">
-              Sign Up
-            </Link>
-            <Link href="/login">
-              <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-gray-700 transition">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 448 512">
-                  <path d="M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512H418.3c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304H178.3z"/>
-                </svg>
-              </div>
-            </Link>
+            <UserButton />
           </div>
         </div>
       </header>
