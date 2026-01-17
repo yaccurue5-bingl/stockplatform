@@ -83,6 +83,7 @@ export default async function proxy(req: NextRequest) {
     '/auth/callback',
     '/auth/confirm',
     '/api/stripe/webhook', // Stripe Webhook은 서명 검증으로 보호됨
+    '/api/disclosures/latest', // 메인 페이지 공시 목록 API
   ];
 
   // 로그인한 사용자가 /login, /signup 접근 시 홈으로 리다이렉트
@@ -113,16 +114,21 @@ export default async function proxy(req: NextRequest) {
   // 4. PRO 플랜 체크 (종목 상세 페이지)
   // -----------------------------------
   if (pathname.startsWith('/stock/')) {
-    const { data: subscription } = await supabase
+    // 먼저 subscription 레코드 확인
+    const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('plan_type, status')
       .eq('user_id', session.user.id)
-      .eq('status', 'active')
-      .maybeSingle() as { data: { plan_type: string; status: string } | null };
+      .maybeSingle() as { data: { plan_type: string; status: string } | null; error: any };
 
-    const isPremium = subscription?.plan_type === 'premium';
+    if (subError) {
+      console.error('[PROXY] Subscription check error:', subError);
+    }
+
+    const isPremium = subscription?.plan_type === 'premium' && subscription?.status === 'active';
 
     if (!isPremium) {
+      console.log(`[PROXY] Non-premium user ${session.user.email} trying to access ${pathname}`);
       const dashboardUrl = new URL('/dashboard', req.url);
       dashboardUrl.searchParams.set('upgrade', 'true');
       return NextResponse.redirect(dashboardUrl);
