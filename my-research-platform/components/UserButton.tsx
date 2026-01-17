@@ -65,7 +65,7 @@ export default function UserButton() {
         .select('plan_type, status')
         .eq('user_id', userId)
         .eq('status', 'active')
-        .maybeSingle();
+        .maybeSingle() as { data: { plan_type: string; status: string } | null };
 
       if (subscription?.plan_type === 'premium') {
         setUserStatus('premium');
