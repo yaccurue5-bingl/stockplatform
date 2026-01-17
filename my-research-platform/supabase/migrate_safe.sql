@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS disclosure_insights (
 -- 누락된 컬럼 추가 (이미 있으면 에러나지만 계속 진행)
 DO $$
 BEGIN
+  -- 분석 재시도 컬럼 추가
+  ALTER TABLE disclosure_insights ADD COLUMN IF NOT EXISTS analysis_retry_count INTEGER DEFAULT 0;
+
   -- Sonnet 분석 컬럼들 추가
   ALTER TABLE disclosure_insights ADD COLUMN IF NOT EXISTS sonnet_analyzed BOOLEAN DEFAULT FALSE;
   ALTER TABLE disclosure_insights ADD COLUMN IF NOT EXISTS sonnet_summary TEXT;
