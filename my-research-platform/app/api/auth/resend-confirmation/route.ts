@@ -34,12 +34,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // 이메일 재전송 (confirmation email)
-    const { error: resendError } = await supabase.auth.admin.generateLink({
-      type: 'signup',
+    // 이메일 재전송 (magic link 사용)
+    // 참고: generateLink의 'signup' type은 password 필수
+    // 이미 가입한 사용자에게는 'magiclink' 사용
+    const { data, error: resendError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
       email: email,
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://k-marketinsight.com'}/auth/callback?type=signup`
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://k-marketinsight.com'}/auth/callback`
       }
     });
 
