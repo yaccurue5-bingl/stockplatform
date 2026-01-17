@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import MarketIndices from '@/components/MarketIndices';
+import LatestDisclosures from '@/components/LatestDisclosures';
 
 export const metadata: Metadata = {
   title: 'K-Market Insight - Korean Stock Market Intelligence for Global Investors',
@@ -108,25 +110,7 @@ export default function LandingPage() {
                 </div>
                 <h2 className="text-3xl font-bold mb-3">Real-time Korean Market Disclosures</h2>
                 <p className="text-blue-100 text-lg mb-6">AI-powered analysis and translation of KOSPI & KOSDAQ public announcements</p>
-                <div className="flex items-center space-x-6">
-                  <div>
-                    <div className="text-sm text-blue-200 mb-1">KOSPI</div>
-                    <div className="text-2xl font-bold">2,645.38</div>
-                    <div className="text-green-400 text-sm">+1.24%</div>
-                  </div>
-                  <div className="h-12 w-px bg-blue-600"></div>
-                  <div>
-                    <div className="text-sm text-blue-200 mb-1">KOSDAQ</div>
-                    <div className="text-2xl font-bold">876.52</div>
-                    <div className="text-red-400 text-sm">-0.68%</div>
-                  </div>
-                  <div className="h-12 w-px bg-blue-600"></div>
-                  <div>
-                    <div className="text-sm text-blue-200 mb-1">USD/KRW</div>
-                    <div className="text-2xl font-bold">1,332.50</div>
-                    <div className="text-green-400 text-sm">+0.15%</div>
-                  </div>
-                </div>
+                <MarketIndices />
               </div>
               <div className="w-96 h-48 bg-blue-800 bg-opacity-30 rounded-xl p-4">
                 <div className="text-xs text-blue-200 mb-2">Today's Disclosure Volume</div>
@@ -169,139 +153,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              {/* Disclosure Card 1 */}
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center font-bold">SS</div>
-                    <div>
-                      <h4 className="font-semibold text-lg">Samsung Electronics</h4>
-                      <p className="text-sm text-gray-400">005930 • KOSPI</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500 mb-1">2 minutes ago</div>
-                    <span className="inline-block bg-red-900 bg-opacity-30 text-red-400 text-xs px-3 py-1 rounded-full font-medium">High Impact</span>
-                  </div>
-                </div>
-                <h5 className="font-medium mb-2">Q4 2024 Earnings Report - Revenue Exceeds Expectations</h5>
-                <p className="text-sm text-gray-400 mb-3">Samsung Electronics reported Q4 revenue of 67.4 trillion KRW, up 11.2% YoY, driven by strong semiconductor and mobile divisions. Operating profit reached 6.6 trillion KRW...</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex space-x-2">
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Financial Results</span>
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Quarterly Report</span>
-                  </div>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <Link href="/signup" className="text-gray-400 hover:text-white transition">
-                      Save
-                    </Link>
-                    <Link href="/signup" className="text-blue-500 hover:text-blue-400 transition">
-                      Read Full Analysis →
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              {/* Disclosure Card 2 */}
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-green-600 rounded-lg flex items-center justify-center font-bold">HM</div>
-                    <div>
-                      <h4 className="font-semibold text-lg">Hyundai Motor</h4>
-                      <p className="text-sm text-gray-400">005380 • KOSPI</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500 mb-1">15 minutes ago</div>
-                    <span className="inline-block bg-orange-900 bg-opacity-30 text-orange-400 text-xs px-3 py-1 rounded-full font-medium">Medium Impact</span>
-                  </div>
-                </div>
-                <h5 className="font-medium mb-2">Strategic Partnership with Battery Manufacturer Announced</h5>
-                <p className="text-sm text-gray-400 mb-3">Hyundai Motor announced a strategic partnership with LG Energy Solution for next-generation EV battery development, with total investment of 2.5 trillion KRW over 5 years...</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex space-x-2">
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Partnership</span>
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">EV</span>
-                  </div>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <Link href="/signup" className="text-gray-400 hover:text-white transition">
-                      Save
-                    </Link>
-                    <Link href="/signup" className="text-blue-500 hover:text-blue-400 transition">
-                      Read Full Analysis →
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              {/* Disclosure Card 3 */}
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center font-bold">NV</div>
-                    <div>
-                      <h4 className="font-semibold text-lg">NAVER Corporation</h4>
-                      <p className="text-sm text-gray-400">035420 • KOSPI</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500 mb-1">32 minutes ago</div>
-                    <span className="inline-block bg-blue-900 bg-opacity-30 text-blue-400 text-xs px-3 py-1 rounded-full font-medium">Low Impact</span>
-                  </div>
-                </div>
-                <h5 className="font-medium mb-2">Board Meeting Results - Dividend Policy Update</h5>
-                <p className="text-sm text-gray-400 mb-3">NAVER's board of directors approved a revised dividend policy with increased payout ratio to 20%, effective from FY2025. Annual dividend expected to increase by 15%...</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex space-x-2">
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Corporate Governance</span>
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Dividend</span>
-                  </div>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <Link href="/signup" className="text-gray-400 hover:text-white transition">
-                      Save
-                    </Link>
-                    <Link href="/signup" className="text-blue-500 hover:text-blue-400 transition">
-                      Read Full Analysis →
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              {/* Disclosure Card 4 */}
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-yellow-600 rounded-lg flex items-center justify-center font-bold">SK</div>
-                    <div>
-                      <h4 className="font-semibold text-lg">SK Hynix</h4>
-                      <p className="text-sm text-gray-400">000660 • KOSPI</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500 mb-1">1 hour ago</div>
-                    <span className="inline-block bg-green-900 bg-opacity-30 text-green-400 text-xs px-3 py-1 rounded-full font-medium">Positive</span>
-                  </div>
-                </div>
-                <h5 className="font-medium mb-2">New HBM4 Memory Technology Development Milestone Achieved</h5>
-                <p className="text-sm text-gray-400 mb-3">SK Hynix successfully developed next-generation HBM4 memory technology, exceeding performance benchmarks. Mass production scheduled for Q3 2025, targeting AI chip market...</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex space-x-2">
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Technology</span>
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">R&D</span>
-                  </div>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <Link href="/signup" className="text-gray-400 hover:text-white transition">
-                      Save
-                    </Link>
-                    <Link href="/signup" className="text-blue-500 hover:text-blue-400 transition">
-                      Read Full Analysis →
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <LatestDisclosures />
 
             {/* View More */}
             <div className="text-center mt-8">
