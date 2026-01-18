@@ -2,19 +2,25 @@
 -- Webhook 로그 및 문제 진단
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
--- 1. 최근 Webhook 실행 로그 (최근 20개)
+-- 1. Webhook 로그 테이블 구조 확인
+SELECT
+  table_name,
+  column_name,
+  data_type
+FROM information_schema.columns
+WHERE table_schema = 'supabase_functions'
+  AND table_name LIKE '%hook%'
+ORDER BY table_name, ordinal_position;
+
+-- 2. 최근 HTTP 요청 로그 (Webhook 포함, 최근 20개)
 SELECT
   id,
-  hook_id,
-  status,
-  request_method,
-  request_url,
-  response_status_code,
-  response_body,
-  error_message,
-  created_at
-FROM net._http_response
-ORDER BY created_at DESC
+  status_code,
+  content_type,
+  created
+FROM supabase_functions.http_request
+WHERE created >= NOW() - INTERVAL '7 days'
+ORDER BY created DESC
 LIMIT 20;
 
 -- 2. 404 에러 발생한 Webhook만 조회
