@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Refund Policy - K-MarketInsight',
-  description: '7-day refund policy for digital content purchases',
+  description: '14-day unconditional refund policy for initial subscriptions',
 };
 
 export default function RefundPolicyPage() {
@@ -24,17 +24,17 @@ export default function RefundPolicyPage() {
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <h1 className="text-5xl font-bold text-white mb-4">Refund Policy</h1>
-        <p className="text-gray-400 mb-12">Last updated: January 16, 2026</p>
+        <p className="text-gray-400 mb-12">Last updated: 2026-01-18</p>
 
-        <div className="bg-yellow-900/20 border-2 border-yellow-600/50 rounded-xl p-6 mb-12">
+        <div className="bg-blue-900/20 border-2 border-blue-600/50 rounded-xl p-6 mb-12">
           <div className="flex items-start gap-3">
-            <svg className="w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <svg className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
             </svg>
             <div>
-              <h3 className="text-yellow-200 font-bold mb-2">Important Notice</h3>
-              <p className="text-yellow-100 text-sm">
-                Due to the digital nature of our service, refunds are subject to the conditions below.
+              <h3 className="text-blue-200 font-bold mb-2">14-Day Money-Back Guarantee</h3>
+              <p className="text-blue-100 text-sm">
+                We offer a 14-day unconditional refund on all initial subscription purchases to ensure your complete satisfaction.
               </p>
             </div>
           </div>
@@ -42,66 +42,20 @@ export default function RefundPolicyPage() {
 
         <div className="space-y-8">
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Eligibility for Refund</h2>
-            <div className="space-y-4 text-gray-300">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <p>
-                  <strong>Refund requests must be made within 7 days of the initial purchase</strong>
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <p>
-                  <strong>A full refund is available only if no paid AI analysis content has been accessed</strong>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Limitations</h2>
-            <div className="space-y-4 text-gray-300">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <p>
-                  If a user has accessed two (2) or more paid AI analysis reports, <strong>a refund may be restricted or declined</strong>
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <p>
-                  Once digital content has been accessed, it is considered delivered
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Rationale</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">1. Eligibility</h2>
             <p className="text-gray-300 leading-relaxed">
-              This policy is in place due to the instant-access and non-returnable nature of digital content.
-              Once AI analysis reports are accessed, the digital product has been delivered and consumed,
-              similar to downloading an ebook or streaming a movie.
+              You may request a full refund within <strong>14 days of your initial purchase</strong>, for any reason, without conditions. We believe in the value of our insights and want you to explore them with confidence.
             </p>
           </div>
 
-          <div className="bg-blue-900/20 border border-blue-600/50 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">How to Request a Refund</h2>
-            <p className="text-blue-100 leading-relaxed mb-4">
-              Please contact us at:
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">2. How to Request a Refund</h2>
+            <p className="text-gray-300 leading-relaxed mb-6">
+              To request a refund, please contact our support team at:
             </p>
             <a
               href="mailto:support@k-marketinsight.com"
-              className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium text-lg"
+              className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium text-lg mb-6"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
@@ -109,48 +63,22 @@ export default function RefundPolicyPage() {
               </svg>
               support@k-marketinsight.com
             </a>
-            <p className="text-blue-200 text-sm mt-4">
-              All refunds are processed through Paddle, our payment processor. Please allow 5-10 business days for refunds to appear in your account.
+            <p className="text-gray-400 text-sm">
+              All refunds are processed by <strong>Paddle</strong>, our authorized payment processor, using the original payment method used during checkout.
             </p>
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Processing Time</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">3. Subscription Renewals</h2>
             <p className="text-gray-300 leading-relaxed">
-              Approved refunds are typically processed within 5-10 business days. The refund will be returned to your original payment method.
+              Refunds generally apply only to the <strong>initial purchase</strong> and do not automatically apply to renewals, unless required by applicable law in your jurisdiction.
             </p>
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Exceptions</h2>
-            <p className="text-gray-300 leading-relaxed mb-4">
-              We reserve the right to make exceptions to this policy on a case-by-case basis for:
-            </p>
-            <ul className="space-y-2 text-gray-300">
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                Technical issues preventing access to purchased content
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                Billing errors or duplicate charges
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                Service outages affecting content delivery
-              </li>
-            </ul>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">Contact Information</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">4. Processing Time</h2>
             <p className="text-gray-300 leading-relaxed">
-              For questions about this Refund Policy or to request a refund, please contact:
-              <br /><br />
-              <strong className="text-white">Email:</strong>
-              <a href="mailto:support@k-marketinsight.com" className="text-blue-400 hover:text-blue-300 underline ml-2">
-                support@k-marketinsight.com
-              </a>
+              Approved refunds are typically processed within a few business days. Please allow 5-10 business days for the credit to appear on your statement, depending on your financial institution.
             </p>
           </div>
         </div>
