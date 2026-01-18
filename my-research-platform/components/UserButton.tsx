@@ -12,9 +12,26 @@ export default function UserButton() {
   const [userStatus, setUserStatus] = useState<UserStatus>('guest');
   const [showMenu, setShowMenu] = useState(false);
   const [supabase, setSupabase] = useState<any>(null);
+  const [initError, setInitError] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    // 환경변수 확인
+    if (typeof window === 'undefined') return;
+
+    const hasEnvVars =
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!hasEnvVars) {
+      console.warn('Supabase environment variables not set. Running in guest-only mode.');
+      setInitError(true);
+      setIsLoading(false);
+      setUser(null);
+      setUserStatus('guest');
+      return;
+    }
+
     // Supabase 클라이언트 초기화 (안전하게)
     initializeSupabase();
   }, []);
@@ -48,6 +65,7 @@ export default function UserButton() {
       };
     } catch (error) {
       console.error('Failed to initialize Supabase:', error);
+      setInitError(true);
       setIsLoading(false);
       setUser(null);
       setUserStatus('guest');
@@ -118,8 +136,8 @@ export default function UserButton() {
     );
   }
 
-  // Guest (로그인 안됨)
-  if (!user) {
+  // Guest (로그인 안됨 또는 환경변수 없음)
+  if (!user || initError) {
     return (
       <div className="flex items-center space-x-4">
         <Link
