@@ -187,8 +187,11 @@ export default function PricingPage() {
               <h4 className="text-lg font-bold text-white mb-2">
                 What's your refund policy?
               </h4>
+              <p className="text-gray-400 mb-3">
+                We offer a 14-day money-back guarantee, no questions asked. You can request a full refund within 14 days of your purchase for any reason.
+              </p>
               <p className="text-gray-400">
-                We offer a 14-day money-back guarantee, no questions asked. You can request a full refund within 14 days of your purchase for any reason. See our <Link href="/refund-policy" className="text-blue-400 hover:text-blue-300 underline">Refund Policy</Link> for full details.
+                To request a refund, please contact <a href="https://www.paddle.com/help" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Paddle Help Center</a> (our payment processor). See our <Link href="/refund-policy" className="text-blue-400 hover:text-blue-300 underline">Refund Policy</Link> for full details.
               </p>
             </div>
 
