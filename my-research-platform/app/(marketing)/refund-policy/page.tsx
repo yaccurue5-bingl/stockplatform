@@ -51,21 +51,30 @@ export default function RefundPolicyPage() {
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
             <h2 className="text-2xl font-bold text-white mb-4">2. How to Request a Refund</h2>
             <p className="text-gray-300 leading-relaxed mb-6">
-              To request a refund, please contact our support team at:
+              All payments and refunds are handled by <strong>Paddle</strong>, our authorized payment processor. To request a refund, please contact Paddle directly:
             </p>
             <a
-              href="mailto:support@k-marketinsight.com"
-              className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 font-medium text-lg mb-6"
+              href="https://www.paddle.com/help"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-medium text-lg mb-6 bg-blue-900/30 px-6 py-3 rounded-lg transition-colors"
             >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
-              support@k-marketinsight.com
+              Visit Paddle Help Center
             </a>
-            <p className="text-gray-400 text-sm">
-              All refunds are processed by <strong>Paddle</strong>, our authorized payment processor, using the original payment method used during checkout.
-            </p>
+            <div className="space-y-2 text-gray-400 text-sm">
+              <p>
+                ✓ Paddle processes all refund requests within 5-10 business days
+              </p>
+              <p>
+                ✓ Refunds are issued to your original payment method
+              </p>
+              <p>
+                ✓ You can also reach Paddle support directly through their help center for immediate assistance
+              </p>
+            </div>
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
