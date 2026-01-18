@@ -1,5 +1,5 @@
 /**
- * Next.js Middleware (경비원 역할)
+ * Next.js Proxy (경비원 역할)
  *
  * 모든 요청이 페이지에 도달하기 전에 이 파일을 거쳐갑니다.
  *
@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import type { Database } from '@/types/database';
 
-export async function middleware(req: NextRequest) {
+export default async function proxy(req: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request: req,
   });
@@ -31,8 +31,8 @@ export async function middleware(req: NextRequest) {
         getAll() {
           return req.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
+        setAll(cookiesToSet: any) {
+          cookiesToSet.forEach(({ name, value, options }: any) => {
             req.cookies.set(name, value);
             supabaseResponse.cookies.set(name, value, options);
           });
@@ -80,11 +80,22 @@ export async function middleware(req: NextRequest) {
   // -----------------------------------
   const publicPaths = [
     '/',
-    '/login',
-    '/signup',
     '/auth/callback',
+    '/auth/confirm',
     '/api/stripe/webhook', // Stripe Webhook은 서명 검증으로 보호됨
+    '/api/disclosures/latest', // 메인 페이지 공시 목록 API
   ];
+
+  // 로그인한 사용자가 /login, /signup 접근 시 홈으로 리다이렉트
+  const authPaths = ['/login', '/signup'];
+  if (session && authPaths.some((path) => pathname.startsWith(path))) {
+    return NextResponse.redirect(new URL('/', req.url));
+  }
+
+  // /login, /signup은 로그인 안한 사용자만 접근 가능
+  if (authPaths.some((path) => pathname.startsWith(path))) {
+    return supabaseResponse;
+  }
 
   if (publicPaths.some((path) => pathname.startsWith(path))) {
     return supabaseResponse;
@@ -103,15 +114,21 @@ export async function middleware(req: NextRequest) {
   // 4. PRO 플랜 체크 (종목 상세 페이지)
   // -----------------------------------
   if (pathname.startsWith('/stock/')) {
-    const { data: user } = await supabase
-      .from('users')
-      .select('plan, subscription_status')
-      .eq('id', session.user.id)
-      .single();
+    // 먼저 subscription 레코드 확인
+    const { data: subscription, error: subError } = await supabase
+      .from('subscriptions')
+      .select('plan_type, status')
+      .eq('user_id', session.user.id)
+      .maybeSingle() as { data: { plan_type: string; status: string } | null; error: any };
 
-    const isPro = user?.plan === 'PRO' && user?.subscription_status === 'active';
+    if (subError) {
+      console.error('[PROXY] Subscription check error:', subError);
+    }
 
-    if (!isPro) {
+    const isPremium = subscription?.plan_type === 'premium' && subscription?.status === 'active';
+
+    if (!isPremium) {
+      console.log(`[PROXY] Non-premium user ${session.user.email} trying to access ${pathname}`);
       const dashboardUrl = new URL('/dashboard', req.url);
       dashboardUrl.searchParams.set('upgrade', 'true');
       return NextResponse.redirect(dashboardUrl);
@@ -121,7 +138,7 @@ export async function middleware(req: NextRequest) {
   return supabaseResponse;
 }
 
-// Middleware가 실행될 경로 설정
+// Proxy가 실행될 경로 설정
 export const config = {
   matcher: [
     /*
