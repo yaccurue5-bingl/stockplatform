@@ -116,14 +116,20 @@ export default function UserButton() {
     if (!supabase) return;
 
     try {
+      // 세션 종료
       await supabase.auth.signOut();
+
+      // 상태 즉시 초기화
       setUser(null);
       setUserStatus('guest');
       setShowMenu(false);
-      router.push('/');
-      router.refresh();
+
+      // 메인 페이지로 강제 리다이렉트 (새로고침)
+      window.location.href = '/';
     } catch (error) {
       console.error('Error signing out:', error);
+      // 에러가 발생해도 메인 페이지로 이동
+      window.location.href = '/';
     }
   }
 
