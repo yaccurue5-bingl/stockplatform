@@ -41,11 +41,12 @@ export default function LatestDisclosures() {
   };
 
   const getCompanyInitials = (name: string) => {
+    if (!name) return '??';
     const words = name.split(' ');
     if (words.length >= 2) {
-      return words[0][0] + words[1][0];
+      return (words[0]?.[0] || '') + (words[1]?.[0] || '');
     }
-    return name.substring(0, 2).toUpperCase();
+    return (name || '').substring(0, 2).toUpperCase() || '??';
   };
 
   const getImpactColor = (importance: string) => {
@@ -180,8 +181,8 @@ export default function LatestDisclosures() {
           </div>
           <h5 className="font-medium mb-2">{disclosure.report_name}</h5>
           <p className="text-sm text-gray-400 mb-3">
-            {disclosure.summary.substring(0, 150)}
-            {disclosure.summary.length > 150 ? '...' : ''}
+            {(disclosure.summary || '').substring(0, 150)}
+            {(disclosure.summary || '').length > 150 ? '...' : ''}
           </p>
           <div className="flex items-center justify-between">
             <div className="flex space-x-2">
