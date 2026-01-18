@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -12,39 +11,56 @@ export default function UserButton() {
   const [user, setUser] = useState<any>(null);
   const [userStatus, setUserStatus] = useState<UserStatus>('guest');
   const [showMenu, setShowMenu] = useState(false);
+  const [supabase, setSupabase] = useState<any>(null);
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
-    // 초기 사용자 확인
-    checkUser();
-
-    // 인증 상태 변경 구독
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          checkSubscription(session.user.id);
-        } else {
-          setUser(null);
-          setUserStatus('guest');
-        }
-        setIsLoading(false);
-      }
-    );
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    // Supabase 클라이언트 초기화 (안전하게)
+    initializeSupabase();
   }, []);
 
-  async function checkUser() {
+  async function initializeSupabase() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // 동적 import로 클라이언트 사이드에서만 로드
+      const { createClient } = await import('@/lib/supabase/client');
+      const client = createClient();
+      setSupabase(client);
+
+      // 초기 사용자 확인
+      checkUser(client);
+
+      // 인증 상태 변경 구독
+      const { data: { subscription } } = client.auth.onAuthStateChange(
+        (_event: any, session: any) => {
+          if (session?.user) {
+            setUser(session.user);
+            checkSubscription(client, session.user.id);
+          } else {
+            setUser(null);
+            setUserStatus('guest');
+          }
+          setIsLoading(false);
+        }
+      );
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } catch (error) {
+      console.error('Failed to initialize Supabase:', error);
+      setIsLoading(false);
+      setUser(null);
+      setUserStatus('guest');
+    }
+  }
+
+  async function checkUser(client: any) {
+    try {
+      const { data: { user } } = await client.auth.getUser();
 
       if (user) {
         setUser(user);
-        await checkSubscription(user.id);
+        await checkSubscription(client, user.id);
       } else {
         setUser(null);
         setUserStatus('guest');
@@ -58,14 +74,14 @@ export default function UserButton() {
     }
   }
 
-  async function checkSubscription(userId: string) {
+  async function checkSubscription(client: any, userId: string) {
     try {
-      const { data: subscription } = await supabase
+      const { data: subscription } = await client
         .from('subscriptions')
         .select('plan_type, status')
         .eq('user_id', userId)
         .eq('status', 'active')
-        .maybeSingle() as { data: { plan_type: string; status: string } | null };
+        .maybeSingle();
 
       if (subscription?.plan_type === 'premium') {
         setUserStatus('premium');
@@ -79,6 +95,8 @@ export default function UserButton() {
   }
 
   async function handleSignOut() {
+    if (!supabase) return;
+
     try {
       await supabase.auth.signOut();
       setUser(null);
