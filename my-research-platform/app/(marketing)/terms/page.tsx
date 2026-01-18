@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import Footer from '@/components/Footer';
 
 export const metadata: Metadata = {
   title: 'Terms of Service - K-MarketInsight',
@@ -148,27 +149,7 @@ export default function TermsPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-800 mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-400 text-sm">
-              © 2026 K-MarketInsight. All rights reserved.
-            </p>
-            <div className="flex gap-6">
-              <Link href="/terms" className="text-white text-sm font-medium">
-                Terms of Service
-              </Link>
-              <Link href="/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Privacy Policy
-              </Link>
-              <Link href="/refund-policy" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Refund Policy
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
