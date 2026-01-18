@@ -140,9 +140,7 @@ export default function PricingPage() {
                   <p className="text-yellow-100">
                     <strong>7-day refund available if no paid analysis has been accessed.</strong>
                   </p>
-                  <p className="text-yellow-200/80 mt-2 text-xs">
-                    결제 즉시 디지털 콘텐츠가 제공되며, 콘텐츠 접근 여부에 따라 환불 가능 여부가 달라질 수 있습니다.
-                  </p>
+                  
                 </div>
               </div>
             </div>
