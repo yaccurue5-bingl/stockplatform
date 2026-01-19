@@ -81,33 +81,33 @@ export default function MarketIndices() {
   };
 
   return (
-    <div className="flex items-center space-x-6">
-      <div>
-        <div className="text-sm text-blue-200 mb-1">KOSPI</div>
-        <div className="text-2xl font-bold">
+    <div className="flex items-center gap-4 md:gap-6 min-w-max">
+      <div className="flex-shrink-0">
+        <div className="text-xs md:text-sm text-blue-200 mb-1">KOSPI</div>
+        <div className="text-xl md:text-2xl font-bold">
           {indices.KOSPI.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
-        <div className={`text-sm ${indices.KOSPI.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <div className={`text-xs md:text-sm ${indices.KOSPI.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
           {indices.KOSPI.change >= 0 ? '+' : ''}{indices.KOSPI.change.toFixed(2)}%
         </div>
       </div>
-      <div className="h-12 w-px bg-blue-600"></div>
-      <div>
-        <div className="text-sm text-blue-200 mb-1">KOSDAQ</div>
-        <div className="text-2xl font-bold">
+      <div className="h-12 w-px bg-blue-600 flex-shrink-0"></div>
+      <div className="flex-shrink-0">
+        <div className="text-xs md:text-sm text-blue-200 mb-1">KOSDAQ</div>
+        <div className="text-xl md:text-2xl font-bold">
           {indices.KOSDAQ.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
-        <div className={`text-sm ${indices.KOSDAQ.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <div className={`text-xs md:text-sm ${indices.KOSDAQ.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
           {indices.KOSDAQ.change >= 0 ? '+' : ''}{indices.KOSDAQ.change.toFixed(2)}%
         </div>
       </div>
-      <div className="h-12 w-px bg-blue-600"></div>
-      <div>
-        <div className="text-sm text-blue-200 mb-1">USD/KRW</div>
-        <div className="text-2xl font-bold">
+      <div className="h-12 w-px bg-blue-600 flex-shrink-0"></div>
+      <div className="flex-shrink-0">
+        <div className="text-xs md:text-sm text-blue-200 mb-1">USD/KRW</div>
+        <div className="text-xl md:text-2xl font-bold">
           {indices.USDKRW.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
-        <div className={`text-sm ${indices.USDKRW.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        <div className={`text-xs md:text-sm ${indices.USDKRW.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
           {indices.USDKRW.change >= 0 ? '+' : ''}{indices.USDKRW.change.toFixed(2)}%
         </div>
       </div>
