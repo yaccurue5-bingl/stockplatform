@@ -56,14 +56,14 @@ jobs:
         run: python scripts/auto_analyst.py
         # trigger.yml 수정
       # trigger.yml 수정
-      - name: Trigger Vercel Deploy
-        env:
-          DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-        run: |
+     # - name: Trigger Vercel Deploy
+      #  env:
+       #   DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+       # run: |
           # 응답 코드(http_code)를 확인하도록 수정
-          response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DEPLOY_URL")
-          echo "Vercel Response Code: $response"
-          if [ "$response" != "201" ] && [ "$response" != "200" ]; then
-            echo "❌ Deploy Hook failed with status $response"
-            exit 1
-          fi
+        #  response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DEPLOY_URL")
+         # echo "Vercel Response Code: $response"
+          #if [ "$response" != "201" ] && [ "$response" != "200" ]; then
+           # echo "❌ Deploy Hook failed with status $response"
+            #exit 1
+          #fi
