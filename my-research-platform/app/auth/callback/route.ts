@@ -14,9 +14,26 @@ export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
   const type = requestUrl.searchParams.get('type');
-  const redirectTo = requestUrl.searchParams.get('redirectTo') || '/';
+  const error_code = requestUrl.searchParams.get('error');
+  const error_description = requestUrl.searchParams.get('error_description');
 
-  if (code) {
+  // OAuth 에러가 있는 경우 (Google에서 거부 등)
+  if (error_code) {
+    console.error('OAuth error:', error_code, error_description);
+    const errorUrl = new URL('/login', request.url);
+    errorUrl.searchParams.set('error', error_description || 'Authentication failed');
+    return NextResponse.redirect(errorUrl);
+  }
+
+  // code가 없는 경우
+  if (!code) {
+    console.error('No code provided in OAuth callback');
+    const errorUrl = new URL('/login', request.url);
+    errorUrl.searchParams.set('error', 'Invalid authentication response');
+    return NextResponse.redirect(errorUrl);
+  }
+
+  try {
     const cookieStore = await cookies();
 
     const supabase = createServerClient<Database>(
@@ -32,26 +49,38 @@ export async function GET(request: NextRequest) {
               cookiesToSet.forEach(({ name, value, options }: any) =>
                 cookieStore.set(name, value, options)
               );
-            } catch {
-              // Server Component에서는 쿠키 설정이 불가능할 수 있음
+            } catch (error) {
+              console.error('Failed to set cookies:', error);
             }
           },
         },
       }
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error) {
-      // 이메일 확인인 경우 confirm 페이지로 리다이렉트
-      if (type === 'signup' || type === 'email') {
-        return NextResponse.redirect(new URL('/auth/confirm', request.url));
-      }
-      // 일반 로그인인 경우 대시보드로
-      return NextResponse.redirect(new URL(redirectTo, request.url));
+    if (error) {
+      console.error('Failed to exchange code for session:', error);
+      const errorUrl = new URL('/login', request.url);
+      errorUrl.searchParams.set('error', error.message || 'Authentication failed');
+      return NextResponse.redirect(errorUrl);
     }
-  }
 
-  // 에러 발생 시에도 confirm 페이지로 (에러가 발생해도 인증은 완료될 수 있음)
-  return NextResponse.redirect(new URL('/auth/confirm', request.url));
+    // 성공 - OAuth 로그인은 바로 대시보드로
+    console.log('OAuth login successful for user:', data.user?.email);
+
+    // 이메일 확인인 경우만 confirm 페이지로
+    if (type === 'signup' || type === 'email') {
+      return NextResponse.redirect(new URL('/auth/confirm', request.url));
+    }
+
+    // OAuth 로그인은 바로 대시보드로 (이미 Google에서 인증됨)
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+
+  } catch (error) {
+    console.error('Unexpected error in auth callback:', error);
+    const errorUrl = new URL('/login', request.url);
+    errorUrl.searchParams.set('error', 'An unexpected error occurred');
+    return NextResponse.redirect(errorUrl);
+  }
 }
