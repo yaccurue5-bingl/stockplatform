@@ -68,6 +68,12 @@ def run_crawler():
             rcept_no = item.get("rcept_no")
             corp_name = item.get("corp_name", "Unknown")
 
+            # ✅ corp_code가 없으면 건너뛰기 (DB constraint 위반 방지)
+            if not corp_code or corp_code.strip() == "":
+                logger.warning(f"⏭️ corp_code 없음 - 건너뜀: {corp_name} (rcept_no: {rcept_no})")
+                skipped += 1
+                continue
+
             # ✅ 종목코드가 없거나 공백이면 건너뛰기
             if not stock_code or stock_code.strip() == "" or stock_code == " ":
                 logger.debug(f"⏭️ 종목코드 없음 - 건너뜀: {corp_name}")
@@ -76,6 +82,7 @@ def run_crawler():
 
             # ✅ 종목코드 정리 (공백 제거)
             stock_code = stock_code.strip()
+            corp_code = corp_code.strip()
 
             # ✅ 중복 체크 (disclosure_hashes 테이블)
             if is_disclosure_processed(corp_code, rcept_no):
@@ -121,7 +128,7 @@ def run_crawler():
         logger.info(f"\n{'='*70}")
         logger.info(f"🎉 수집 완료")
         logger.info(f"   - 저장: {count}건")
-        logger.info(f"   - 건너뜀 (종목코드 없음): {skipped}건")
+        logger.info(f"   - 건너뜀 (corp_code/종목코드 없음): {skipped}건")
         logger.info(f"   - 건너뜀 (중복): {duplicates}건")
         logger.info(f"   - 총: {count + skipped + duplicates}건")
         logger.info(f"{'='*70}\n")
