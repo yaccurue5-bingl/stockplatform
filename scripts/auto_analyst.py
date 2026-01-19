@@ -2,12 +2,17 @@ import os
 import json
 import logging
 import time
+import hashlib
 from datetime import datetime
 from groq import Groq
 from supabase import create_client, Client
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def generate_hash_key(corp_code: str, rcept_no: str) -> str:
+    """공시 hash key 생성"""
+    return hashlib.sha256(f"{corp_code}_{rcept_no}".encode()).hexdigest()
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -124,7 +129,7 @@ def run():
         
         if result:
             summary_text = "\n".join(result.get("summary", []))
-            
+
             update_data = {
                 "ai_summary": summary_text,
                 "sentiment": result.get("sentiment", "NEUTRAL"),
@@ -133,13 +138,32 @@ def run():
                 "analysis_status": "completed",  # ✅ 분석 완료
                 "updated_at": datetime.now().isoformat()
             }
-            
+
             try:
+                # disclosure_insights 업데이트
                 supabase.table("disclosure_insights") \
                     .update(update_data) \
                     .eq("id", item['id']) \
                     .execute()
-                
+
+                # ✅ disclosure_hashes에 Groq 분석 완료 기록
+                try:
+                    corp_code = item.get('corp_code', '')
+                    rcept_no = item.get('rcept_no', '')
+
+                    if corp_code and rcept_no:
+                        hash_key = generate_hash_key(corp_code, rcept_no)
+                        supabase.table("disclosure_hashes") \
+                            .update({
+                                "groq_analyzed": True,
+                                "groq_analyzed_at": datetime.now().isoformat()
+                            }) \
+                            .eq("hash_key", hash_key) \
+                            .execute()
+                        logger.debug(f"✅ Hash 업데이트: {hash_key[:16]}...")
+                except Exception as hash_err:
+                    logger.warning(f"⚠️ Hash 업데이트 실패 (분석은 완료): {hash_err}")
+
                 success_count += 1
                 logger.info(f"✅ 완료: {item['corp_name']} | {update_data['sentiment']} ({update_data['sentiment_score']:.2f}) | {update_data['importance']}")
             except Exception as e:

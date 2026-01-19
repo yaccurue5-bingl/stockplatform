@@ -19,12 +19,13 @@ export default function MarketIndices() {
     KOSDAQ: { value: 876.52, change: -0.68 },
     USDKRW: { value: 1332.50, change: 0.15 }
   });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // 초기 로드
     fetchIndices();
 
-    // 5분마다 업데이트 (Yahoo Finance API 호출 제한 고려)
+    // 5분마다 업데이트
     const interval = setInterval(fetchIndices, 300000);
 
     return () => clearInterval(interval);
@@ -36,9 +37,15 @@ export default function MarketIndices() {
       if (response.ok) {
         const data = await response.json();
         setIndices(data);
+        setError(null);
+      } else {
+        console.error('Failed to fetch market indices:', response.status);
+        // 에러 발생해도 기본값 유지
       }
     } catch (error) {
       console.error('Failed to fetch market indices:', error);
+      setError('Unable to load market data');
+      // 에러 발생해도 기본값 유지
     }
   };
 

@@ -41,11 +41,12 @@ export default function LatestDisclosures() {
   };
 
   const getCompanyInitials = (name: string) => {
+    if (!name) return '??';
     const words = name.split(' ');
     if (words.length >= 2) {
-      return words[0][0] + words[1][0];
+      return (words[0]?.[0] || '') + (words[1]?.[0] || '');
     }
-    return name.substring(0, 2).toUpperCase();
+    return (name || '').substring(0, 2).toUpperCase() || '??';
   };
 
   const getImpactColor = (importance: string) => {
@@ -81,20 +82,30 @@ export default function LatestDisclosures() {
     }
   };
 
-  const getTimeAgo = (date: string) => {
-    const now = new Date();
-    const analyzed = new Date(date);
-    const diffMs = now.getTime() - analyzed.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
+  const getTimeAgo = (date: string | null | undefined) => {
+    if (!date) return 'Recently';
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    try {
+      const now = new Date();
+      const analyzed = new Date(date);
 
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+      // Invalid date 체크
+      if (isNaN(analyzed.getTime())) return 'Recently';
 
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      const diffMs = now.getTime() - analyzed.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    } catch (error) {
+      return 'Recently';
+    }
   };
 
   const handleCardClick = (stockCode: string, disclosureId: string) => {
@@ -165,31 +176,31 @@ export default function LatestDisclosures() {
                 {getCompanyInitials(disclosure.corp_name)}
               </div>
               <div>
-                <h4 className="font-semibold text-lg">{disclosure.corp_name}</h4>
+                <h4 className="font-semibold text-lg">{disclosure.corp_name || 'Unknown'}</h4>
                 <p className="text-sm text-gray-400">
-                  {disclosure.stock_code} • {disclosure.market || 'KOSPI'}
+                  {disclosure.stock_code || '000000'} • {disclosure.market || 'KOSPI'}
                 </p>
               </div>
             </div>
             <div className="text-right">
               <div className="text-xs text-gray-500 mb-1">{getTimeAgo(disclosure.analyzed_at)}</div>
-              <span className={`inline-block text-xs px-3 py-1 rounded-full font-medium ${getImpactColor(disclosure.importance)}`}>
-                {getImpactLabel(disclosure.importance)}
+              <span className={`inline-block text-xs px-3 py-1 rounded-full font-medium ${getImpactColor(disclosure.importance || 'MEDIUM')}`}>
+                {getImpactLabel(disclosure.importance || 'MEDIUM')}
               </span>
             </div>
           </div>
-          <h5 className="font-medium mb-2">{disclosure.report_name}</h5>
+          <h5 className="font-medium mb-2">{disclosure.report_name || 'Disclosure Report'}</h5>
           <p className="text-sm text-gray-400 mb-3">
-            {disclosure.summary.substring(0, 150)}
-            {disclosure.summary.length > 150 ? '...' : ''}
+            {(disclosure.summary || '').substring(0, 150)}
+            {(disclosure.summary || '').length > 150 ? '...' : ''}
           </p>
           <div className="flex items-center justify-between">
             <div className="flex space-x-2">
-              <span className={`text-xs px-3 py-1 rounded-full ${getSentimentColor(disclosure.sentiment)}`}>
-                {disclosure.sentiment}
+              <span className={`text-xs px-3 py-1 rounded-full ${getSentimentColor(disclosure.sentiment || 'NEUTRAL')}`}>
+                {disclosure.sentiment || 'NEUTRAL'}
               </span>
               <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">
-                Score: {disclosure.sentiment_score.toFixed(2)}
+                Score: {(disclosure.sentiment_score || 0).toFixed(2)}
               </span>
             </div>
             <div className="flex items-center space-x-4 text-sm">
