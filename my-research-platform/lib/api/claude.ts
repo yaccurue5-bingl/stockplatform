@@ -76,7 +76,7 @@ export async function analyzeBySonnet(
     const tokensUsed = data.usage?.input_tokens + data.usage?.output_tokens || 0;
 
     // AI 응답 파싱
-    const summary = extractSection(aiResponse, '요약') || aiResponse.substring(0, 300);
+    const summary = extractSection(aiResponse, '요약') || (aiResponse || '').substring(0, 300);
     const detailedAnalysis = extractSection(aiResponse, '심층 분석') || aiResponse;
     const sentiment = extractSentiment(aiResponse) || 'NEUTRAL';
     const sentimentScore = extractSentimentScore(aiResponse) || 0.5;
@@ -132,7 +132,7 @@ export async function analyzeBundledBySonnet(
 
   // 공시 목록을 하나의 프롬프트로 묶기
   const disclosureList = disclosures
-    .map((d, i) => `${i + 1}. ${d.report_nm}\n${d.content.substring(0, 500)}`)
+    .map((d, i) => `${i + 1}. ${d.report_nm}\n${(d.content || '').substring(0, 500)}`)
     .join('\n\n');
 
   const prompt = `다음은 ${corpName} (${stockCode})의 오늘자 공시입니다:
@@ -181,7 +181,7 @@ ${disclosureList}
     const aiResponse = data.content[0]?.text || '';
     const tokensUsed = data.usage?.input_tokens + data.usage?.output_tokens || 0;
 
-    const summary = extractSection(aiResponse, '요약') || aiResponse.substring(0, 300);
+    const summary = extractSection(aiResponse, '요약') || (aiResponse || '').substring(0, 300);
     const detailedAnalysis = extractSection(aiResponse, '심층 분석') || aiResponse;
     const sentiment = extractSentiment(aiResponse) || 'NEUTRAL';
     const sentimentScore = extractSentimentScore(aiResponse) || 0.5;

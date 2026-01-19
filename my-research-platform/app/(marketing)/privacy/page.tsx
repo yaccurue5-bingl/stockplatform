@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import Footer from '@/components/Footer';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy - K-MarketInsight',
@@ -24,119 +25,84 @@ export default function PrivacyPage() {
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <h1 className="text-5xl font-bold text-white mb-4">Privacy Policy</h1>
-        <p className="text-gray-400 mb-12">Last updated: January 16, 2026</p>
+        <p className="text-gray-400 mb-8">Last updated: 2026-01-18</p>
+        <p className="text-gray-300 text-lg mb-12">
+          K-MarketInsight respects your privacy and is committed to protecting your personal data.
+        </p>
 
         <div className="space-y-8">
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">1. Data Collection</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">1. Information We Collect</h2>
+            <p className="text-gray-300 mb-4">We may collect:</p>
+            <ul className="space-y-2 text-gray-300">
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Email address</li>
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Account login information</li>
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Subscription and payment status (processed by Paddle)</li>
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Usage data related to service functionality</li>
+            </ul>
+            <p className="text-gray-400 mt-4 text-sm">We do not collect sensitive financial information such as credit card numbers.</p>
+          </div>
+
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">2. How We Use Your Information</h2>
+            <p className="text-gray-300 mb-4">We use your data to:</p>
+            <ul className="space-y-2 text-gray-300">
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Provide and maintain the Service</li>
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Manage user accounts and subscriptions</li>
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Communicate important service-related information</li>
+            </ul>
+          </div>
+
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">3. Payment Processing</h2>
             <p className="text-gray-300 leading-relaxed">
-              We collect only the information necessary to provide our service, including email address and payment confirmation data.
+              All payments are securely processed by <strong>Paddle</strong>, acting as Merchant of Record. We do not store payment details on our servers.
             </p>
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">2. Payment Information</h2>
-            <p className="text-gray-300 leading-relaxed">
-              All payment information is handled directly by Paddle, our authorized payment processor. We do not store or process credit card details on our servers.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">3. Data Usage</h2>
-            <p className="text-gray-300 leading-relaxed">
-              User data is used solely for service delivery, customer support, and essential communications. We do not sell or share your personal information with third parties for marketing purposes.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">4. Cookies and Tracking</h2>
-            <p className="text-gray-300 leading-relaxed">
-              We use essential cookies to maintain your session and provide a better user experience. We do not use third-party advertising cookies.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">5. Data Security</h2>
-            <p className="text-gray-300 leading-relaxed">
-              We implement industry-standard security measures to protect your personal information. All data transmission is encrypted using SSL/TLS protocols.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">6. Data Retention</h2>
-            <p className="text-gray-300 leading-relaxed">
-              We retain your personal information only for as long as necessary to provide our services and comply with legal obligations.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">7. Your Rights</h2>
-            <p className="text-gray-300 leading-relaxed mb-4">
-              You have the right to:
-            </p>
+            <h2 className="text-2xl font-bold text-white mb-4">4. Data Sources</h2>
+            <p className="text-gray-300 mb-4">Market and disclosure data are sourced from:</p>
             <ul className="space-y-2 text-gray-300">
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">•</span>
-                Access your personal data
+                <a href="https://dart.fss.or.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">DART (https://dart.fss.or.kr)</a>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">•</span>
-                Request correction of inaccurate data
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                Request deletion of your data
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                Object to data processing
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                Request data portability
+                <a href="https://global.krx.co.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">KRX (https://global.krx.co.kr)</a>
               </li>
             </ul>
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">8. Third-Party Services</h2>
-            <p className="text-gray-300 leading-relaxed mb-4">
-              We use the following third-party services:
+            <h2 className="text-2xl font-bold text-white mb-4">5. Data Retention</h2>
+            <p className="text-gray-300 leading-relaxed">
+              We retain personal data only as long as necessary to provide the Service or comply with legal obligations.
             </p>
+          </div>
+
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">6. Your Rights</h2>
+            <p className="text-gray-300 mb-4">Depending on your jurisdiction, you may have the right to:</p>
             <ul className="space-y-2 text-gray-300">
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                <strong>Paddle</strong> - Payment processing
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                <strong>Supabase</strong> - Database and authentication
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                <strong>Vercel</strong> - Hosting and deployment
-              </li>
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Access your personal data</li>
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Request correction or deletion</li>
+              <li className="flex items-start gap-2"><span className="text-blue-400">•</span> Object to processing</li>
             </ul>
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">9. International Data Transfers</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">7. Data Security</h2>
             <p className="text-gray-300 leading-relaxed">
-              Your data may be transferred to and processed in countries other than your own. We ensure appropriate safeguards are in place to protect your information.
+              We implement reasonable technical and organizational measures to protect your data using industry-standard encryption and security protocols.
             </p>
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">10. Changes to Privacy Policy</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">8. Contact</h2>
             <p className="text-gray-300 leading-relaxed">
-              We may update this Privacy Policy from time to time. We will notify users of any significant changes via email or through our service.
-            </p>
-          </div>
-
-          <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">11. Contact Us</h2>
-            <p className="text-gray-300 leading-relaxed">
-              For questions about this Privacy Policy or to exercise your rights, please contact us at:
+              For privacy-related inquiries, please contact us at:
               <br />
               <a href="mailto:support@k-marketinsight.com" className="text-blue-400 hover:text-blue-300 underline">
                 support@k-marketinsight.com
@@ -153,27 +119,7 @@ export default function PrivacyPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-800 mt-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-400 text-sm">
-              © 2026 K-MarketInsight. All rights reserved.
-            </p>
-            <div className="flex gap-6">
-              <Link href="/terms" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Terms of Service
-              </Link>
-              <Link href="/privacy" className="text-white text-sm font-medium">
-                Privacy Policy
-              </Link>
-              <Link href="/refund-policy" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Refund Policy
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

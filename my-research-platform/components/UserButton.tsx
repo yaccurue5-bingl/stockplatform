@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -12,39 +11,74 @@ export default function UserButton() {
   const [user, setUser] = useState<any>(null);
   const [userStatus, setUserStatus] = useState<UserStatus>('guest');
   const [showMenu, setShowMenu] = useState(false);
+  const [supabase, setSupabase] = useState<any>(null);
+  const [initError, setInitError] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
-    // 초기 사용자 확인
-    checkUser();
+    // 환경변수 확인
+    if (typeof window === 'undefined') return;
 
-    // 인증 상태 변경 구독
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          checkSubscription(session.user.id);
-        } else {
-          setUser(null);
-          setUserStatus('guest');
-        }
-        setIsLoading(false);
-      }
-    );
+    const hasEnvVars =
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    if (!hasEnvVars) {
+      console.warn('Supabase environment variables not set. Running in guest-only mode.');
+      setInitError(true);
+      setIsLoading(false);
+      setUser(null);
+      setUserStatus('guest');
+      return;
+    }
+
+    // Supabase 클라이언트 초기화 (안전하게)
+    initializeSupabase();
   }, []);
 
-  async function checkUser() {
+  async function initializeSupabase() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // 동적 import로 클라이언트 사이드에서만 로드
+      const { createClient } = await import('@/lib/supabase/client');
+      const client = createClient();
+      setSupabase(client);
+
+      // 초기 사용자 확인
+      checkUser(client);
+
+      // 인증 상태 변경 구독
+      const { data: { subscription } } = client.auth.onAuthStateChange(
+        (_event: any, session: any) => {
+          if (session?.user) {
+            setUser(session.user);
+            checkSubscription(client, session.user.id);
+          } else {
+            setUser(null);
+            setUserStatus('guest');
+          }
+          setIsLoading(false);
+        }
+      );
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    } catch (error) {
+      console.error('Failed to initialize Supabase:', error);
+      setInitError(true);
+      setIsLoading(false);
+      setUser(null);
+      setUserStatus('guest');
+    }
+  }
+
+  async function checkUser(client: any) {
+    try {
+      const { data: { user } } = await client.auth.getUser();
 
       if (user) {
         setUser(user);
-        await checkSubscription(user.id);
+        await checkSubscription(client, user.id);
       } else {
         setUser(null);
         setUserStatus('guest');
@@ -58,14 +92,14 @@ export default function UserButton() {
     }
   }
 
-  async function checkSubscription(userId: string) {
+  async function checkSubscription(client: any, userId: string) {
     try {
-      const { data: subscription } = await supabase
+      const { data: subscription } = await client
         .from('subscriptions')
         .select('plan_type, status')
         .eq('user_id', userId)
         .eq('status', 'active')
-        .maybeSingle() as { data: { plan_type: string; status: string } | null };
+        .maybeSingle();
 
       if (subscription?.plan_type === 'premium') {
         setUserStatus('premium');
@@ -79,15 +113,23 @@ export default function UserButton() {
   }
 
   async function handleSignOut() {
+    if (!supabase) return;
+
     try {
+      // 세션 종료
       await supabase.auth.signOut();
+
+      // 상태 즉시 초기화
       setUser(null);
       setUserStatus('guest');
       setShowMenu(false);
-      router.push('/');
-      router.refresh();
+
+      // 메인 페이지로 강제 리다이렉트 (새로고침)
+      window.location.href = '/';
     } catch (error) {
       console.error('Error signing out:', error);
+      // 에러가 발생해도 메인 페이지로 이동
+      window.location.href = '/';
     }
   }
 
@@ -100,8 +142,8 @@ export default function UserButton() {
     );
   }
 
-  // Guest (로그인 안됨)
-  if (!user) {
+  // Guest (로그인 안됨 또는 환경변수 없음)
+  if (!user || initError) {
     return (
       <div className="flex items-center space-x-4">
         <Link
