@@ -67,6 +67,7 @@ def run_crawler():
             corp_code = item.get("corp_code", "")
             rcept_no = item.get("rcept_no")
             corp_name = item.get("corp_name", "Unknown")
+            rcept_dt = item.get("rcept_dt", "")  # ✅ 접수일자 추출 (예: "20260119")
 
             # ✅ corp_code가 없으면 건너뛰기 (DB constraint 위반 방지)
             if not corp_code or corp_code.strip() == "":
@@ -80,9 +81,15 @@ def run_crawler():
                 skipped += 1
                 continue
 
-            # ✅ 종목코드 정리 (공백 제거)
+            # ✅ rcept_dt가 없으면 오늘 날짜 사용 (NOT NULL 제약 조건 대응)
+            if not rcept_dt or rcept_dt.strip() == "":
+                rcept_dt = datetime.now().strftime('%Y%m%d')
+                logger.warning(f"⚠️ rcept_dt 없음 - 오늘 날짜로 대체: {corp_name} (rcept_no: {rcept_no})")
+
+            # ✅ 종목코드, 회사코드, 접수일자 정리 (공백 제거)
             stock_code = stock_code.strip()
             corp_code = corp_code.strip()
+            rcept_dt = rcept_dt.strip()
 
             # ✅ 중복 체크 (disclosure_hashes 테이블)
             if is_disclosure_processed(corp_code, rcept_no):
@@ -95,6 +102,7 @@ def run_crawler():
                 "corp_code": corp_code,
                 "corp_name": corp_name,
                 "stock_code": stock_code,
+                "rcept_dt": rcept_dt,  # ✅ 접수일자 추가
                 "report_nm": item.get("report_nm"),
                 "analysis_status": "pending",  # 분석 대기 상태
                 "created_at": datetime.now().isoformat()
