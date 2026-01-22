@@ -14,15 +14,10 @@ interface MarketIndicesData {
 }
 
 const STORAGE_KEY = 'market-indices-cache';
-const DEFAULT_INDICES: MarketIndicesData = {
-  KOSPI: { value: 2645.38, change: 1.24 },
-  KOSDAQ: { value: 876.52, change: -0.68 },
-  USDKRW: { value: 1332.50, change: 0.15 }
-};
 
 // ✅ localStorage에서 캐싱된 값 불러오기
-const getInitialIndices = (): MarketIndicesData => {
-  if (typeof window === 'undefined') return DEFAULT_INDICES;
+const getInitialIndices = (): MarketIndicesData | null => {
+  if (typeof window === 'undefined') return null;
 
   try {
     const cached = localStorage.getItem(STORAGE_KEY);
@@ -37,12 +32,12 @@ const getInitialIndices = (): MarketIndicesData => {
     console.error('Failed to load cached indices:', error);
   }
 
-  return DEFAULT_INDICES;
+  return null;
 };
 
 export default function MarketIndices() {
-  // ✅ 초기값으로 캐시된 값 사용 (없으면 기본값)
-  const [indices, setIndices] = useState<MarketIndicesData>(getInitialIndices);
+  // ✅ 초기값으로 캐시된 값 사용 (없으면 null)
+  const [indices, setIndices] = useState<MarketIndicesData | null>(getInitialIndices);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,6 +74,24 @@ export default function MarketIndices() {
       // 에러 발생해도 현재값(캐시 또는 기본값) 유지
     }
   };
+
+  // ✅ 로딩 중일 때 skeleton 표시 (깜빡임 방지)
+  if (!indices) {
+    return (
+      <div className="flex items-center gap-4 md:gap-6 min-w-max">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-4">
+            {i > 1 && <div className="h-12 w-px bg-blue-600 flex-shrink-0"></div>}
+            <div className="flex-shrink-0 animate-pulse">
+              <div className="h-4 w-16 bg-blue-800 rounded mb-2"></div>
+              <div className="h-6 w-24 bg-blue-700 rounded mb-1"></div>
+              <div className="h-4 w-16 bg-blue-800 rounded"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-4 md:gap-6 min-w-max">
