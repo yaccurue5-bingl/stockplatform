@@ -65,8 +65,9 @@ export async function signIn(email: string, password: string) {
 export async function signUp(email: string, password: string) {
   const supabase = getSupabase();
 
-  // ✅ 프로덕션에서는 환경변수 사용, 로컬에서는 window.location 사용
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+  // ✅ 개발 환경에서는 localhost 사용, 프로덕션에서는 환경변수 사용
+  const isDevelopment = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost';
+  const siteUrl = isDevelopment ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin);
   const redirectUrl = `${siteUrl}/auth/callback`;
 
   const { data, error } = await supabase.auth.signUp({
@@ -102,9 +103,12 @@ export async function signOut() {
 export async function signInWithGoogle() {
   const supabase = getSupabase();
 
-  // ✅ 프로덕션에서는 환경변수 사용, 로컬에서는 window.location 사용
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+  // ✅ 개발 환경에서는 localhost 사용, 프로덕션에서는 환경변수 사용
+  const isDevelopment = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost';
+  const siteUrl = isDevelopment ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin);
   const redirectUrl = `${siteUrl}/auth/callback`;
+
+  console.log('🔐 Google OAuth redirectUrl:', redirectUrl); // 디버깅용
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
