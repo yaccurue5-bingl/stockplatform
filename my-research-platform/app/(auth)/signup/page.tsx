@@ -49,7 +49,8 @@ export default function SignupPage() {
     setErrorMessage('');
 
     try {
-      await signInWithGoogle();
+      // ✅ Google 회원가입 후 홈으로 리디렉션
+      await signInWithGoogle('/');
       // OAuth는 자동으로 리다이렉트됨
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Signup failed');
