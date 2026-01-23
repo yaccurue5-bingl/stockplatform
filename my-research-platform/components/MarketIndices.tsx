@@ -15,32 +15,25 @@ interface MarketIndicesData {
 
 const STORAGE_KEY = 'market-indices-cache';
 
-// ✅ localStorage에서 캐싱된 값 불러오기
-const getInitialIndices = (): MarketIndicesData | null => {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const cached = localStorage.getItem(STORAGE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      // 캐시된 데이터 유효성 검증
-      if (parsed.KOSPI && parsed.KOSDAQ && parsed.USDKRW) {
-        return parsed;
-      }
-    }
-  } catch (error) {
-    console.error('Failed to load cached indices:', error);
-  }
-
-  return null;
-};
-
 export default function MarketIndices() {
-  // ✅ 초기값으로 캐시된 값 사용 (없으면 null)
-  const [indices, setIndices] = useState<MarketIndicesData | null>(getInitialIndices);
+  // ✅ 초기값은 무조건 null (서버/클라이언트 동일하게 시작)
+  const [indices, setIndices] = useState<MarketIndicesData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // ✅ 클라이언트에서 mount된 후 localStorage 캐시 로드
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.KOSPI && parsed.KOSDAQ && parsed.USDKRW) {
+          setIndices(parsed);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load cached indices:', error);
+    }
+
     // 초기 로드
     fetchIndices();
 
