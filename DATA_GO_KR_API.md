@@ -54,7 +54,7 @@ https://www.data.go.kr 에서 회원가입
 ### .env.local 파일에 추가
 
 ```bash
-DATA_GO_KR_API_KEY=your_api_key_here
+PUBLIC_DATA_API_KEY=your_api_key_here
 ```
 
 **주의:** 동일한 API 키로 여러 API 사용 가능
@@ -103,7 +103,7 @@ import {
 import { fetchAllKrxStocks } from '@/lib/api/datagokr';
 
 const stocks = await fetchAllKrxStocks(
-  process.env.DATA_GO_KR_API_KEY!,
+  process.env.PUBLIC_DATA_API_KEY!,
   '20240115'
 );
 
@@ -116,7 +116,7 @@ console.log(`총 ${stocks.length}개 종목 조회됨`);
 import { fetchKrxListedStocks } from '@/lib/api/datagokr';
 
 const samsungStocks = await fetchKrxListedStocks({
-  serviceKey: process.env.DATA_GO_KR_API_KEY!,
+  serviceKey: process.env.PUBLIC_DATA_API_KEY!,
   likeItmsNm: '삼성',
   basDt: '20240115'
 });
@@ -132,7 +132,7 @@ samsungStocks.forEach(stock => {
 import { fetchCorpOutline } from '@/lib/api/datagokr';
 
 const companies = await fetchCorpOutline({
-  serviceKey: process.env.DATA_GO_KR_API_KEY!,
+  serviceKey: process.env.PUBLIC_DATA_API_KEY!,
   likeCorpNm: '삼성전자',
   basDt: '20240115'
 });
@@ -151,7 +151,7 @@ companies.forEach(company => {
 import { searchStockWithCompanyInfo } from '@/lib/api/datagokr';
 
 const result = await searchStockWithCompanyInfo(
-  process.env.DATA_GO_KR_API_KEY!,
+  process.env.PUBLIC_DATA_API_KEY!,
   '삼성전자'
 );
 
@@ -396,7 +396,7 @@ const marketCap = parseFloat(stock.mrktTotAmt);
 ### 1. API 키 오류
 
 ```
-Error: DATA_GO_KR_API_KEY not configured
+Error: PUBLIC_DATA_API_KEY not configured
 ```
 
 **해결:** `.env.local` 파일에 API 키가 설정되어 있는지 확인
