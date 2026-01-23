@@ -43,6 +43,12 @@ def fetch_krx_stock_list():
     today = datetime.now().strftime('%Y%m%d')
     all_stocks = []
 
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'http://data.krx.co.kr/contents/MDC/MDI/mdiLoader'
+    })
+
     for market_code, market_name in [('STK', 'KOSPI'), ('KSQ', 'KOSDAQ')]:
         print(f"\n🔍 {market_name} 종목 조회 중...")
         otp_url = "http://data.krx.co.kr/comm/fileDn/GenerateOTP/generate.cmd"
@@ -56,17 +62,13 @@ def fetch_krx_stock_list():
         }
 
         try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Referer': 'http://data.krx.co.kr/contents/MDC/MDI/mdiLoader'
-            }
-            otp_response = requests.post(otp_url, params=otp_params, headers=headers, timeout=10)
+            otp_response = session.post(otp_url, params=otp_params, timeout=10)
             otp_code = otp_response.text.strip()
 
             if not otp_code: continue
 
             download_url = "http://data.krx.co.kr/comm/fileDn/download_csv/download.cmd"
-            download_response = requests.post(download_url, data={'code': otp_code}, headers=headers, timeout=30)
+            download_response = session.post(download_url, data={'code': otp_code}, timeout=30)
             csv_data = download_response.content.decode('euc-kr')
             lines = csv_data.strip().split('\n')
 
