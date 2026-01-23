@@ -51,7 +51,11 @@ def fetch_krx_stock_list():
         }
 
         try:
-            otp_response = requests.post(otp_url, params=otp_params, timeout=10)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Referer': 'http://data.krx.co.kr/contents/MDC/MDI/mdiLoader'
+            }
+            otp_response = requests.post(otp_url, params=otp_params, headers=headers, timeout=10)
             otp_code = otp_response.text.strip()
 
             if not otp_code or len(otp_code) < 10:
@@ -63,7 +67,7 @@ def fetch_krx_stock_list():
             download_response = requests.post(
                 download_url,
                 data={'code': otp_code},
-                headers={'Referer': 'http://data.krx.co.kr'},
+                headers=headers,
                 timeout=30
             )
 
@@ -130,7 +134,7 @@ def fetch_naver_fallback():
         import re
         codes = re.findall(r'code=([0-9]{6})', response.text)
 
-        for code in set(codes)[:100]:  # 샘플로 100개만
+        for code in list(set(codes))[:100]:  # 샘플로 100개만 (중복 제거)
             all_stocks.append({
                 'code': code,
                 'name': f'종목{code}',
