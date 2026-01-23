@@ -54,7 +54,8 @@ function LoginForm() {
     setErrorMessage('');
 
     try {
-      await signInWithGoogle();
+      // ✅ redirectTo를 전달하여 로그인 후 원래 페이지로 복귀
+      await signInWithGoogle(redirectTo);
       // OAuth는 자동으로 리다이렉트됨
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Login failed');

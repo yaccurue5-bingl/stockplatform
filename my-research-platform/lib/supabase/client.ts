@@ -100,20 +100,22 @@ export async function signOut() {
 /**
  * Google OAuth 로그인
  */
-export async function signInWithGoogle() {
+export async function signInWithGoogle(redirectTo: string = '/') {
   const supabase = getSupabase();
 
   // ✅ 개발 환경에서는 localhost 사용, 프로덕션에서는 환경변수 사용
   const isDevelopment = process.env.NODE_ENV === 'development' || window.location.hostname === 'localhost';
   const siteUrl = isDevelopment ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL || window.location.origin);
-  const redirectUrl = `${siteUrl}/auth/callback`;
 
-  console.log('🔐 Google OAuth redirectUrl:', redirectUrl); // 디버깅용
+  // ✅ callback URL에 최종 redirect 경로를 쿼리 파라미터로 전달
+  const callbackUrl = `${siteUrl}/auth/callback?redirect_to=${encodeURIComponent(redirectTo)}`;
+
+  console.log('🔐 Google OAuth callbackUrl:', callbackUrl); // 디버깅용
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: redirectUrl,
+      redirectTo: callbackUrl,
     },
   });
 
