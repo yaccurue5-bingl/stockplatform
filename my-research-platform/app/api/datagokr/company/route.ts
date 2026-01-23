@@ -28,11 +28,11 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
-    const serviceKey = process.env.DATA_GO_KR_API_KEY;
+    const serviceKey = process.env.PUBLIC_DATA_API_KEY;
 
     if (!serviceKey) {
       return NextResponse.json(
-        { error: 'DATA_GO_KR_API_KEY not configured' },
+        { error: 'PUBLIC_DATA_API_KEY not configured' },
         { status: 500 }
       );
     }

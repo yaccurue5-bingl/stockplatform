@@ -2,7 +2,7 @@
  * Data.go.kr API 테스트 스크립트
  *
  * 사용법:
- * 1. .env.local에 DATA_GO_KR_API_KEY 설정
+ * 1. .env.local에 PUBLIC_DATA_API_KEY 설정
  * 2. npx tsx scripts/test-datagokr.ts
  */
 
@@ -14,12 +14,12 @@ import {
 } from '../lib/api/datagokr';
 
 async function testDataGoKrAPI() {
-  const apiKey = process.env.DATA_GO_KR_API_KEY;
+  const apiKey = process.env.PUBLIC_DATA_API_KEY;
 
   if (!apiKey) {
-    console.error('❌ DATA_GO_KR_API_KEY가 설정되지 않았습니다.');
+    console.error('❌ PUBLIC_DATA_API_KEY가 설정되지 않았습니다.');
     console.log('📝 .env.local 파일에 다음을 추가하세요:');
-    console.log('   DATA_GO_KR_API_KEY=your_api_key_here');
+    console.log('   PUBLIC_DATA_API_KEY=your_api_key_here');
     process.exit(1);
   }
 
