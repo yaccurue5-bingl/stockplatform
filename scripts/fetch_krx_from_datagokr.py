@@ -56,6 +56,23 @@ def get_yesterday_date():
     return yesterday.strftime('%Y%m%d')
 
 
+def get_recent_dates(days=5):
+    """
+    최근 N일간의 날짜를 역순으로 반환 (데이터가 없는 날짜 대비)
+
+    Args:
+        days: 조회할 일수 (기본 5일)
+
+    Returns:
+        list: YYYYMMDD 형식의 날짜 리스트 (최근 날짜부터)
+    """
+    dates = []
+    for i in range(days):
+        date = datetime.now() - timedelta(days=i+1)
+        dates.append(date.strftime('%Y%m%d'))
+    return dates
+
+
 def fetch_krx_stocks_from_datagokr(bas_dt, num_of_rows=1000, page_no=1):
     """
     data.go.kr API로 KRX 종목 정보 조회
@@ -151,8 +168,7 @@ def transform_to_db_format(stocks):
         list: DB에 저장할 형식의 데이터
 
     Note:
-        - code: PRIMARY KEY (required, NOT NULL)
-        - stock_code: 종목 코드 (code와 동일)
+        - stock_code: PRIMARY KEY (required, NOT NULL)
         - corp_name: 회사명
         - market: 시장 구분 (KOSPI/KOSDAQ)
         - sector: 업종
@@ -165,7 +181,7 @@ def transform_to_db_format(stocks):
         try:
             # 문자열 값 정리
             stock_code = stock.get('srtnCd', '').strip()
-            stock_name = stock.get('itmsNm', '').strip()
+            corp_name = stock.get('itmsNm', '').strip()
             market = stock.get('mrktCtg', '').strip()
 
             # 숫자 값 변환 (콤마 제거 후 정수 변환)
@@ -180,15 +196,14 @@ def transform_to_db_format(stocks):
                 listed_shares = 0
 
             # 필수 값 검증
-            if not stock_code or not stock_name:
-                print(f"   ⚠️ 필수 값 누락 - stock_code: '{stock_code}', stock_name: '{stock_name}'")
+            if not stock_code or not corp_name:
+                print(f"   ⚠️ 필수 값 누락 - stock_code: '{stock_code}', corp_name: '{corp_name}'")
                 continue
 
-            # CRITICAL: code 필드는 PRIMARY KEY이므로 반드시 설정되어야 함
+            # stock_code가 PRIMARY KEY
             company = {
-                'code': stock_code,              # PRIMARY KEY (required)
-                'stock_code': stock_code,        # 종목 코드
-                'corp_name': stock_name,         # 회사명
+                'stock_code': stock_code,        # PRIMARY KEY (required)
+                'corp_name': corp_name,          # 회사명
                 'market': market if market in ['KOSPI', 'KOSDAQ'] else 'KOSPI',
                 'sector': '기타',  # data.go.kr API는 업종 정보 미제공
                 'market_cap': market_cap,
@@ -196,9 +211,9 @@ def transform_to_db_format(stocks):
                 'updated_at': datetime.now().isoformat()
             }
 
-            # 데이터 검증: code가 반드시 설정되었는지 확인
-            if not company.get('code'):
-                print(f"   ❌ CRITICAL: code 필드가 null입니다 - {stock_name}")
+            # 데이터 검증: stock_code가 반드시 설정되었는지 확인
+            if not company.get('stock_code'):
+                print(f"   ❌ CRITICAL: stock_code 필드가 null입니다 - {corp_name}")
                 continue
 
             companies.append(company)
@@ -221,8 +236,8 @@ def save_to_supabase(companies):
         tuple: (성공 건수, 실패 건수)
 
     Note:
-        - on_conflict="code": code 컬럼을 기준으로 upsert (PRIMARY KEY)
-        - code가 null이면 NOT NULL constraint 에러 발생
+        - on_conflict="stock_code": stock_code 컬럼을 기준으로 upsert (PRIMARY KEY)
+        - stock_code가 null이면 NOT NULL constraint 에러 발생
     """
     print(f"\n💾 Supabase 저장 중 ({len(companies)}개)...\n")
 
@@ -233,17 +248,17 @@ def save_to_supabase(companies):
         batch = companies[i:i+batch_size]
 
         # 배치 데이터 검증
-        invalid_items = [c for c in batch if not c.get('code')]
+        invalid_items = [c for c in batch if not c.get('stock_code')]
         if invalid_items:
-            print(f"   ⚠️ Batch {(i//batch_size)+1}에 code가 없는 항목 {len(invalid_items)}개 발견:")
+            print(f"   ⚠️ Batch {(i//batch_size)+1}에 stock_code가 없는 항목 {len(invalid_items)}개 발견:")
             for item in invalid_items[:3]:  # 처음 3개만 출력
-                print(f"      - {item.get('corp_name', 'Unknown')}: code={item.get('code')}")
+                print(f"      - {item.get('corp_name', 'Unknown')}: stock_code={item.get('stock_code')}")
             failed += len(batch)
             continue
 
         try:
-            # IMPORTANT: on_conflict="code" 사용 (PRIMARY KEY)
-            supabase.table("companies").upsert(batch, on_conflict="code").execute()
+            # IMPORTANT: on_conflict="stock_code" 사용 (PRIMARY KEY)
+            supabase.table("companies").upsert(batch, on_conflict="stock_code").execute()
             success += len(batch)
             print(f"   ✅ Batch {(i//batch_size)+1} 저장 완료 ({len(batch)}개)")
             time.sleep(0.3)
@@ -253,7 +268,7 @@ def save_to_supabase(companies):
             # 에러 발생 시 첫 번째 항목의 데이터 구조 출력
             if batch:
                 print(f"   📋 첫 번째 항목 샘플: {list(batch[0].keys())}")
-                print(f"   📋 code 값: {batch[0].get('code')}")
+                print(f"   📋 stock_code 값: {batch[0].get('stock_code')}")
 
     return success, failed
 
@@ -268,12 +283,12 @@ def validate_database_schema():
     """
     try:
         # 테스트 쿼리 실행하여 컬럼 확인
-        result = supabase.table("companies").select("code").limit(1).execute()
-        print("✅ 데이터베이스 스키마 검증 완료 (code 컬럼 존재)")
+        result = supabase.table("companies").select("stock_code").limit(1).execute()
+        print("✅ 데이터베이스 스키마 검증 완료 (stock_code 컬럼 존재)")
         return True
     except Exception as e:
         print(f"⚠️ 데이터베이스 스키마 검증 실패: {e}")
-        print("💡 TIP: fix_companies_table_v2.sql을 실행하여 스키마를 업데이트하세요")
+        print("💡 TIP: migrate_companies_to_stock_code_pk.sql을 실행하여 스키마를 업데이트하세요")
         return False
 
 
@@ -287,21 +302,36 @@ def run():
     if not validate_database_schema():
         print("\n❌ 데이터베이스 스키마가 올바르지 않습니다.")
         print("📝 다음 단계:")
-        print("   1. Supabase SQL Editor에서 fix_companies_table_v2.sql 실행")
+        print("   1. Supabase SQL Editor에서 migrate_companies_to_stock_code_pk.sql 실행")
         print("   2. 이 스크립트를 다시 실행")
         return False
 
-    # 어제 날짜 사용 (당일은 데이터가 없을 수 있음)
-    bas_dt = get_yesterday_date()
-    print(f"📅 기준일자: {bas_dt}")
+    # 최근 5일간 날짜를 역순으로 시도 (데이터가 없는 날짜 대비)
+    recent_dates = get_recent_dates(days=5)
+    print(f"📅 최근 5일 날짜 자동 탐색: {', '.join(recent_dates)}")
 
-    # 1. data.go.kr API로 종목 조회
-    stocks = fetch_all_krx_stocks(bas_dt)
+    stocks = []
+    successful_date = None
+
+    for bas_dt in recent_dates:
+        print(f"\n📅 기준일자 {bas_dt}로 시도 중...")
+
+        # 1. data.go.kr API로 종목 조회
+        stocks = fetch_all_krx_stocks(bas_dt)
+
+        if stocks:
+            successful_date = bas_dt
+            print(f"✅ {bas_dt} 날짜에 데이터 발견!")
+            break
+        else:
+            print(f"⚠️ {bas_dt} 날짜에 데이터 없음, 다음 날짜 시도...")
 
     if not stocks:
-        print("\n❌ 조회된 종목이 없습니다.")
+        print("\n❌ 최근 5일간 조회된 종목이 없습니다.")
         print("💡 팁: 영업일이 아니거나 API 키가 잘못되었을 수 있습니다.")
         return False
+
+    print(f"\n✅ 최종 사용 날짜: {successful_date}")
 
     # 2. DB 형식으로 변환
     companies = transform_to_db_format(stocks)
@@ -313,6 +343,7 @@ def run():
     # 4. 결과 출력
     print("\n" + "=" * 60)
     print(f"🎉 최종 완료")
+    print(f"   📅 기준일자: {successful_date}")
     print(f"   ✅ 성공: {success}개")
     print(f"   ❌ 실패: {failed}개")
     print("=" * 60)
