@@ -80,4 +80,5 @@ node_modules/
 .env
 
 # dataconnect generated files
-.dataconnect
+.dataconnect*.pyc
+__pycache__/
