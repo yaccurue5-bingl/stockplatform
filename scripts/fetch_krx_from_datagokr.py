@@ -19,7 +19,7 @@ from pathlib import Path
 
 # 1. 환경 변수 로드
 base_path = Path(__file__).resolve().parent.parent
-env_path = base_path / 'my-research-platform' / '.env.local'
+env_path = base_path / '.env.local'
 
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
