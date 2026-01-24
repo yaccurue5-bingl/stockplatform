@@ -149,6 +149,15 @@ def transform_to_db_format(stocks):
 
     Returns:
         list: DB에 저장할 형식의 데이터
+
+    Note:
+        - code: PRIMARY KEY (required, NOT NULL)
+        - stock_code: 종목 코드 (code와 동일)
+        - corp_name: 회사명
+        - market: 시장 구분 (KOSPI/KOSDAQ)
+        - sector: 업종
+        - market_cap: 시가총액
+        - listed_shares: 상장 주식수
     """
     companies = []
 
@@ -170,20 +179,27 @@ def transform_to_db_format(stocks):
             except:
                 listed_shares = 0
 
-            # 빈 값 체크
+            # 필수 값 검증
             if not stock_code or not stock_name:
+                print(f"   ⚠️ 필수 값 누락 - stock_code: '{stock_code}', stock_name: '{stock_name}'")
                 continue
 
+            # CRITICAL: code 필드는 PRIMARY KEY이므로 반드시 설정되어야 함
             company = {
-                'code': stock_code,
-                'stock_code': stock_code,
-                'corp_name': stock_name,
+                'code': stock_code,              # PRIMARY KEY (required)
+                'stock_code': stock_code,        # 종목 코드
+                'corp_name': stock_name,         # 회사명
                 'market': market if market in ['KOSPI', 'KOSDAQ'] else 'KOSPI',
                 'sector': '기타',  # data.go.kr API는 업종 정보 미제공
                 'market_cap': market_cap,
                 'listed_shares': listed_shares,
                 'updated_at': datetime.now().isoformat()
             }
+
+            # 데이터 검증: code가 반드시 설정되었는지 확인
+            if not company.get('code'):
+                print(f"   ❌ CRITICAL: code 필드가 null입니다 - {stock_name}")
+                continue
 
             companies.append(company)
 
@@ -203,6 +219,10 @@ def save_to_supabase(companies):
 
     Returns:
         tuple: (성공 건수, 실패 건수)
+
+    Note:
+        - on_conflict="code": code 컬럼을 기준으로 upsert (PRIMARY KEY)
+        - code가 null이면 NOT NULL constraint 에러 발생
     """
     print(f"\n💾 Supabase 저장 중 ({len(companies)}개)...\n")
 
@@ -211,7 +231,18 @@ def save_to_supabase(companies):
 
     for i in range(0, len(companies), batch_size):
         batch = companies[i:i+batch_size]
+
+        # 배치 데이터 검증
+        invalid_items = [c for c in batch if not c.get('code')]
+        if invalid_items:
+            print(f"   ⚠️ Batch {(i//batch_size)+1}에 code가 없는 항목 {len(invalid_items)}개 발견:")
+            for item in invalid_items[:3]:  # 처음 3개만 출력
+                print(f"      - {item.get('corp_name', 'Unknown')}: code={item.get('code')}")
+            failed += len(batch)
+            continue
+
         try:
+            # IMPORTANT: on_conflict="code" 사용 (PRIMARY KEY)
             supabase.table("companies").upsert(batch, on_conflict="code").execute()
             success += len(batch)
             print(f"   ✅ Batch {(i//batch_size)+1} 저장 완료 ({len(batch)}개)")
@@ -219,8 +250,31 @@ def save_to_supabase(companies):
         except Exception as e:
             failed += len(batch)
             print(f"   ❌ Batch {(i//batch_size)+1} 실패: {e}")
+            # 에러 발생 시 첫 번째 항목의 데이터 구조 출력
+            if batch:
+                print(f"   📋 첫 번째 항목 샘플: {list(batch[0].keys())}")
+                print(f"   📋 code 값: {batch[0].get('code')}")
 
     return success, failed
+
+
+def validate_database_schema():
+    """
+    데이터베이스 스키마 검증
+    필수 컬럼이 있는지 확인하고, 없으면 경고 메시지 출력
+
+    Returns:
+        bool: 스키마가 유효하면 True
+    """
+    try:
+        # 테스트 쿼리 실행하여 컬럼 확인
+        result = supabase.table("companies").select("code").limit(1).execute()
+        print("✅ 데이터베이스 스키마 검증 완료 (code 컬럼 존재)")
+        return True
+    except Exception as e:
+        print(f"⚠️ 데이터베이스 스키마 검증 실패: {e}")
+        print("💡 TIP: fix_companies_table_v2.sql을 실행하여 스키마를 업데이트하세요")
+        return False
 
 
 def run():
@@ -228,6 +282,14 @@ def run():
     print("=" * 60)
     print("🚀 KRX 종목 정보 수집 시작 (data.go.kr API)")
     print("=" * 60)
+
+    # 데이터베이스 스키마 검증
+    if not validate_database_schema():
+        print("\n❌ 데이터베이스 스키마가 올바르지 않습니다.")
+        print("📝 다음 단계:")
+        print("   1. Supabase SQL Editor에서 fix_companies_table_v2.sql 실행")
+        print("   2. 이 스크립트를 다시 실행")
+        return False
 
     # 어제 날짜 사용 (당일은 데이터가 없을 수 있음)
     bas_dt = get_yesterday_date()
