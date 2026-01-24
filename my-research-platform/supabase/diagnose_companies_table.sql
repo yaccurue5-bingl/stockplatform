@@ -1,75 +1,171 @@
 -- =====================================================
--- Companies 테이블 진단 스크립트
+-- Companies 테이블 상세 진단 스크립트
 -- =====================================================
 --
--- 목적: 현재 companies 테이블의 상태를 확인
+-- 목적: 현재 companies 테이블의 모든 정보를 한눈에 확인
 -- 사용: fix_companies_table.sql 실행 전에 먼저 실행
 --
+-- 주의: 아래 쿼리들을 하나씩 실행하세요!
+--       전체 실행하면 마지막 결과만 보입니다.
 -- =====================================================
 
--- 1. Companies 테이블이 존재하는지 확인
-SELECT EXISTS (
-  SELECT FROM information_schema.tables
-  WHERE table_schema = 'public'
-  AND table_name = 'companies'
-) AS table_exists;
-
--- 2. 현재 컬럼 목록 확인
+-- ============================================
+-- 📊 1. 테이블 존재 여부 및 기본 정보
+-- ============================================
 SELECT
+  '1. 테이블 존재 여부' AS check_type,
+  CASE
+    WHEN EXISTS (SELECT FROM pg_tables WHERE tablename = 'companies')
+    THEN '✅ 존재함'
+    ELSE '❌ 없음'
+  END AS result,
+  (SELECT COUNT(*) FROM companies)::TEXT AS total_records,
+  (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'companies')::TEXT AS policy_count;
+
+-- ============================================
+-- 📋 2. 현재 컬럼 목록 (전체)
+-- ============================================
+SELECT
+  '2. 컬럼 목록' AS info,
   column_name,
   data_type,
-  character_maximum_length,
-  is_nullable,
-  column_default
+  CASE WHEN is_nullable = 'YES' THEN 'NULL 허용' ELSE 'NOT NULL' END AS nullable,
+  COALESCE(column_default, '-') AS default_value
 FROM information_schema.columns
 WHERE table_name = 'companies'
   AND table_schema = 'public'
 ORDER BY ordinal_position;
 
--- 3. 현재 RLS 정책 확인
+-- ============================================
+-- ✅ 3. 필요한 컬럼 체크리스트
+-- ============================================
 SELECT
-  policyname,
-  permissive,
-  roles,
-  cmd,
-  qual
+  '3. 필수 컬럼 체크' AS info,
+  '✅ code' AS column_name,
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='code')
+       THEN '✅ 있음' ELSE '❌ 없음' END AS status
+UNION ALL
+SELECT '3. 필수 컬럼 체크', '✅ stock_code',
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='stock_code')
+       THEN '✅ 있음' ELSE '❌ 없음 (추가 필요)' END
+UNION ALL
+SELECT '3. 필수 컬럼 체크', '✅ corp_name',
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='corp_name')
+       THEN '✅ 있음' ELSE '❌ 없음 (추가 필요)' END
+UNION ALL
+SELECT '3. 필수 컬럼 체크', '📌 name_kr (선택)',
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='name_kr')
+       THEN '✅ 있음 (corp_name으로 복사 가능)' ELSE '⚪ 없음 (괜찮음)' END
+UNION ALL
+SELECT '3. 필수 컬럼 체크', '✅ market',
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='market')
+       THEN '✅ 있음' ELSE '❌ 없음' END
+UNION ALL
+SELECT '3. 필수 컬럼 체크', '✅ sector',
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='sector')
+       THEN '✅ 있음' ELSE '❌ 없음' END
+UNION ALL
+SELECT '3. 필수 컬럼 체크', '✅ market_cap',
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='market_cap')
+       THEN '✅ 있음' ELSE '❌ 없음 (추가 필요)' END
+UNION ALL
+SELECT '3. 필수 컬럼 체크', '✅ listed_shares',
+  CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='listed_shares')
+       THEN '✅ 있음' ELSE '❌ 없음 (추가 필요)' END;
+
+-- ============================================
+-- 🔒 4. RLS 정책 목록
+-- ============================================
+SELECT
+  '4. RLS 정책' AS info,
+  policyname AS policy_name,
+  cmd::TEXT AS command,
+  CASE
+    WHEN 'anon' = ANY(roles::TEXT[]) THEN '익명 포함'
+    ELSE '인증만'
+  END AS access_level
 FROM pg_policies
 WHERE tablename = 'companies'
   AND schemaname = 'public';
 
--- 4. 현재 인덱스 확인
+-- ============================================
+-- 📇 5. 인덱스 목록
+-- ============================================
 SELECT
-  indexname,
-  indexdef
+  '5. 인덱스' AS info,
+  indexname AS index_name,
+  indexdef AS definition
 FROM pg_indexes
 WHERE tablename = 'companies'
   AND schemaname = 'public';
 
--- 5. 테이블 데이터 샘플 확인 (처음 5개)
-SELECT * FROM companies LIMIT 5;
-
--- 6. 총 레코드 수
-SELECT COUNT(*) AS total_records FROM companies;
-
--- 7. 필요한 컬럼이 있는지 체크
+-- ============================================
+-- 📊 6. 데이터 샘플 (처음 3개만)
+-- ============================================
 SELECT
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='code') AS has_code,
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='stock_code') AS has_stock_code,
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='corp_name') AS has_corp_name,
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='name_kr') AS has_name_kr,
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='name_en') AS has_name_en,
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='market') AS has_market,
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='sector') AS has_sector,
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='market_cap') AS has_market_cap,
-  EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='listed_shares') AS has_listed_shares;
+  '6. 데이터 샘플' AS info,
+  *
+FROM companies
+LIMIT 3;
 
--- 8. RLS가 활성화되어 있는지 확인
+-- ============================================
+-- 🎯 7. 진단 요약
+-- ============================================
 SELECT
-  schemaname,
-  tablename,
-  rowsecurity AS rls_enabled
+  '==============================================' AS separator,
+  '🎯 진단 요약' AS title,
+  '==============================================' AS separator2
+UNION ALL
+SELECT
+  '총 레코드 수' AS item,
+  COUNT(*)::TEXT AS value,
+  '' AS empty
+FROM companies
+UNION ALL
+SELECT
+  'RLS 활성화',
+  CASE WHEN rowsecurity THEN '✅ 활성화됨' ELSE '❌ 비활성화됨' END,
+  ''
 FROM pg_tables
-WHERE schemaname = 'public'
-  AND tablename = 'companies';
+WHERE tablename = 'companies'
+UNION ALL
+SELECT
+  'RLS 정책 수',
+  COUNT(*)::TEXT || '개',
+  ''
+FROM pg_policies
+WHERE tablename = 'companies'
+UNION ALL
+SELECT
+  '필수 컬럼 누락 개수',
+  (
+    8 -
+    (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='code') THEN 1 ELSE 0 END) -
+    (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='stock_code') THEN 1 ELSE 0 END) -
+    (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='corp_name') THEN 1 ELSE 0 END) -
+    (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='market') THEN 1 ELSE 0 END) -
+    (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='sector') THEN 1 ELSE 0 END) -
+    (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='market_cap') THEN 1 ELSE 0 END) -
+    (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='listed_shares') THEN 1 ELSE 0 END) -
+    (CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='updated_at') THEN 1 ELSE 0 END)
+  )::TEXT || '개',
+  ''
+UNION ALL
+SELECT
+  '다음 단계',
+  CASE
+    WHEN NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'companies')
+    THEN '❌ 테이블 생성 필요'
+    WHEN (SELECT COUNT(*) FROM pg_policies WHERE tablename = 'companies' AND policyname LIKE '%Public read access%') > 1
+    THEN '⚠️ 중복 정책 있음 - fix_companies_table.sql 실행'
+    WHEN NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='companies' AND column_name='stock_code')
+    THEN '⚠️ 컬럼 추가 필요 - fix_companies_table.sql 실행'
+    ELSE '✅ fix_companies_table.sql 실행 가능'
+  END,
+  '';
 
-SELECT '✅ Companies 테이블 진단 완료!' AS status;
+-- ============================================
+-- 완료 메시지
+-- ============================================
+SELECT '✅ Companies 테이블 진단 완료!' AS status,
+       '위의 결과를 확인하고 fix_companies_table.sql을 실행하세요.' AS next_step;
