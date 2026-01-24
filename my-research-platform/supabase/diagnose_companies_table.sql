@@ -169,7 +169,6 @@ SELECT
   CASE WHEN is_nullable = 'YES' THEN 'NULL 허용' ELSE 'NOT NULL' END
 FROM information_schema.columns
 WHERE table_name = 'companies' AND table_schema = 'public'
-ORDER BY ordinal_position
 
 UNION ALL
 SELECT '', '', ''
