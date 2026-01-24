@@ -57,16 +57,20 @@ BEGIN
   END IF;
 END $$;
 
--- 3. 기존 데이터 마이그레이션 (name_kr -> corp_name)
--- corp_name이 비어있고 name_kr에 값이 있으면 복사
-UPDATE companies
-SET corp_name = name_kr
-WHERE corp_name IS NULL AND name_kr IS NOT NULL;
-
+-- 3. 기존 데이터 마이그레이션
 -- stock_code가 비어있으면 code 복사
 UPDATE companies
 SET stock_code = code
 WHERE stock_code IS NULL;
+
+-- corp_name이 비어있고 name_kr에 값이 있으면 복사 (name_kr 컬럼이 있는 경우만)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name='companies' AND column_name='name_kr') THEN
+    EXECUTE 'UPDATE companies SET corp_name = name_kr WHERE corp_name IS NULL AND name_kr IS NOT NULL';
+  END IF;
+END $$;
 
 -- 4. RLS 활성화
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
