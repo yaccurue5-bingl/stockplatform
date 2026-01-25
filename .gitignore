@@ -15,6 +15,8 @@ firebase-debug.*.log*
 /stock-platform-ui-new/build
 .env
 .env.local
+*.zip
+*.csv
 # 빌드 및 배포 관련 파일은 제외하지 않음 (이 경우 build 폴더를 추적해야 하므로)
 # /build 를 포함하지 않도록 주의합니다.
 
