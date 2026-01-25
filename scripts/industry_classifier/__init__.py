@@ -13,7 +13,7 @@ Industry Classifier for K-Market Insight
 __version__ = "1.0.0"
 __author__ = "K-Market Insight Team"
 
-from .pipeline import classify_stock_industry, batch_classify_stocks
+from .pipeline import classify_stock_industry, batch_classify_stocks, IndustryClassifier
 from .dart_api import DARTClient
 from .ksic_mapper import KSICMapper
 from .rule_table import KSIC_TOP_INDUSTRY_RULES
@@ -21,6 +21,7 @@ from .rule_table import KSIC_TOP_INDUSTRY_RULES
 __all__ = [
     'classify_stock_industry',
     'batch_classify_stocks',
+    'IndustryClassifier',
     'DARTClient',
     'KSICMapper',
     'KSIC_TOP_INDUSTRY_RULES',
