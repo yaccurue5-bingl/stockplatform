@@ -9,13 +9,14 @@ k-marketinsight 서비스에 적용할 수 있는 다양한 사용 예제
 import os
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
 
-# .env 파일 로드
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    print("경고: python-dotenv가 설치되지 않았습니다. 환경변수를 직접 설정하세요.")
+# 1. .env.local 로드 (경로: C:\stockplatform\.env.local)
+# 현재 파일 위치 기준 상위 폴더의 .env.local을 찾습니다.
+env_path = Path(__file__).resolve().parent.parent / '.env.local'
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+    print(f"✅ .env.local 로드 완료")
 
 # industry_classifier 모듈 임포트
 from scripts.industry_classifier import (
