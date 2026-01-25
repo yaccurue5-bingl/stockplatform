@@ -80,5 +80,12 @@ node_modules/
 .env
 
 # dataconnect generated files
-.dataconnect*.pyc
+.dataconnect
+
+# Python
+*.pyc
 __pycache__/
+*.egg-info/
+dist/
+build/
+*.egg

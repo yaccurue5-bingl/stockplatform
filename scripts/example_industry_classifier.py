@@ -18,7 +18,7 @@ except ImportError:
     print("경고: python-dotenv가 설치되지 않았습니다. 환경변수를 직접 설정하세요.")
 
 # industry_classifier 모듈 임포트
-from industry_classifier import (
+from scripts.industry_classifier import (
     classify_stock_industry,
     batch_classify_stocks,
     IndustryClassifier,
