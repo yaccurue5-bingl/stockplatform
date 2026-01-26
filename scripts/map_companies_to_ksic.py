@@ -65,6 +65,12 @@ except ImportError:
     print("Install: pip install supabase")
     sys.exit(1)
 
+# Supabase 접근을 위해 프록시 비활성화
+# Claude Code 환경의 프록시가 Supabase 접근을 차단하는 문제 해결
+import os
+for proxy_var in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'GLOBAL_AGENT_HTTP_PROXY']:
+    os.environ.pop(proxy_var, None)
+
 # Industry classifier 임포트
 from scripts.industry_classifier import IndustryClassifier
 
@@ -97,8 +103,8 @@ class CompanyKSICMapper:
         validate_supabase_config()
         validate_dart_api_key()
 
-        # Supabase 클라이언트 초기화
-        supabase_url, supabase_key = get_supabase_config()
+        # Supabase 클라이언트 초기화 (서버 사이드이므로 service role key 사용)
+        supabase_url, supabase_key = get_supabase_config(use_service_role=True)
         self.supabase: Client = create_client(supabase_url, supabase_key)
 
         # Industry classifier 초기화

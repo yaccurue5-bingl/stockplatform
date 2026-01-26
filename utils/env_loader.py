@@ -65,24 +65,35 @@ def load_env(env_file: str = ".env.local") -> None:
         print("경고: python-dotenv가 설치되지 않았습니다.")
 
 
-def get_supabase_config() -> Tuple[Optional[str], Optional[str]]:
+def get_supabase_config(use_service_role: bool = True) -> Tuple[Optional[str], Optional[str]]:
     """
     Supabase 설정을 가져옵니다.
 
-    NEXT_PUBLIC_SUPABASE_URL과 NEXT_PUBLIC_SUPABASE_ANON_KEY를 우선 사용하고,
-    없으면 SUPABASE_URL과 SUPABASE_SERVICE_KEY/SUPABASE_ANON_KEY를 사용합니다.
+    Args:
+        use_service_role: True이면 SERVICE_ROLE_KEY를 우선 사용 (서버 사이드용),
+                         False이면 ANON_KEY를 우선 사용 (클라이언트용)
 
     Returns:
         (supabase_url, supabase_key) 튜플
     """
-    # Next.js 스타일 환경변수 우선 사용
     supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL")
-    supabase_key = (
-        os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY") or
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY") or
-        os.getenv("SUPABASE_SERVICE_KEY") or
-        os.getenv("SUPABASE_ANON_KEY")
-    )
+
+    if use_service_role:
+        # 서버 사이드: SERVICE_ROLE_KEY 우선 사용
+        supabase_key = (
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY") or
+            os.getenv("SUPABASE_SERVICE_KEY") or
+            os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY") or
+            os.getenv("SUPABASE_ANON_KEY")
+        )
+    else:
+        # 클라이언트 사이드: ANON_KEY 우선 사용
+        supabase_key = (
+            os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY") or
+            os.getenv("SUPABASE_ANON_KEY") or
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY") or
+            os.getenv("SUPABASE_SERVICE_KEY")
+        )
 
     return supabase_url, supabase_key
 

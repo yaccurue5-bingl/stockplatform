@@ -35,6 +35,17 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 
+# Supabase 접근을 위해 프록시 우회 설정
+# (Claude Code 환경의 프록시가 Supabase를 차단하는 문제 해결)
+supabase_domains = ['supabase.co', '*.supabase.co']
+current_no_proxy = os.environ.get('no_proxy', '')
+if current_no_proxy:
+    os.environ['no_proxy'] = f"{current_no_proxy},{','.join(supabase_domains)}"
+    os.environ['NO_PROXY'] = f"{current_no_proxy},{','.join(supabase_domains)}"
+else:
+    os.environ['no_proxy'] = ','.join(supabase_domains)
+    os.environ['NO_PROXY'] = ','.join(supabase_domains)
+
 # 프로젝트 루트를 Python 경로에 추가
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
