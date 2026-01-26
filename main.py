@@ -113,7 +113,7 @@ class MapCompaniesRequest(BaseModel):
     dry_run: bool = Field(False, description="실제 업데이트 없이 테스트")
 
 
-class SetupAllRequest(BaseModel):
+class SetupConfig(BaseModel):
     """전체 셋업 요청 모델"""
     skip_import: bool = Field(False, description="임포트 단계 건너뛰기")
     skip_validation: bool = Field(False, description="검증 단계 건너뛰기")
