@@ -151,9 +151,10 @@ class KSICValidator:
 
             # 각 레코드 검증
             for record in ksic_records:
+                # DB 컬럼명 변경 반영: ksic_code -> 산업코드, ksic_name -> 산업내용
                 ksic_code = record.get('산업코드')
-                ksic_name = record.get('ksic_name')
-                top_industry = record.get('산업내용')
+                # 기존 ksic_name과 top_industry를 '산업내용' 하나로 통합하여 검증
+                industry_info = record.get('산업내용')
 
                 # 1. 코드 형식 검증
                 is_valid, error_msg = self.validate_ksic_code_format(ksic_code)
@@ -162,15 +163,12 @@ class KSICValidator:
                     invalid_count += 1
                     continue
 
-                # 2. 필수 필드 검증
-                if not ksic_name:
-                    self.warnings.append(f"KSIC 코드 {ksic_code}: ksic_name 누락")
-
-                if not top_industry:
-                    self.warnings.append(f"KSIC 코드 {ksic_code}: top_industry 누락")
+                # 2. 필수 필드 검증 (산업내용 컬럼 하나로 통합 확인)
+                if not industry_info:
+                    self.warnings.append(f"KSIC 코드 {ksic_code}: 산업내용(명칭) 누락")
 
                 # 3. 중분류 일관성 검증
-                if len(ksic_code) >= 2:
+                if ksic_code and len(ksic_code) >= 2:
                     major_code = ksic_code[:2]
                     db_major_code = record.get('major_code')
 
