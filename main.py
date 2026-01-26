@@ -286,7 +286,7 @@ async def map_companies_to_ksic(request: MapCompaniesRequest):
 
 
 @app.post("/api/ksic/setup-all", response_model=APIResponse)
-async def setup_all(request: SetupAllRequest = Body(default=SetupAllRequest())):
+async def setup_all(config: SetupConfig = Body(default=SetupConfig())):
     """
     KSIC 전체 셋업 (1, 2, 3 모두 실행)
 
