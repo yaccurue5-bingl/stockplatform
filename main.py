@@ -286,19 +286,14 @@ async def map_companies_to_ksic(request: MapCompaniesRequest):
 
 
 @app.post("/api/ksic/setup-all", response_model=APIResponse)
-async def setup_all(config: SetupConfig = Body(default=SetupConfig())):
+async def setup_all(config: SetupConfig = Body(default_factory=SetupConfig)):
     """
     KSIC 전체 셋업 (1, 2, 3 모두 실행)
-
-    순서:
-    1. KSIC 데이터 임포트 (import_ksic_data.py)
-    2. KSIC 데이터 검증 (validate_ksic_data.py)
-    3. 기업-KSIC 매핑 (map_companies_to_ksic.py)
-
-    요청 바디는 선택사항입니다. 빈 POST 요청으로 호출 가능합니다.
     """
+    # 422 에러 방지를 위해 인자 이름을 config로 통일하고, 
+    # 내부에서 사용하던 request 변수명을 모두 config로 변경했습니다.
     logger.info("KSIC 전체 셋업 시작")
-    logger.info(f"설정: skip_import={request.skip_import}, skip_validation={request.skip_validation}, skip_mapping={request.skip_mapping}")
+    logger.info(f"설정: skip_import={config.skip_import}, skip_validation={config.skip_validation}, skip_mapping={config.skip_mapping}")
 
     results = {
         "import": {"skipped": True},
@@ -310,7 +305,7 @@ async def setup_all(config: SetupConfig = Body(default=SetupConfig())):
 
     try:
         # 1. KSIC 데이터 임포트
-        if not request.skip_import:
+        if not config.skip_import:
             logger.info("Step 1/3: KSIC 데이터 임포트 중...")
             try:
                 importer = KSICDataImporter()
@@ -337,7 +332,7 @@ async def setup_all(config: SetupConfig = Body(default=SetupConfig())):
                 failed_steps.append(f"임포트 ({error_msg})")
 
         # 2. KSIC 데이터 검증
-        if not request.skip_validation:
+        if not config.skip_validation:
             logger.info("Step 2/3: KSIC 데이터 검증 중...")
             try:
                 validator = KSICValidator()
@@ -367,12 +362,12 @@ async def setup_all(config: SetupConfig = Body(default=SetupConfig())):
                 failed_steps.append(f"검증 ({error_msg})")
 
         # 3. 기업-KSIC 매핑
-        if not request.skip_mapping:
+        if not config.skip_mapping:
             logger.info("Step 3/3: 기업-KSIC 매핑 중...")
             try:
                 mapper = CompanyKSICMapper(dry_run=False)
                 map_success = mapper.run(
-                    unmapped_only=request.unmapped_only,
+                    unmapped_only=config.unmapped_only,
                     batch_size=100
                 )
                 results["map"] = {
