@@ -30,11 +30,17 @@ from datetime import datetime
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# 환경변수 로드 (.env.local에서)
 try:
-    from dotenv import load_dotenv
-    load_dotenv()
+    from utils.env_loader import load_env
+    load_env()  # .env.local 파일에서 로드
 except ImportError:
-    print("Warning: python-dotenv not installed")
+    print("Warning: 환경변수 로더를 불러올 수 없습니다.")
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        print("Warning: python-dotenv not installed")
 
 try:
     from supabase import create_client, Client
@@ -63,15 +69,13 @@ class KSICDataImporter:
 
     def __init__(self):
         """초기화"""
-        # Supabase 클라이언트 초기화
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+        from utils.env_loader import get_supabase_config, validate_supabase_config
 
-        if not supabase_url or not supabase_key:
-            raise ValueError(
-                "SUPABASE_URL과 SUPABASE_SERVICE_KEY(또는 SUPABASE_ANON_KEY) 환경변수가 필요합니다.\n"
-                ".env 파일을 확인하세요."
-            )
+        # 환경변수 검증
+        validate_supabase_config()
+
+        # Supabase 클라이언트 초기화
+        supabase_url, supabase_key = get_supabase_config()
 
         self.supabase: Client = create_client(supabase_url, supabase_key)
         self.ksic_mapper = KSICMapper()

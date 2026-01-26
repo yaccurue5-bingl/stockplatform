@@ -46,11 +46,17 @@ from datetime import datetime
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# 환경변수 로드 (.env.local에서)
 try:
-    from dotenv import load_dotenv
-    load_dotenv()
+    from utils.env_loader import load_env
+    load_env()  # .env.local 파일에서 로드
 except ImportError:
-    pass
+    print("Warning: 환경변수 로더를 불러올 수 없습니다.")
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
 
 try:
     from supabase import create_client, Client
@@ -82,25 +88,21 @@ class CompanyKSICMapper:
         """
         self.dry_run = dry_run
 
+        from utils.env_loader import (
+            get_supabase_config, validate_supabase_config,
+            get_dart_api_key, validate_dart_api_key
+        )
+
+        # 환경변수 검증
+        validate_supabase_config()
+        validate_dart_api_key()
+
         # Supabase 클라이언트 초기화
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY")
-
-        if not supabase_url or not supabase_key:
-            raise ValueError(
-                "SUPABASE_URL과 SUPABASE_SERVICE_KEY 환경변수가 필요합니다."
-            )
-
+        supabase_url, supabase_key = get_supabase_config()
         self.supabase: Client = create_client(supabase_url, supabase_key)
 
         # Industry classifier 초기화
-        dart_api_key = os.getenv("DART_API_KEY")
-        if not dart_api_key:
-            raise ValueError(
-                "DART_API_KEY 환경변수가 필요합니다.\n"
-                "발급: https://opendart.fss.or.kr/"
-            )
-
+        dart_api_key = get_dart_api_key()
         self.classifier = IndustryClassifier(dart_api_key=dart_api_key)
 
         # 통계
@@ -438,12 +440,19 @@ def main():
         logger.setLevel(logging.DEBUG)
 
     # 환경변수 확인
-    required_vars = ['SUPABASE_URL', 'DART_API_KEY']
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    from utils.env_loader import get_supabase_config, get_dart_api_key
+    supabase_url, supabase_key = get_supabase_config()
+    dart_api_key = get_dart_api_key()
+
+    missing_vars = []
+    if not supabase_url or not supabase_key:
+        missing_vars.append("NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    if not dart_api_key:
+        missing_vars.append("DART_API_KEY")
 
     if missing_vars:
         print(f"✗ 오류: 다음 환경변수가 설정되지 않았습니다: {', '.join(missing_vars)}")
-        print("  .env 파일을 확인하세요.")
+        print("  .env.local 파일을 확인하세요.")
         sys.exit(1)
 
     if not os.getenv("SUPABASE_SERVICE_KEY") and not os.getenv("SUPABASE_ANON_KEY"):
