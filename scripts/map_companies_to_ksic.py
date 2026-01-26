@@ -144,14 +144,14 @@ class CompanyKSICMapper:
 
         try:
             # 쿼리 빌드
-            query = self.supabase.table('companies').select('code, name_kr, market, ksic_code')
+            query = self.supabase.table('companies').select('code, corp_name, market, sector')
 
             # 조건 추가
             if stock_codes:
                 query = query.in_('code', stock_codes)
 
             if unmapped_only:
-                query = query.is_('ksic_code', 'null')
+                query = query.is_('sector', 'null')
 
             # 실행
             response = query.execute()
@@ -223,7 +223,7 @@ class CompanyKSICMapper:
 
         try:
             update_data = {
-                'ksic_code': classification.get('ksic_code'),
+                'sector': classification.get('ksic_code'),
                 'ksic_name': classification.get('ksic_name'),
                 'industry_category': classification.get('top_industry'),
                 'corp_code': classification.get('corp_code'),
@@ -273,8 +273,8 @@ class CompanyKSICMapper:
 
         for i, company in enumerate(companies, 1):
             stock_code = company['code']
-            company_name = company.get('name_kr', 'N/A')
-            existing_ksic = company.get('ksic_code')
+            company_name = company.get('corp_name', 'N/A')
+            existing_ksic = company.get('sector')
 
             # 진행률 표시
             if i % 10 == 0 or i == 1:

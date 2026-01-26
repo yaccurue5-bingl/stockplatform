@@ -426,7 +426,7 @@ async def get_ksic_stats():
         supabase = create_client(supabase_url, supabase_key)
 
         # KSIC 코드 수
-        ksic_response = supabase.table('ksic_codes').select('ksic_code', count='exact').execute()
+        ksic_response = supabase.table('ksic_codes').select('산업코드', count='exact').execute()
         total_ksic = ksic_response.count if hasattr(ksic_response, 'count') else len(ksic_response.data or [])
 
         # 기업 수
@@ -436,7 +436,7 @@ async def get_ksic_stats():
         # 매핑된 기업 수
         mapped_response = supabase.table('companies')\
             .select('code', count='exact')\
-            .not_.is_('ksic_code', 'null')\
+            .not_.is_('sector', 'null')\
             .execute()
         mapped_companies = mapped_response.count if hasattr(mapped_response, 'count') else len(mapped_response.data or [])
 
@@ -444,10 +444,10 @@ async def get_ksic_stats():
         mapping_rate = (mapped_companies / total_companies * 100) if total_companies > 0 else 0
 
         # 업종별 분포
-        industry_response = supabase.table('ksic_codes').select('top_industry').execute()
+        industry_response = supabase.table('ksic_codes').select('산업내용').execute()
         industry_dist = {}
         for record in (industry_response.data or []):
-            industry = record.get('top_industry', '미분류')
+            industry = record.get('산업내용', '미분류')
             industry_dist[industry] = industry_dist.get(industry, 0) + 1
 
         return APIResponse(

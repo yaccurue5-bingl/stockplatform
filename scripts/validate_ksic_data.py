@@ -147,9 +147,9 @@ class KSICValidator:
 
             # 각 레코드 검증
             for record in ksic_records:
-                ksic_code = record.get('ksic_code')
+                ksic_code = record.get('산업코드')
                 ksic_name = record.get('ksic_name')
-                top_industry = record.get('top_industry')
+                top_industry = record.get('산업내용')
 
                 # 1. 코드 형식 검증
                 is_valid, error_msg = self.validate_ksic_code_format(ksic_code)
@@ -207,13 +207,13 @@ class KSICValidator:
 
         try:
             # DB에서 중분류별 상위 업종 조회
-            response = self.supabase.table('ksic_codes').select('ksic_code, top_industry').execute()
+            response = self.supabase.table('ksic_codes').select('산업코드, 산업내용').execute()
             db_records = response.data or []
 
             db_mapping = {}
             for record in db_records:
-                ksic_code = record.get('ksic_code', '')
-                top_industry = record.get('top_industry')
+                ksic_code = record.get('산업코드', '')
+                top_industry = record.get('산업내용')
 
                 if len(ksic_code) >= 2:
                     major_code = ksic_code[:2]
@@ -277,8 +277,8 @@ class KSICValidator:
 
             # KSIC 코드가 있는 기업 수
             mapped_response = self.supabase.table('companies')\
-                .select('code, ksic_code, industry_category', count='exact')\
-                .not_.is_('ksic_code', 'null')\
+                .select('code, sector, industry_category', count='exact')\
+                .not_.is_('sector', 'null')\
                 .execute()
             mapped_companies = mapped_response.count if hasattr(mapped_response, 'count') else len(mapped_response.data or [])
 
@@ -337,12 +337,12 @@ class KSICValidator:
         try:
             # 업종별 분포
             industry_response = self.supabase.table('ksic_codes')\
-                .select('top_industry', count='exact')\
+                .select('산업내용', count='exact')\
                 .execute()
 
             industry_stats = defaultdict(int)
             for record in (industry_response.data or []):
-                industry = record.get('top_industry', '미분류')
+                industry = record.get('산업내용', '미분류')
                 industry_stats[industry] += 1
 
             # 상위 5개 업종
