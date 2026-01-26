@@ -176,47 +176,6 @@ async def health_check():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-from typing import Optional # 파일 상단에 추가되어 있는지 확인
-
-@app.post("/api/ksic/setup-all", response_model=APIResponse)
-async def setup_all(config: Optional[SetupConfig] = Body(None)):
-    # 데이터가 없으면 기본 설정 생성
-    if config is None:
-        config = SetupConfig()
-        
-    logger.info("KSIC 전체 셋업 시작")
-    # NameError 방지를 위해 config 변수 사용
-    logger.info(f"설정: skip_import={config.skip_import}, skip_validation={config.skip_validation}, skip_mapping={config.skip_mapping}")
-    
-    # ... 이하 기존 로직 유지
-
-    try:
-        # 임포터 초기화
-        importer = KSICDataImporter()
-
-        # 임포트 실행
-        success = importer.run()
-
-        if success:
-            return APIResponse(
-                success=True,
-                message="KSIC 데이터 임포트 완료",
-                data={
-                    "imported": True,
-                    "use_excel": request.use_excel if request else True
-                }
-            )
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail="KSIC 데이터 임포트 실패"
-            )
-
-    except Exception as e:
-        logger.error(f"KSIC 임포트 중 오류: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/api/ksic/validate", response_model=APIResponse)
 async def validate_ksic_data(verbose: bool = False):
     """
