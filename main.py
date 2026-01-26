@@ -63,7 +63,7 @@ except ImportError:
         print("Warning: python-dotenv not installed")
 
 try:
-    from fastapi import FastAPI, HTTPException, BackgroundTasks
+    from fastapi import FastAPI, HTTPException, BackgroundTasks, Body
     from fastapi.responses import JSONResponse
     from pydantic import BaseModel, Field
 except ImportError:
@@ -286,7 +286,7 @@ async def map_companies_to_ksic(request: MapCompaniesRequest):
 
 
 @app.post("/api/ksic/setup-all", response_model=APIResponse)
-async def setup_all(request: Optional[SetupAllRequest] = None):
+async def setup_all(request: SetupAllRequest = Body(default=SetupAllRequest())):
     """
     KSIC 전체 셋업 (1, 2, 3 모두 실행)
 
@@ -298,15 +298,15 @@ async def setup_all(request: Optional[SetupAllRequest] = None):
     요청 바디는 선택사항입니다. 빈 POST 요청으로 호출 가능합니다.
     """
     logger.info("KSIC 전체 셋업 시작")
-
-    if request is None:
-        request = SetupAllRequest()
+    logger.info(f"설정: skip_import={request.skip_import}, skip_validation={request.skip_validation}, skip_mapping={request.skip_mapping}")
 
     results = {
         "import": {"skipped": True},
         "validate": {"skipped": True},
         "map": {"skipped": True}
     }
+
+    failed_steps = []
 
     try:
         # 1. KSIC 데이터 임포트
@@ -321,15 +321,20 @@ async def setup_all(request: Optional[SetupAllRequest] = None):
                 }
 
                 if not import_success:
-                    logger.warning("KSIC 임포트 실패, 계속 진행...")
+                    logger.error("❌ KSIC 임포트 실패")
+                    failed_steps.append("임포트")
+                else:
+                    logger.info("✅ KSIC 임포트 완료")
 
             except Exception as e:
-                logger.error(f"KSIC 임포트 중 오류: {e}")
+                error_msg = str(e)
+                logger.error(f"❌ KSIC 임포트 중 오류: {error_msg}")
                 results["import"] = {
                     "success": False,
-                    "error": str(e),
+                    "error": error_msg,
                     "skipped": False
                 }
+                failed_steps.append(f"임포트 ({error_msg})")
 
         # 2. KSIC 데이터 검증
         if not request.skip_validation:
@@ -346,15 +351,20 @@ async def setup_all(request: Optional[SetupAllRequest] = None):
                 }
 
                 if not validate_success:
-                    logger.warning("KSIC 검증 실패, 계속 진행...")
+                    logger.error(f"❌ KSIC 검증 실패 (에러: {len(validator.errors)}개, 경고: {len(validator.warnings)}개)")
+                    failed_steps.append(f"검증 (에러 {len(validator.errors)}개)")
+                else:
+                    logger.info("✅ KSIC 검증 완료")
 
             except Exception as e:
-                logger.error(f"KSIC 검증 중 오류: {e}")
+                error_msg = str(e)
+                logger.error(f"❌ KSIC 검증 중 오류: {error_msg}")
                 results["validate"] = {
                     "success": False,
-                    "error": str(e),
+                    "error": error_msg,
                     "skipped": False
                 }
+                failed_steps.append(f"검증 ({error_msg})")
 
         # 3. 기업-KSIC 매핑
         if not request.skip_mapping:
@@ -371,28 +381,39 @@ async def setup_all(request: Optional[SetupAllRequest] = None):
                     "skipped": False
                 }
 
+                if not map_success:
+                    logger.error("❌ 기업-KSIC 매핑 실패")
+                    failed_steps.append("매핑")
+                else:
+                    logger.info("✅ 기업-KSIC 매핑 완료")
+
             except Exception as e:
-                logger.error(f"기업-KSIC 매핑 중 오류: {e}")
+                error_msg = str(e)
+                logger.error(f"❌ 기업-KSIC 매핑 중 오류: {error_msg}")
                 results["map"] = {
                     "success": False,
-                    "error": str(e),
+                    "error": error_msg,
                     "skipped": False
                 }
+                failed_steps.append(f"매핑 ({error_msg})")
 
         # 전체 성공 여부 판단
-        all_success = True
-        for step, result in results.items():
-            if not result.get("skipped", False):
-                if not result.get("success", False):
-                    all_success = False
-                    break
+        all_success = len(failed_steps) == 0
 
-        logger.info("KSIC 전체 셋업 완료")
+        if all_success:
+            logger.info("✅ KSIC 전체 셋업 완료")
+            message = "KSIC 전체 셋업 완료"
+        else:
+            logger.error(f"❌ KSIC 셋업 실패 - 실패한 단계: {', '.join(failed_steps)}")
+            message = f"KSIC 셋업 중 일부 단계 실패: {', '.join(failed_steps)}"
 
         return APIResponse(
             success=all_success,
-            message="KSIC 전체 셋업 완료" if all_success else "KSIC 셋업 중 일부 단계 실패",
-            data=results
+            message=message,
+            data={
+                **results,
+                "failed_steps": failed_steps
+            }
         )
 
     except Exception as e:
