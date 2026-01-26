@@ -39,19 +39,17 @@ from datetime import datetime
 PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+# 환경변수 로드 (.env.local에서)
 try:
-    from dotenv import load_dotenv
-    env_path = Path("C:/stockplatform/.env.local")
-
-    if env_path.exists():
-        load_dotenv(dotenv_path=env_path)
-        print(f"✅ 환경 변수 로드 완료: {env_path}")
-    else:
-        # 파일이 없을 경우 기본 .env 로드 시도
-        load_dotenv()
-        print("⚠️  .env.local을 찾을 수 없어 기본 .env 설정을 확인합니다.")
+    from utils.env_loader import load_env
+    load_env()  # .env.local 파일에서 로드 (C:/stockplatform/.env.local 또는 프로젝트 루트)
 except ImportError:
-    print("Warning: python-dotenv not installed")
+    print("Warning: 환경변수 로더를 불러올 수 없습니다.")
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        print("Warning: python-dotenv not installed")
 
 try:
     from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -145,16 +143,20 @@ async def root():
 async def health_check():
     """헬스 체크"""
     try:
+        from utils.env_loader import get_supabase_config, get_dart_api_key
+
+        from utils.env_loader import get_supabase_config, get_dart_api_key
+
         # 환경변수 확인
-        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        dart_api_key = os.getenv("DART_API_KEY")
+        supabase_url, supabase_key = get_supabase_config()
+        dart_api_key = get_dart_api_key()
 
         return {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
             "env_check": {
                 "supabase_url": bool(supabase_url),
+                "supabase_key": bool(supabase_key),
                 "dart_api_key": bool(dart_api_key)
             }
         }
@@ -273,7 +275,7 @@ async def map_companies_to_ksic(request: MapCompaniesRequest):
 
 
 @app.post("/api/ksic/setup-all", response_model=APIResponse)
-async def setup_all(request: SetupAllRequest = None):
+async def setup_all(request: Optional[SetupAllRequest] = None):
     """
     KSIC 전체 셋업 (1, 2, 3 모두 실행)
 
@@ -281,6 +283,8 @@ async def setup_all(request: SetupAllRequest = None):
     1. KSIC 데이터 임포트 (import_ksic_data.py)
     2. KSIC 데이터 검증 (validate_ksic_data.py)
     3. 기업-KSIC 매핑 (map_companies_to_ksic.py)
+
+    요청 바디는 선택사항입니다. 빈 POST 요청으로 호출 가능합니다.
     """
     logger.info("KSIC 전체 셋업 시작")
 
@@ -398,15 +402,14 @@ async def get_ksic_stats():
 
     try:
         from supabase import create_client
+        from utils.env_loader import get_supabase_config
 
-        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") 
-        dart_api_key = os.getenv("DART_API_KEY")
+        supabase_url, supabase_key = get_supabase_config()
 
         if not supabase_url or not supabase_key:
             raise HTTPException(
                 status_code=500,
-                detail="SUPABASE_URL 또는 SUPABASE_SERVICE_KEY 환경변수 누락"
+                detail="Supabase 환경변수가 설정되지 않았습니다. .env.local 파일을 확인하세요."
             )
 
         supabase = create_client(supabase_url, supabase_key)
@@ -481,12 +484,20 @@ if __name__ == "__main__":
     print()
 
     # 환경변수 확인
-    required_vars = ["NEXT_PUBLIC_SUPABASE_URL", "DART_API_KEY"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    from utils.env_loader import get_supabase_config, get_dart_api_key
+    supabase_url, supabase_key = get_supabase_config()
+    dart_api_key = get_dart_api_key()
+
+    missing_vars = []
+    if not supabase_url or not supabase_key:
+        missing_vars.append("NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    if not dart_api_key:
+        missing_vars.append("DART_API_KEY")
 
     if missing_vars:
         print(f"⚠️  경고: 다음 환경변수가 설정되지 않았습니다: {', '.join(missing_vars)}")
         print("   일부 기능이 작동하지 않을 수 있습니다.")
+        print("   .env.local 파일을 확인하세요.")
         print()
 
     # 서버 시작
