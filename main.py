@@ -115,10 +115,10 @@ class MapCompaniesRequest(BaseModel):
 
 class SetupConfig(BaseModel):
     """전체 셋업 요청 모델"""
-    skip_import: bool = Field(False, description="임포트 단계 건너뛰기")
-    skip_validation: bool = Field(False, description="검증 단계 건너뛰기")
-    skip_mapping: bool = Field(False, description="매핑 단계 건너뛰기")
-    unmapped_only: bool = Field(True, description="매핑 시 KSIC 없는 기업만")
+    skip_import: bool = False #Field(False, description="임포트 단계 건너뛰기")
+    skip_validation: bool = False #Field(False, description="검증 단계 건너뛰기")
+    skip_mapping: bool = False #Field(False, description="매핑 단계 건너뛰기")
+    unmapped_only: bool = True #Field(True, description="매핑 시 KSIC 없는 기업만")
 
 
 class APIResponse(BaseModel):
@@ -176,15 +176,19 @@ async def health_check():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/ksic/import", response_model=APIResponse)
-async def import_ksic_data(request: ImportKSICRequest = None):
-    """
-    KSIC 코드 데이터 임포트
+from typing import Optional # 파일 상단에 추가되어 있는지 확인
 
-    - KSIC 엑셀 파일 또는 기본 데이터를 데이터베이스에 임포트
-    - rule_table.py의 중분류 데이터와 통합
-    """
-    logger.info("KSIC 데이터 임포트 API 호출")
+@app.post("/api/ksic/setup-all", response_model=APIResponse)
+async def setup_all(config: Optional[SetupConfig] = Body(None)):
+    # 데이터가 없으면 기본 설정 생성
+    if config is None:
+        config = SetupConfig()
+        
+    logger.info("KSIC 전체 셋업 시작")
+    # NameError 방지를 위해 config 변수 사용
+    logger.info(f"설정: skip_import={config.skip_import}, skip_validation={config.skip_validation}, skip_mapping={config.skip_mapping}")
+    
+    # ... 이하 기존 로직 유지
 
     try:
         # 임포터 초기화
