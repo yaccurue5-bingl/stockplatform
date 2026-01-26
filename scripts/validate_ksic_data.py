@@ -113,6 +113,10 @@ class KSICValidator:
         if not ksic_code:
             return False, "KSIC 코드가 비어있음"
 
+        # KSIC 대분류 알파벳 코드(A-U) 허용
+        if len(ksic_code) == 1 and ksic_code.isalpha():
+            return True, ""
+
         # 숫자만 포함 확인
         if not ksic_code.isdigit():
             return False, f"KSIC 코드에 숫자 이외의 문자 포함: {ksic_code}"
@@ -277,7 +281,7 @@ class KSICValidator:
 
             # KSIC 코드가 있는 기업 수
             mapped_response = self.supabase.table('companies')\
-                .select('code, sector, industry_category', count='exact')\
+                .select('code, sector', count='exact')\
                 .not_.is_('sector', 'null')\
                 .execute()
             mapped_companies = mapped_response.count if hasattr(mapped_response, 'count') else len(mapped_response.data or [])
@@ -288,16 +292,14 @@ class KSICValidator:
             # 매핑 비율
             mapping_rate = (mapped_companies / total_companies * 100) if total_companies > 0 else 0
 
-            # industry_category 분포
+            # sector 분포
+            sector_dist = defaultdict(int)
             if mapped_response.data:
-                industry_dist = defaultdict(int)
                 for company in mapped_response.data:
-                    category = company.get('industry_category') or '미분류'
-                    industry_dist[category] += 1
+                    sector = company.get('sector') or '미분류'
+                    sector_dist[sector] += 1
 
-                industry_distribution = dict(industry_dist)
-            else:
-                industry_distribution = {}
+            sector_distribution = dict(sector_dist) if sector_dist else {}
 
             result = {
                 'success': True,
@@ -305,7 +307,7 @@ class KSICValidator:
                 'mapped_companies': mapped_companies,
                 'unmapped_companies': unmapped_count,
                 'mapping_rate': round(mapping_rate, 2),
-                'industry_distribution': industry_distribution
+                'sector_distribution': sector_distribution
             }
 
             if unmapped_count > 0:
