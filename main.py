@@ -41,7 +41,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    env_path = Path("C:/stockplatform/.env.local")
+
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+        print(f"✅ 환경 변수 로드 완료: {env_path}")
+    else:
+        # 파일이 없을 경우 기본 .env 로드 시도
+        load_dotenv()
+        print("⚠️  .env.local을 찾을 수 없어 기본 .env 설정을 확인합니다.")
 except ImportError:
     print("Warning: python-dotenv not installed")
 
@@ -138,7 +146,8 @@ async def health_check():
     """헬스 체크"""
     try:
         # 환경변수 확인
-        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         dart_api_key = os.getenv("DART_API_KEY")
 
         return {
@@ -390,8 +399,9 @@ async def get_ksic_stats():
     try:
         from supabase import create_client
 
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+        supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") 
+        dart_api_key = os.getenv("DART_API_KEY")
 
         if not supabase_url or not supabase_key:
             raise HTTPException(
@@ -471,7 +481,7 @@ if __name__ == "__main__":
     print()
 
     # 환경변수 확인
-    required_vars = ["SUPABASE_URL", "DART_API_KEY"]
+    required_vars = ["NEXT_PUBLIC_SUPABASE_URL", "DART_API_KEY"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
