@@ -8,7 +8,7 @@ companies 테이블의 기업들에 KSIC 코드를 자동으로 매핑합니다.
 처리 흐름:
 1. companies 테이블에서 기업 목록 조회
 2. industry_classifier를 사용하여 DART API에서 KSIC 코드 가져오기
-3. companies 테이블 업데이트 (ksic_code, industry_category 등)
+3. companies 테이블 업데이트 (sector, ksic_name, corp_code 등)
 4. 결과 로깅 및 통계 출력
 
 사용법:
@@ -225,7 +225,6 @@ class CompanyKSICMapper:
             update_data = {
                 'sector': classification.get('ksic_code'),
                 'ksic_name': classification.get('ksic_name'),
-                'industry_category': classification.get('top_industry'),
                 'corp_code': classification.get('corp_code'),
                 'ksic_updated_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
