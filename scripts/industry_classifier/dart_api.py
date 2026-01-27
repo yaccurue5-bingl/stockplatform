@@ -155,7 +155,7 @@ class DARTClient:
         종목코드로 기업코드 조회
 
         Args:
-            stock_code: 종목코드 (예: "005930")
+            stock_code: 종목코드 (예: "005930" 또는 "A005930")
 
         Returns:
             기업 정보 딕셔너리 또는 None
@@ -168,7 +168,11 @@ class DARTClient:
         if not self.corp_code_map:
             self.load_corp_code_map()
 
-        # 6자리로 패딩
+        # 'A' 접두사 제거 (예: 'A035720' -> '035720')
+        if stock_code.startswith('A'):
+            stock_code = stock_code[1:]
+
+        # 6자리로 패딩 (정확히 6자리 숫자로 변환)
         stock_code_padded = stock_code.zfill(6)
 
         return self.corp_code_map.get(stock_code_padded)
@@ -228,7 +232,7 @@ class DARTClient:
         종목코드로 기업 업종 정보 조회 (통합 함수)
 
         Args:
-            stock_code: 종목코드 (예: "005930")
+            stock_code: 종목코드 (예: "005930" 또는 "A005930")
 
         Returns:
             {
@@ -239,10 +243,15 @@ class DARTClient:
                 "induty_name": "반도체 및 기타 전자부품 제조업"
             }
         """
+        # 'A' 접두사 제거 (예: 'A035720' -> '035720')
+        original_stock_code = stock_code
+        if stock_code.startswith('A'):
+            stock_code = stock_code[1:]
+
         # 1. stock_code → corp_code 매핑
         corp_info = self.get_corp_code(stock_code)
         if not corp_info:
-            logger.warning(f"종목코드를 찾을 수 없음: {stock_code}")
+            logger.warning(f"종목코드를 찾을 수 없음: {original_stock_code}")
             return None
 
         corp_code = corp_info['corp_code']
@@ -254,9 +263,9 @@ class DARTClient:
             logger.warning(f"기업개황 조회 실패: {corp_code}")
             return None
 
-        # 3. 필요한 정보 추출
+        # 3. 필요한 정보 추출 (6자리 숫자 형식으로 반환)
         return {
-            'stock_code': stock_code,
+            'stock_code': stock_code.zfill(6),
             'corp_code': corp_code,
             'corp_name': corp_name,
             'induty_code': company_info.get('induty_code', ''),
