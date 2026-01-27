@@ -151,10 +151,10 @@ class KSICValidator:
 
             # 각 레코드 검증
             for record in ksic_records:
-                # DB 컬럼명 변경 반영: ksic_code -> 산업코드, ksic_name -> 산업내용
-                ksic_code = record.get('산업코드')
-                # 기존 ksic_name과 top_industry를 '산업내용' 하나로 통합하여 검증
-                industry_info = record.get('산업내용')
+                # 영문 컬럼명 사용: ksic_code, ksic_name
+                ksic_code = record.get('ksic_code')
+                # ksic_name 컬럼 검증
+                industry_info = record.get('ksic_name')
 
                 # 1. 코드 형식 검증
                 is_valid, error_msg = self.validate_ksic_code_format(ksic_code)
@@ -163,9 +163,9 @@ class KSICValidator:
                     invalid_count += 1
                     continue
 
-                # 2. 필수 필드 검증 (산업내용 컬럼 하나로 통합 확인)
+                # 2. 필수 필드 검증 (ksic_name 컬럼 확인)
                 if not industry_info:
-                    self.warnings.append(f"KSIC 코드 {ksic_code}: 산업내용(명칭) 누락")
+                    self.warnings.append(f"KSIC 코드 {ksic_code}: ksic_name(명칭) 누락")
 
                 # 3. 중분류 일관성 검증
                 if ksic_code and len(ksic_code) >= 2:
@@ -201,13 +201,13 @@ class KSICValidator:
     def validate_rule_table_consistency(self) -> Dict:
         """
         rule_table.py와 DB 데이터 일관성 검증
-        - 한글 컬럼명(산업코드, 산업내용) 반영 및 룰 기반 검증으로 수정
+        - 영문 컬럼명(ksic_code, ksic_name, top_industry) 사용
         """
         logger.info("rule_table 일관성 검증 중...")
 
         try:
-            # 1. DB에서 데이터 조회 (사용자님 DB 컬럼명 반영)
-            response = self.supabase.table('ksic_codes').select('산업코드, 산업내용').execute()
+            # 1. DB에서 데이터 조회 (영문 컬럼명 사용)
+            response = self.supabase.table('ksic_codes').select('ksic_code, ksic_name, top_industry').execute()
             db_records = response.data or []
 
             if not db_records:
@@ -219,12 +219,12 @@ class KSICValidator:
 
             missing_in_db = []
             inconsistent = []
-            
+
             # DB 내의 중분류(major_code)별 대표 업종 매핑 생성
             db_mapping = {}
             for record in db_records:
-                ksic_code = record.get('산업코드', '')
-                top_industry = record.get('산업내용') # 실제 DB에 저장된 업종 명칭
+                ksic_code = record.get('ksic_code', '')
+                top_industry = record.get('top_industry')  # 실제 DB에 저장된 상위 업종 명칭
 
                 if ksic_code and len(ksic_code) >= 2:
                     major_code = ksic_code[:2]
@@ -237,9 +237,9 @@ class KSICValidator:
                 # DB에 해당 중분류가 아예 없는 경우
                 if major_code not in db_mapping:
                     missing_in_db.append(major_code)
-                    self.warnings.append(f"rule_table의 중분류 {major_code}가 DB('산업코드')에 없습니다.")
-                
-                # DB의 '산업내용'이 룰 테이블의 '상위 업종명'과 다른 경우
+                    self.warnings.append(f"rule_table의 중분류 {major_code}가 DB('ksic_code')에 없습니다.")
+
+                # DB의 'top_industry'가 룰 테이블의 '상위 업종명'과 다른 경우
                 else:
                     db_industry = db_mapping[major_code]
                     if db_industry != expected_industry:
@@ -250,7 +250,7 @@ class KSICValidator:
                         })
                         self.warnings.append(
                             f"중분류 {major_code} 일관성 오류: "
-                            f"DB(산업내용)='{db_industry}', rule_table='{expected_industry}'"
+                            f"DB(top_industry)='{db_industry}', rule_table='{expected_industry}'"
                         )
 
             result = {
@@ -347,12 +347,12 @@ class KSICValidator:
         try:
             # 업종별 분포
             industry_response = self.supabase.table('ksic_codes')\
-                .select('산업내용', count='exact')\
+                .select('ksic_name, top_industry', count='exact')\
                 .execute()
 
             industry_stats = defaultdict(int)
             for record in (industry_response.data or []):
-                industry = record.get('산업내용', '미분류')
+                industry = record.get('top_industry') or record.get('ksic_name', '미분류')
                 industry_stats[industry] += 1
 
             # 상위 5개 업종
