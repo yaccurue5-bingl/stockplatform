@@ -234,10 +234,10 @@ class CompanyKSICMapper:
 
             update_data = {
                 'sector': sector_value,
-                'ksic_name': classification.get('ksic_name'),
-                'industry_category': top_industry,  # 상위 업종 분류 (프론트엔드에 표시됨)
-                'corp_code': classification.get('corp_code'),
-                'ksic_updated_at': datetime.utcnow().isoformat(),
+                #'ksic_name': classification.get('ksic_name'),
+                #'industry_category': top_industry,  # 상위 업종 분류 (프론트엔드에 표시됨)
+                #'corp_code': classification.get('corp_code'),
+                #'ksic_updated_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }
 
@@ -265,7 +265,8 @@ class CompanyKSICMapper:
         self,
         companies: List[Dict],
         batch_size: int = 100,
-        delay: float = 1.0
+        delay: float = 1.0,
+        unmapped_only: bool = False
     ) -> Dict:
         """
         기업 배치 처리
@@ -284,15 +285,22 @@ class CompanyKSICMapper:
         for i, company in enumerate(companies, 1):
             stock_code = company['code']
             company_name = company.get('corp_name', 'N/A')
-            existing_ksic = company.get('sector')
+            existing_ksic = str(company.get('sector', ''))
 
-            # 진행률 표시
-            if i % 10 == 0 or i == 1:
-                logger.info(f"진행률: {i}/{total} ({i/total*100:.1f}%)")
+            # [데이터 유효성 판별 로직]
+            # 1. 값이 없거나
+            # 2. 5자리 숫자가 아니거나 (정상적인 KSIC 코드가 아님)
+            # 3. URL주소나 시장 정보(KOSPI 등), 괄호가 포함된 경우
+            is_invalid = not existing_ksic or \
+                         not existing_ksic.isdigit() or \
+                         len(existing_ksic) != 5 or \
+                         'http' in existing_ksic or \
+                         any(m in existing_ksic.upper() for m in ['KOSPI', 'KOSDAQ', 'KONEX', '('])
 
-            # 이미 매핑된 경우 (unmapped_only=False인 경우에만 해당)
-            if existing_ksic:
-                logger.debug(f"건너뜀: {stock_code} (이미 매핑됨: {existing_ksic})")
+            # 정상적인 5자리 숫자 코드가 이미 있고, unmapped_only가 True라면 건너뜀
+            # 하지만 위에서 판별한 is_invalid가 True라면(잘못된 데이터면) 무조건 아래 매핑 로직으로 진행
+            if not is_invalid and unmapped_only:
+                logger.debug(f"건너뜀: {stock_code} (이미 정상 매핑됨: {existing_ksic})")
                 self.stats['already_mapped'] += 1
                 self.stats['skipped'] += 1
                 continue
@@ -382,7 +390,7 @@ class CompanyKSICMapper:
                 return True
 
             # 2. 배치 처리
-            self.process_batch(companies, batch_size)
+            self.process_batch(companies, batch_size,  unmapped_only=unmapped_only)
 
             # 3. 결과 출력
             self.print_summary()
