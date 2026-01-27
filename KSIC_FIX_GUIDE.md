@@ -2,26 +2,38 @@
 
 ## Problem Description
 
-**Error**: `ERROR: 42703: column "major_code" does not exist`
+**Errors you might see:**
+- `ERROR: 42703: column "major_code" does not exist`
+- `ERROR: 42703: column "ksic_code" does not exist`
 
-This error occurs when trying to create an index on the `major_code` column in the `ksic_codes` table, but the column doesn't exist in the database schema.
+These errors occur when trying to create indexes or queries on columns that don't exist in the `ksic_codes` table.
 
 ### Root Cause
 
-The `ksic_codes` table was supposed to have hierarchical classification columns (division, major, minor, sub, detail) as defined in migration `003_add_ksic_support.sql`. However, these columns may not have been created if:
+The `ksic_codes` table may have one of these issues:
 
-1. Migration 003 was not applied properly
-2. The table was created manually without these columns
-3. Migration 004 was applied to a database that didn't have migration 003 applied
+1. **Missing hierarchical columns** (division, major, minor, sub, detail)
+2. **Korean column names** (산업코드, 산업내용) instead of English (ksic_code, ksic_name)
+3. **Incomplete migrations** - Migration 003 or 004 wasn't applied properly
+
+This can happen if:
+- Migration 003 was not applied
+- Migration 004 was applied to a database without migration 003
+- Migrations were applied in the wrong order
+- The table was created manually with a different schema
 
 ## Solution
 
-We've created a comprehensive fix that:
+We've created a comprehensive fix (migration 005) that handles ALL scenarios:
 
-1. **Checks and adds all missing hierarchical columns** if they don't exist
-2. **Populates the `major_code` column** from existing `ksic_code` data
-3. **Creates required indexes** on the columns
-4. **Verifies the fix** was successful
+1. **Renames Korean columns to English** (산업코드 → ksic_code, 산업내용 → ksic_name, 상위업종 → top_industry)
+2. **Checks and adds all missing hierarchical columns** (division, major, minor, sub, detail)
+3. **Populates the `major_code` column** from existing ksic_code (or 산업코드) data
+4. **Sets up primary key** on ksic_code if missing
+5. **Creates required indexes** on the columns
+6. **Verifies the fix** was successful with detailed reporting
+
+**This fix is idempotent** - safe to run multiple times, and works regardless of your current schema state.
 
 ## How to Apply the Fix
 
