@@ -337,12 +337,12 @@ def main():
     print()
 
     # 환경변수 확인
-    if not os.getenv("SUPABASE_URL"):
+    if not os.getenv("NEXT_PUBLIC_SUPABASE_URL"):
         print("✗ 오류: SUPABASE_URL 환경변수가 설정되지 않았습니다.")
         print("  .env 파일을 확인하세요.")
         sys.exit(1)
 
-    if not os.getenv("SUPABASE_SERVICE_KEY") and not os.getenv("SUPABASE_ANON_KEY"):
+    if not os.getenv("SUPABASE_SERVICE_KEY") and not os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY"):
         print("✗ 오류: SUPABASE_SERVICE_KEY 또는 SUPABASE_ANON_KEY 환경변수가 필요합니다.")
         print("  .env 파일을 확인하세요.")
         sys.exit(1)
