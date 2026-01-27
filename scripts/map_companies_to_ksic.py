@@ -229,15 +229,17 @@ class CompanyKSICMapper:
             ksic_code = classification.get('ksic_code')
             top_industry = classification.get('top_industry')
 
-            # sector 필드는 KSIC 코드로 업데이트하되, URL이면 '기타'로 처리
-            sector_value = sanitize_sector(ksic_code, default='기타')
+            # sector 필드는 상위 업종명(한글)으로 업데이트
+            # 예: "반도체와 반도체장비", "바이오·제약" 등
+            sector_value = top_industry if top_industry else '미분류'
+
+            # sector 값 유효성 검사 (URL이나 잘못된 값이면 '기타'로 처리)
+            if sector_value and ('http' in sector_value.lower() or
+                                 any(m in sector_value for m in ['KOSPI', 'KOSDAQ', 'KONEX'])):
+                sector_value = '기타'
 
             update_data = {
-                'sector': sector_value,
-                #'ksic_name': classification.get('ksic_name'),
-                #'industry_category': top_industry,  # 상위 업종 분류 (프론트엔드에 표시됨)
-                #'corp_code': classification.get('corp_code'),
-                #'ksic_updated_at': datetime.utcnow().isoformat(),
+                'sector': sector_value,  # 상위 업종명 (한글)
                 'updated_at': datetime.utcnow().isoformat()
             }
 
@@ -251,7 +253,7 @@ class CompanyKSICMapper:
                 .execute()
 
             if response.data:
-                logger.debug(f"  ✓ DB 업데이트 완료: {stock_code}")
+                logger.debug(f"  ✓ DB 업데이트 완료: {stock_code} -> {sector_value}")
                 return True
             else:
                 logger.warning(f"  ! DB 업데이트 응답 없음: {stock_code}")
@@ -285,22 +287,24 @@ class CompanyKSICMapper:
         for i, company in enumerate(companies, 1):
             stock_code = company['code']
             company_name = company.get('corp_name', 'N/A')
-            existing_ksic = str(company.get('sector', ''))
+            existing_sector = str(company.get('sector', ''))
 
             # [데이터 유효성 판별 로직]
+            # sector는 이제 한글 상위 업종명이므로 유효성 검사 기준 변경
             # 1. 값이 없거나
-            # 2. 5자리 숫자가 아니거나 (정상적인 KSIC 코드가 아님)
+            # 2. '미분류', '기타', 'null' 등 유효하지 않은 값이거나
             # 3. URL주소나 시장 정보(KOSPI 등), 괄호가 포함된 경우
-            is_invalid = not existing_ksic or \
-                         not existing_ksic.isdigit() or \
-                         len(existing_ksic) != 5 or \
-                         'http' in existing_ksic or \
-                         any(m in existing_ksic.upper() for m in ['KOSPI', 'KOSDAQ', 'KONEX', '('])
+            # 4. 숫자로만 구성된 경우 (이전 KSIC 코드 형식)
+            is_invalid = not existing_sector or \
+                         existing_sector in ['미분류', '기타', 'null', 'NULL', 'None'] or \
+                         'http' in existing_sector.lower() or \
+                         any(m in existing_sector.upper() for m in ['KOSPI', 'KOSDAQ', 'KONEX', '(']) or \
+                         existing_sector.isdigit()
 
-            # 정상적인 5자리 숫자 코드가 이미 있고, unmapped_only가 True라면 건너뜀
+            # 정상적인 상위 업종명이 이미 있고, unmapped_only가 True라면 건너뜀
             # 하지만 위에서 판별한 is_invalid가 True라면(잘못된 데이터면) 무조건 아래 매핑 로직으로 진행
             if not is_invalid and unmapped_only:
-                logger.debug(f"건너뜀: {stock_code} (이미 정상 매핑됨: {existing_ksic})")
+                logger.debug(f"건너뜀: {stock_code} (이미 정상 매핑됨: {existing_sector})")
                 self.stats['already_mapped'] += 1
                 self.stats['skipped'] += 1
                 continue
