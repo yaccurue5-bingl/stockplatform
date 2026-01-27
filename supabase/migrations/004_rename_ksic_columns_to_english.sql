@@ -152,6 +152,153 @@ BEGIN
     END IF;
 END $$;
 
+-- Ensure hierarchical columns exist (division, major, minor, sub, detail)
+DO $$
+BEGIN
+    -- division_code
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'division_code'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN division_code TEXT;
+        RAISE NOTICE '✓ Added column: division_code';
+    END IF;
+
+    -- division_name
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'division_name'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN division_name TEXT;
+        RAISE NOTICE '✓ Added column: division_name';
+    END IF;
+
+    -- major_code
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'major_code'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN major_code TEXT;
+        RAISE NOTICE '✓ Added column: major_code';
+    END IF;
+
+    -- major_name
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'major_name'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN major_name TEXT;
+        RAISE NOTICE '✓ Added column: major_name';
+    END IF;
+
+    -- minor_code
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'minor_code'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN minor_code TEXT;
+        RAISE NOTICE '✓ Added column: minor_code';
+    END IF;
+
+    -- minor_name
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'minor_name'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN minor_name TEXT;
+        RAISE NOTICE '✓ Added column: minor_name';
+    END IF;
+
+    -- sub_code
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'sub_code'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN sub_code TEXT;
+        RAISE NOTICE '✓ Added column: sub_code';
+    END IF;
+
+    -- sub_name
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'sub_name'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN sub_name TEXT;
+        RAISE NOTICE '✓ Added column: sub_name';
+    END IF;
+
+    -- detail_code
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'detail_code'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN detail_code TEXT;
+        RAISE NOTICE '✓ Added column: detail_code';
+    END IF;
+
+    -- detail_name
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'detail_name'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN detail_name TEXT;
+        RAISE NOTICE '✓ Added column: detail_name';
+    END IF;
+
+    -- description
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'description'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN description TEXT;
+        RAISE NOTICE '✓ Added column: description';
+    END IF;
+
+    -- created_at
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'created_at'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        RAISE NOTICE '✓ Added column: created_at';
+    END IF;
+
+    -- updated_at
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'updated_at'
+    ) THEN
+        ALTER TABLE public.ksic_codes ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        RAISE NOTICE '✓ Added column: updated_at';
+    END IF;
+END $$;
+
 -- =========================================
 -- 3. Update constraints if needed
 -- =========================================
