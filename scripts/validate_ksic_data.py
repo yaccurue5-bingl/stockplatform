@@ -201,54 +201,64 @@ class KSICValidator:
     def validate_rule_table_consistency(self) -> Dict:
         """
         rule_table.py와 DB 데이터 일관성 검증
-
-        Returns:
-            검증 결과 딕셔너리
+        - 한글 컬럼명(산업코드, 산업내용) 반영 및 룰 기반 검증으로 수정
         """
         logger.info("rule_table 일관성 검증 중...")
 
         try:
-            # DB에서 중분류별 상위 업종 조회
+            # 1. DB에서 데이터 조회 (사용자님 DB 컬럼명 반영)
             response = self.supabase.table('ksic_codes').select('산업코드, 산업내용').execute()
             db_records = response.data or []
 
+            if not db_records:
+                self.warnings.append("DB에 KSIC 코드 데이터가 없어 일관성 검증을 건너뜁니다.")
+                return {'success': True, 'total_db': 0}
+
+            # 2. rule_table.py에서 분류 로직 가져오기
+            from scripts.industry_classifier.rule_table import get_top_industry, KSIC_TOP_INDUSTRY_RULES
+
+            missing_in_db = []
+            inconsistent = []
+            
+            # DB 내의 중분류(major_code)별 대표 업종 매핑 생성
             db_mapping = {}
             for record in db_records:
                 ksic_code = record.get('산업코드', '')
-                top_industry = record.get('산업내용')
+                top_industry = record.get('산업내용') # 실제 DB에 저장된 업종 명칭
 
-                if len(ksic_code) >= 2:
+                if ksic_code and len(ksic_code) >= 2:
                     major_code = ksic_code[:2]
+                    # 이미 처리한 중분류는 건너뜀
                     if major_code not in db_mapping:
                         db_mapping[major_code] = top_industry
 
-            # rule_table과 비교
-            missing_in_db = []
-            inconsistent = []
-
+            # 3. rule_table과 DB 데이터 비교 검증
             for major_code, expected_industry in KSIC_TOP_INDUSTRY_RULES.items():
+                # DB에 해당 중분류가 아예 없는 경우
                 if major_code not in db_mapping:
                     missing_in_db.append(major_code)
-                    self.warnings.append(
-                        f"rule_table의 중분류 {major_code}가 DB에 없음"
-                    )
-                elif db_mapping[major_code] != expected_industry:
-                    inconsistent.append({
-                        'major_code': major_code,
-                        'db': db_mapping[major_code],
-                        'rule_table': expected_industry
-                    })
-                    self.warnings.append(
-                        f"중분류 {major_code} 상위 업종 불일치: "
-                        f"DB='{db_mapping[major_code]}', rule_table='{expected_industry}'"
-                    )
+                    self.warnings.append(f"rule_table의 중분류 {major_code}가 DB('산업코드')에 없습니다.")
+                
+                # DB의 '산업내용'이 룰 테이블의 '상위 업종명'과 다른 경우
+                else:
+                    db_industry = db_mapping[major_code]
+                    if db_industry != expected_industry:
+                        inconsistent.append({
+                            'major_code': major_code,
+                            'db_value': db_industry,
+                            'expected_rule': expected_industry
+                        })
+                        self.warnings.append(
+                            f"중분류 {major_code} 일관성 오류: "
+                            f"DB(산업내용)='{db_industry}', rule_table='{expected_industry}'"
+                        )
 
             result = {
-                'success': True,
+                'success': len(inconsistent) == 0,
                 'total_rule_table': len(KSIC_TOP_INDUSTRY_RULES),
-                'total_db': len(db_mapping),
-                'missing_in_db': len(missing_in_db),
-                'inconsistent': len(inconsistent),
+                'total_db_major_codes': len(db_mapping),
+                'missing_in_db_count': len(missing_in_db),
+                'inconsistent_count': len(inconsistent),
                 'inconsistent_details': inconsistent
             }
 
