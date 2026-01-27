@@ -127,7 +127,8 @@ class APIResponse(BaseModel):
     message: str
     data: Optional[Dict] = None
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
-
+class Config:
+    arbitrary_types_allowed = True
 
 # ==================== API Endpoints ====================
 
