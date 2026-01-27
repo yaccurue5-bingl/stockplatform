@@ -471,7 +471,7 @@ def main():
         print("  .env.local 파일을 확인하세요.")
         sys.exit(1)
 
-    if not os.getenv("SUPABASE_SERVICE_KEY") and not os.getenv("SUPABASE_ANON_KEY"):
+    if not os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY") and not os.getenv("SUPABASE_ANON_KEY"):
         print("✗ 오류: SUPABASE_SERVICE_KEY 또는 SUPABASE_ANON_KEY가 필요합니다.")
         sys.exit(1)
 
