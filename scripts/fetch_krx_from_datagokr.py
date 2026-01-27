@@ -11,11 +11,19 @@ data.go.kr 공공데이터 API를 사용하도록 변경
 
 import requests
 import os
+import sys
 from datetime import datetime, timedelta
 from supabase import create_client
 import time
 from dotenv import load_dotenv
 from pathlib import Path
+
+# 프로젝트 루트를 Python 경로에 추가
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# Sector validator 임포트
+from utils.sector_validator import sanitize_sector
 
 # 1. 환경 변수 로드
 base_path = Path(__file__).resolve().parent.parent
@@ -200,12 +208,16 @@ def transform_to_db_format(stocks):
                 print(f"   ⚠️ 필수 값 누락 - stock_code: '{stock_code}', corp_name: '{corp_name}'")
                 continue
 
+            # 업종 정보 가져오기 및 검증 (URL이면 '기타'로 처리)
+            raw_sector = stock.get('sector', '기타')  # API에서 업종 필드 가져오기
+            validated_sector = sanitize_sector(raw_sector, default='기타')
+
             # stock_code가 PRIMARY KEY
             company = {
                 'stock_code': stock_code,        # PRIMARY KEY (required)
                 'corp_name': corp_name,          # 회사명
                 'market': market if market in ['KOSPI', 'KOSDAQ'] else 'KOSPI',
-                'sector': '기타',  # data.go.kr API는 업종 정보 미제공
+                'sector': validated_sector,      # URL 검증된 업종 정보
                 'market_cap': market_cap,
                 'listed_shares': listed_shares,
                 'updated_at': datetime.now().isoformat()

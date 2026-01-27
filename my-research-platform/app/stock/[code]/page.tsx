@@ -19,6 +19,9 @@ interface ExtendedInsight {
 
 interface Company {
   sector?: string;
+  industry_category?: string;  // KSIC 기반 상위 업종 분류
+  ksic_code?: string;
+  ksic_name?: string;
   market_cap?: number;
   operating_profit_margin?: number;
   foreign_ownership?: number;
@@ -77,7 +80,12 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
             <p className="text-sm text-blue-600 mb-1 font-medium">업종</p>
-            <p className="text-lg font-bold text-gray-800">{company?.sector || '정보 없음'}</p>
+            <p className="text-lg font-bold text-gray-800">
+              {company?.industry_category || company?.sector || '정보 없음'}
+            </p>
+            {company?.ksic_name && (
+              <p className="text-xs text-gray-500 mt-1">{company.ksic_name}</p>
+            )}
           </div>
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
             <p className="text-sm text-blue-600 mb-1 font-medium">시가총액</p>

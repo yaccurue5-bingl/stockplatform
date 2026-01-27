@@ -74,6 +74,9 @@ for proxy_var in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'GLO
 # Industry classifier 임포트
 from scripts.industry_classifier import IndustryClassifier
 
+# Sector validator 임포트
+from utils.sector_validator import sanitize_sector
+
 # 로깅 설정
 logging.basicConfig(
     level=logging.INFO,
@@ -222,9 +225,17 @@ class CompanyKSICMapper:
             return True
 
         try:
+            # KSIC 코드와 상위 업종 가져오기
+            ksic_code = classification.get('ksic_code')
+            top_industry = classification.get('top_industry')
+
+            # sector 필드는 KSIC 코드로 업데이트하되, URL이면 '기타'로 처리
+            sector_value = sanitize_sector(ksic_code, default='기타')
+
             update_data = {
-                'sector': classification.get('ksic_code'),
+                'sector': sector_value,
                 'ksic_name': classification.get('ksic_name'),
+                'industry_category': top_industry,  # 상위 업종 분류 (프론트엔드에 표시됨)
                 'corp_code': classification.get('corp_code'),
                 'ksic_updated_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
