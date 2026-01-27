@@ -27,14 +27,15 @@ WHERE c1.code LIKE 'A%'  -- 'A'로 시작하는 코드
 DO $$
 DECLARE
   delete_count INTEGER;
+  rec RECORD;
 BEGIN
   SELECT COUNT(*) INTO delete_count FROM codes_to_delete;
   RAISE NOTICE '삭제할 중복 행 수: %', delete_count;
 
   IF delete_count > 0 THEN
     RAISE NOTICE '삭제할 코드 목록:';
-    FOR code IN SELECT code FROM codes_to_delete ORDER BY code LOOP
-      RAISE NOTICE '  - %', code;
+    FOR rec IN SELECT code FROM codes_to_delete ORDER BY code LOOP
+      RAISE NOTICE '  - %', rec.code;
     END LOOP;
   END IF;
 END $$;
