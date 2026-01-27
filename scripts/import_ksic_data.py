@@ -134,8 +134,7 @@ class KSICDataImporter:
                 'detail_code': None,
                 'detail_name': None,
                 'top_industry': top_industry,
-                'description': f'{top_industry} 관련 산업',
-                'updated_at': datetime.utcnow().isoformat()
+                'description': f'{top_industry} 관련 산업'
             }
             records.append(record)
 
@@ -185,8 +184,7 @@ class KSICDataImporter:
                     'detail_code': detail_code,
                     'detail_name': None,
                     'top_industry': top_industry,
-                    'description': ksic_name,
-                    'updated_at': datetime.utcnow().isoformat()
+                    'description': ksic_name
                 }
                 records.append(record)
 
