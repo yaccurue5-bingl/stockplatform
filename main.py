@@ -481,7 +481,7 @@ if __name__ == "__main__":
 
     missing_vars = []
     if not supabase_url or not supabase_key:
-        missing_vars.append("NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        missing_vars.append("NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY")
     if not dart_api_key:
         missing_vars.append("DART_API_KEY")
 
