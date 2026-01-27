@@ -170,29 +170,192 @@ END $$;
 DO $$
 DECLARE
     updated_count INTEGER;
+    ksic_code_col_exists BOOLEAN;
+    korean_col_exists BOOLEAN;
 BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE 'Populating major_code from ksic_code...';
     RAISE NOTICE '========================================';
 
-    -- Update major_code for records where it's null but ksic_code exists
-    UPDATE public.ksic_codes
-    SET major_code = SUBSTRING(ksic_code, 1, 2)
-    WHERE major_code IS NULL
-    AND ksic_code IS NOT NULL
-    AND LENGTH(ksic_code) >= 2;
+    -- Check which column name exists (English or Korean)
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'ksic_code'
+    ) INTO ksic_code_col_exists;
 
-    GET DIAGNOSTICS updated_count = ROW_COUNT;
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = '산업코드'
+    ) INTO korean_col_exists;
 
-    IF updated_count > 0 THEN
-        RAISE NOTICE '✓ Updated % records with major_code', updated_count;
+    -- Try to populate from English column name
+    IF ksic_code_col_exists THEN
+        UPDATE public.ksic_codes
+        SET major_code = SUBSTRING(ksic_code, 1, 2)
+        WHERE major_code IS NULL
+        AND ksic_code IS NOT NULL
+        AND LENGTH(ksic_code) >= 2;
+
+        GET DIAGNOSTICS updated_count = ROW_COUNT;
+
+        IF updated_count > 0 THEN
+            RAISE NOTICE '✓ Updated % records with major_code from ksic_code', updated_count;
+        ELSE
+            RAISE NOTICE 'ℹ No records needed major_code update (from ksic_code)';
+        END IF;
+
+    -- Try to populate from Korean column name
+    ELSIF korean_col_exists THEN
+        EXECUTE 'UPDATE public.ksic_codes
+                 SET major_code = SUBSTRING("산업코드", 1, 2)
+                 WHERE major_code IS NULL
+                 AND "산업코드" IS NOT NULL
+                 AND LENGTH("산업코드") >= 2';
+
+        GET DIAGNOSTICS updated_count = ROW_COUNT;
+
+        IF updated_count > 0 THEN
+            RAISE NOTICE '✓ Updated % records with major_code from 산업코드', updated_count;
+        ELSE
+            RAISE NOTICE 'ℹ No records needed major_code update (from 산업코드)';
+        END IF;
+
     ELSE
-        RAISE NOTICE 'ℹ No records needed major_code update';
+        RAISE WARNING '⚠ Neither ksic_code nor 산업코드 column exists - cannot populate major_code';
     END IF;
 END $$;
 
 -- =========================================
--- 3. Create or recreate indexes
+-- 3. Ensure primary columns exist (ksic_code, ksic_name, top_industry)
+-- =========================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Ensuring primary columns exist...';
+    RAISE NOTICE '========================================';
+
+    -- Ensure ksic_code exists (might be named 산업코드)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'ksic_code'
+    ) THEN
+        -- Check if Korean column exists
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public'
+            AND table_name = 'ksic_codes'
+            AND column_name = '산업코드'
+        ) THEN
+            -- Rename Korean to English
+            ALTER TABLE public.ksic_codes RENAME COLUMN "산업코드" TO ksic_code;
+            RAISE NOTICE '✓ Renamed 산업코드 → ksic_code';
+        ELSE
+            -- Create new column
+            ALTER TABLE public.ksic_codes ADD COLUMN ksic_code TEXT;
+            RAISE NOTICE '✓ Added column: ksic_code';
+        END IF;
+    ELSE
+        RAISE NOTICE 'ℹ Column ksic_code already exists';
+    END IF;
+
+    -- Ensure ksic_name exists (might be named 산업내용)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'ksic_name'
+    ) THEN
+        -- Check if Korean column exists
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public'
+            AND table_name = 'ksic_codes'
+            AND column_name = '산업내용'
+        ) THEN
+            -- Rename Korean to English
+            ALTER TABLE public.ksic_codes RENAME COLUMN "산업내용" TO ksic_name;
+            RAISE NOTICE '✓ Renamed 산업내용 → ksic_name';
+        ELSE
+            -- Create new column
+            ALTER TABLE public.ksic_codes ADD COLUMN ksic_name TEXT;
+            RAISE NOTICE '✓ Added column: ksic_name';
+        END IF;
+    ELSE
+        RAISE NOTICE 'ℹ Column ksic_name already exists';
+    END IF;
+
+    -- Ensure top_industry exists (might be named 상위업종)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'ksic_codes'
+        AND column_name = 'top_industry'
+    ) THEN
+        -- Check if Korean column exists
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public'
+            AND table_name = 'ksic_codes'
+            AND column_name = '상위업종'
+        ) THEN
+            -- Rename Korean to English
+            ALTER TABLE public.ksic_codes RENAME COLUMN "상위업종" TO top_industry;
+            RAISE NOTICE '✓ Renamed 상위업종 → top_industry';
+        ELSE
+            -- Create new column
+            ALTER TABLE public.ksic_codes ADD COLUMN top_industry TEXT;
+            RAISE NOTICE '✓ Added column: top_industry';
+        END IF;
+    ELSE
+        RAISE NOTICE 'ℹ Column top_industry already exists';
+    END IF;
+END $$;
+
+-- =========================================
+-- 4. Ensure primary key on ksic_code
+-- =========================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Checking primary key...';
+    RAISE NOTICE '========================================';
+
+    -- Check if primary key exists on ksic_code
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'PRIMARY KEY'
+        AND tc.table_schema = 'public'
+        AND tc.table_name = 'ksic_codes'
+        AND kcu.column_name = 'ksic_code'
+    ) THEN
+        -- Try to add primary key
+        BEGIN
+            ALTER TABLE public.ksic_codes ADD CONSTRAINT ksic_codes_pkey PRIMARY KEY (ksic_code);
+            RAISE NOTICE '✓ Added primary key constraint on ksic_code';
+        EXCEPTION
+            WHEN duplicate_table THEN
+                RAISE NOTICE 'ℹ Primary key constraint already exists';
+            WHEN others THEN
+                RAISE NOTICE '⚠ Could not add primary key: %', SQLERRM;
+        END;
+    ELSE
+        RAISE NOTICE 'ℹ Primary key on ksic_code already exists';
+    END IF;
+END $$;
+
+-- =========================================
+-- 5. Create or recreate indexes
 -- =========================================
 
 DO $$
@@ -213,7 +376,7 @@ CREATE INDEX idx_ksic_codes_top_industry ON public.ksic_codes(top_industry);
 CREATE INDEX idx_ksic_codes_name ON public.ksic_codes(ksic_name);
 
 -- =========================================
--- 4. Verify the fix
+-- 6. Verify the fix
 -- =========================================
 
 DO $$
@@ -274,7 +437,7 @@ BEGIN
 END $$;
 
 -- =========================================
--- 5. Add column comments
+-- 7. Add column comments
 -- =========================================
 
 COMMENT ON COLUMN public.ksic_codes.division_code IS 'KSIC 대분류 코드 (1자리)';
