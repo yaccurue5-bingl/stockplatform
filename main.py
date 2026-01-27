@@ -115,10 +115,10 @@ class MapCompaniesRequest(BaseModel):
 
 class SetupConfig(BaseModel):
     """전체 셋업 요청 모델"""
-    skip_import: bool = False #Field(False, description="임포트 단계 건너뛰기")
-    skip_validation: bool = False #Field(False, description="검증 단계 건너뛰기")
-    skip_mapping: bool = False #Field(False, description="매핑 단계 건너뛰기")
-    unmapped_only: bool = True #Field(True, description="매핑 시 KSIC 없는 기업만")
+    skip_import: bool = Field(False, description="임포트 단계 건너뛰기")
+    skip_validation: bool = Field(False, description="검증 단계 건너뛰기")
+    skip_mapping: bool = Field(False, description="매핑 단계 건너뛰기")
+    unmapped_only: bool = Field(True, description="매핑 시 KSIC 없는 기업만")
 
 
 class APIResponse(BaseModel):
@@ -249,12 +249,12 @@ async def map_companies_to_ksic(request: MapCompaniesRequest):
 
 
 @app.post("/api/ksic/setup-all", response_model=APIResponse)
-async def setup_all(config: SetupConfig = Body(default_factory=SetupConfig)):
+async def setup_all(config: SetupConfig = Body(default=SetupConfig())):
     """
     KSIC 전체 셋업 (1, 2, 3 모두 실행)
+
+    빈 body로 요청 시 모든 단계를 기본 설정으로 실행합니다.
     """
-    # 422 에러 방지를 위해 인자 이름을 config로 통일하고, 
-    # 내부에서 사용하던 request 변수명을 모두 config로 변경했습니다.
     logger.info("KSIC 전체 셋업 시작")
     logger.info(f"설정: skip_import={config.skip_import}, skip_validation={config.skip_validation}, skip_mapping={config.skip_mapping}")
 
