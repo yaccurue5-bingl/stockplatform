@@ -49,6 +49,7 @@ def fetch_krx_stock_list():
         'Referer': 'http://data.krx.co.kr/contents/MDC/MDI/mdiLoader'
     })
 
+    # KONEX 제외, KOSPI와 KOSDAQ만 조회
     for market_code, market_name in [('STK', 'KOSPI'), ('KSQ', 'KOSDAQ')]:
         print(f"\n🔍 {market_name} 종목 조회 중...")
         otp_url = "http://data.krx.co.kr/comm/fileDn/GenerateOTP/generate.cmd"
@@ -97,9 +98,14 @@ def transform_to_db_format(stocks):
     companies = []
     for stock in stocks:
         try:
+            # KONEX 종목 제외
+            if stock.get('market') == 'KONEX':
+                print(f"   ⏭️  KONEX 종목 제외 - {stock['code']}: {stock['name']}")
+                continue
+
             companies.append({
                 'code': stock['code'],
-                'stock_code': stock['code'], 
+                'stock_code': stock['code'],
                 'corp_name': stock['name'],     # name_kr -> corp_name으로 수정 [cite: 2026-01-22]
                 'market': stock['market'],
                 'sector': stock.get('sector', '기타'), # industry 대신 sector 사용 [cite: 2026-01-22]

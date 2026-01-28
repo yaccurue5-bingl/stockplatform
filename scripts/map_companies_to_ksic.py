@@ -156,11 +156,14 @@ class CompanyKSICMapper:
             if unmapped_only:
                 query = query.is_('sector', 'null')
 
+            # KONEX 종목 제외
+            query = query.neq('market', 'KONEX')
+
             # 실행
             response = query.execute()
             companies = response.data or []
 
-            logger.info(f"조회 완료: {len(companies)}개 기업")
+            logger.info(f"조회 완료: {len(companies)}개 기업 (KONEX 제외)")
             return companies
 
         except Exception as e:
