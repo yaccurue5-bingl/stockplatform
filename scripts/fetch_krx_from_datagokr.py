@@ -208,6 +208,11 @@ def transform_to_db_format(stocks):
                 print(f"   ⚠️ 필수 값 누락 - stock_code: '{stock_code}', corp_name: '{corp_name}'")
                 continue
 
+            # KONEX 종목 제외
+            if market == 'KONEX':
+                print(f"   ⏭️  KONEX 종목 제외 - {stock_code}: {corp_name}")
+                continue
+
             # 업종 정보 가져오기 및 검증 (URL이면 '기타'로 처리)
             raw_sector = stock.get('sector', '기타')  # API에서 업종 필드 가져오기
             validated_sector = sanitize_sector(raw_sector, default='기타')
