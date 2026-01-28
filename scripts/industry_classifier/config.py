@@ -6,6 +6,7 @@ DART API 키, 파일 경로 등 설정 관리
 """
 
 import os
+import sys
 from pathlib import Path
 
 # 프로젝트 루트 디렉토리
@@ -13,8 +14,18 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 DATA_DIR = SCRIPTS_DIR / "data"
 
+# utils 디렉토리를 Python 경로에 추가
+sys.path.insert(0, str(PROJECT_ROOT))
+
+# .env.local 파일에서 환경변수 로드
+try:
+    from utils.env_loader import load_env
+    load_env()  # .env.local 파일 로드
+except ImportError:
+    print("⚠️  utils.env_loader를 찾을 수 없습니다. .env.local 로드를 건너뜁니다.")
+
 # DART 관련 설정
-DART_API_KEY = os.getenv("DART_API_KEY", "")  # 환경변수에서 읽기
+DART_API_KEY = os.getenv("DART_API_KEY", "")  # 환경변수에서 읽기 (.env.local 우선)
 DART_API_BASE_URL = "https://opendart.fss.or.kr/api"
 
 # DART 기업코드 관련
