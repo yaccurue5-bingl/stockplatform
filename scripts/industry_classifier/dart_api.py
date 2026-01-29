@@ -81,7 +81,8 @@ class DARTClient:
         response = requests.get(
             DART_CORP_CODE_URL,
             params=params,
-            timeout=DART_API_TIMEOUT
+            timeout=DART_API_TIMEOUT,
+            proxies=None
         )
         response.raise_for_status()
 
@@ -209,7 +210,7 @@ class DARTClient:
         }
 
         try:
-            response = requests.get(url, params=params, timeout=DART_API_TIMEOUT)
+            response = requests.get(url, params=params, timeout=DART_API_TIMEOUT, proxies=None)
             response.raise_for_status()
 
             data = response.json()
