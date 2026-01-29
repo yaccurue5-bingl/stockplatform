@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const type = requestUrl.searchParams.get('type');
   const error_code = requestUrl.searchParams.get('error');
   const error_description = requestUrl.searchParams.get('error_description');
+  const redirect_to = requestUrl.searchParams.get('redirect_to') || '/';
 
   // OAuth 에러가 있는 경우 (Google에서 거부 등)
   if (error_code) {
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(errorUrl);
     }
 
-    // 성공 - OAuth 로그인은 바로 대시보드로
+    // 성공 - 사용자 정보 로깅
     console.log('OAuth login successful for user:', data.user?.email);
 
     // 이메일 확인인 경우만 confirm 페이지로
@@ -74,8 +75,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/auth/confirm', request.url));
     }
 
-    // OAuth 로그인은 바로 대시보드로 (이미 Google에서 인증됨)
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    // ✅ OAuth 로그인 성공 시 원래 페이지로 리디렉션
+    console.log('Redirecting to:', redirect_to);
+    return NextResponse.redirect(new URL(redirect_to, request.url));
 
   } catch (error) {
     console.error('Unexpected error in auth callback:', error);
