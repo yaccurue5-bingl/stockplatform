@@ -65,11 +65,15 @@ except ImportError:
     print("Install: pip install supabase")
     sys.exit(1)
 
-# Supabase 접근을 위해 프록시 비활성화
-# Claude Code 환경의 프록시가 Supabase 접근을 차단하는 문제 해결
-import os
-for proxy_var in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'GLOBAL_AGENT_HTTP_PROXY']:
-    os.environ.pop(proxy_var, None)
+# Supabase 접근을 위해 프록시 우회 설정
+supabase_domains = ['supabase.co', '*.supabase.co']
+current_no_proxy = os.environ.get('no_proxy', '')
+if current_no_proxy:
+    os.environ['no_proxy'] = f"{current_no_proxy},{','.join(supabase_domains)}"
+    os.environ['NO_PROXY'] = f"{current_no_proxy},{','.join(supabase_domains)}"
+else:
+    os.environ['no_proxy'] = ','.join(supabase_domains)
+    os.environ['NO_PROXY'] = ','.join(supabase_domains)
 
 # Industry classifier 임포트
 from scripts.industry_classifier import IndustryClassifier
