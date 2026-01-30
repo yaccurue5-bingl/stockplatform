@@ -1,8 +1,12 @@
 {
   "mcpServers": {
     "supabase": {
-      "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase@latest"],
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@supabase/mcp-server-supabase@latest"],
       "env": {
         "SUPABASE_URL": "https://rxcwqsolfrjhomeusyza.supabase.co",
         "SUPABASE_SERVICE_ROLE_KEY": "***REMOVED***"
