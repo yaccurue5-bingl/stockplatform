@@ -138,7 +138,7 @@ class CompanyKSICMapper:
 
         Args:
             stock_codes: 특정 종목코드 리스트 (None이면 전체)
-            unmapped_only: True면 KSIC가 없는 기업만 조회
+            unmapped_only: True면 sector가 없거나 잘못된 기업만 조회
 
         Returns:
             기업 정보 딕셔너리 리스트
@@ -146,25 +146,55 @@ class CompanyKSICMapper:
         logger.info("기업 목록 조회 중...")
 
         try:
-            # 쿼리 빌드
+            # 1. 유효한 sector 목록 가져오기 (sectors 테이블에서)
+            valid_sectors = set()
+            if unmapped_only:
+                try:
+                    sectors_response = self.supabase.table('sectors').select('name').execute()
+                    valid_sectors = {s['name'] for s in (sectors_response.data or [])}
+                    logger.debug(f"유효한 sector {len(valid_sectors)}개 로드됨")
+                except Exception as e:
+                    logger.warning(f"sectors 테이블 조회 실패 (무시하고 계속): {e}")
+
+            # 2. 기업 목록 조회
             query = self.supabase.table('companies').select('code, corp_name, market, sector')
 
             # 조건 추가
             if stock_codes:
                 query = query.in_('code', stock_codes)
 
-            if unmapped_only:
-                query = query.is_('sector', 'null')
-
             # KONEX 종목 제외
             query = query.neq('market', 'KONEX')
 
             # 실행
             response = query.execute()
-            companies = response.data or []
+            all_companies = response.data or []
 
-            logger.info(f"조회 완료: {len(companies)}개 기업 (KONEX 제외)")
-            return companies
+            # 3. unmapped_only일 때 Python에서 필터링
+            if unmapped_only:
+                companies = []
+                for company in all_companies:
+                    sector = company.get('sector')
+
+                    # sector가 없거나 잘못된 값인지 판별
+                    # (process_batch의 is_invalid 로직과 동일)
+                    is_invalid = (
+                        not sector or  # None 또는 빈 문자열
+                        sector in ['미분류', '기타', 'null', 'NULL', 'None'] or  # 무효 키워드
+                        'http' in sector.lower() or  # URL
+                        any(m in sector.upper() for m in ['KOSPI', 'KOSDAQ', 'KONEX', '(']) or  # 시장명/괄호
+                        sector.isdigit() or  # 숫자만 (이전 KSIC 코드)
+                        (valid_sectors and sector not in valid_sectors)  # sectors 테이블에 없음
+                    )
+
+                    if is_invalid:
+                        companies.append(company)
+
+                logger.info(f"조회 완료: {len(companies)}개 기업 (전체 {len(all_companies)}개 중 매핑 필요)")
+                return companies
+            else:
+                logger.info(f"조회 완료: {len(all_companies)}개 기업 (KONEX 제외)")
+                return all_companies
 
         except Exception as e:
             logger.error(f"기업 목록 조회 중 오류: {e}")
@@ -293,24 +323,28 @@ class CompanyKSICMapper:
             existing_sector = str(company.get('sector', ''))
 
             # [데이터 유효성 판별 로직]
-            # sector는 이제 한글 상위 업종명이므로 유효성 검사 기준 변경
-            # 1. 값이 없거나
-            # 2. '미분류', '기타', 'null' 등 유효하지 않은 값이거나
-            # 3. URL주소나 시장 정보(KOSPI 등), 괄호가 포함된 경우
-            # 4. 숫자로만 구성된 경우 (이전 KSIC 코드 형식)
-            is_invalid = not existing_sector or \
-                         existing_sector in ['미분류', '기타', 'null', 'NULL', 'None'] or \
-                         'http' in existing_sector.lower() or \
-                         any(m in existing_sector.upper() for m in ['KOSPI', 'KOSDAQ', 'KONEX', '(']) or \
-                         existing_sector.isdigit()
+            # NOTE: get_companies에서 이미 unmapped_only 필터링을 수행했으므로
+            # 여기서는 unmapped_only=False일 때만 추가 검사를 수행합니다.
+            if not unmapped_only:
+                # sector는 한글 상위 업종명이므로 유효성 검사
+                # 1. 값이 없거나
+                # 2. '미분류', '기타', 'null' 등 유효하지 않은 값이거나
+                # 3. URL주소나 시장 정보(KOSPI 등), 괄호가 포함된 경우
+                # 4. 숫자로만 구성된 경우 (이전 KSIC 코드 형식)
+                is_invalid = (
+                    not existing_sector or
+                    existing_sector in ['미분류', '기타', 'null', 'NULL', 'None'] or
+                    'http' in existing_sector.lower() or
+                    any(m in existing_sector.upper() for m in ['KOSPI', 'KOSDAQ', 'KONEX', '(']) or
+                    existing_sector.isdigit()
+                )
 
-            # 정상적인 상위 업종명이 이미 있고, unmapped_only가 True라면 건너뜀
-            # 하지만 위에서 판별한 is_invalid가 True라면(잘못된 데이터면) 무조건 아래 매핑 로직으로 진행
-            if not is_invalid and unmapped_only:
-                logger.debug(f"건너뜀: {stock_code} (이미 정상 매핑됨: {existing_sector})")
-                self.stats['already_mapped'] += 1
-                self.stats['skipped'] += 1
-                continue
+                # 정상적인 sector 값이 이미 있으면 건너뜀
+                if not is_invalid:
+                    logger.debug(f"건너뜀: {stock_code} (이미 정상 매핑됨: {existing_sector})")
+                    self.stats['already_mapped'] += 1
+                    self.stats['skipped'] += 1
+                    continue
 
             # 매핑 수행
             self.stats['total'] += 1
