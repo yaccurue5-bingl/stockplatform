@@ -7,3 +7,7 @@ groq
 opendartreader
 python-dotenv
 beautifulsoup4
+openpyxl
+fastapi
+uvicorn[standard]
+pydantic

@@ -15,6 +15,8 @@ firebase-debug.*.log*
 /stock-platform-ui-new/build
 .env
 .env.local
+*.zip
+*.csv
 # 빌드 및 배포 관련 파일은 제외하지 않음 (이 경우 build 폴더를 추적해야 하므로)
 # /build 를 포함하지 않도록 주의합니다.
 
@@ -81,3 +83,52 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Pre-commit
+.pre-commit-config.yaml.backup
+
+# MCP config (contains secrets)
+.mcp.json

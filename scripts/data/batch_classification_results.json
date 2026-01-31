@@ -1,0 +1,101 @@
+[
+  {
+    "stock_code": "005930",
+    "corp_code": "00126380",
+    "corp_name": "삼성전자",
+    "ksic_code": "264",
+    "ksic_name": "",
+    "middle_class": "26",
+    "top_industry": "반도체와 반도체장비",
+    "success": true,
+    "error": null
+  },
+  {
+    "stock_code": "000660",
+    "corp_code": "00164779",
+    "corp_name": "SK하이닉스",
+    "ksic_code": "2612",
+    "ksic_name": "",
+    "middle_class": "26",
+    "top_industry": "반도체와 반도체장비",
+    "success": true,
+    "error": null
+  },
+  {
+    "stock_code": "035420",
+    "corp_code": "00266961",
+    "corp_name": "NAVER",
+    "ksic_code": "63120",
+    "ksic_name": "",
+    "middle_class": "63",
+    "top_industry": "정보서비스",
+    "success": true,
+    "error": null
+  },
+  {
+    "stock_code": "005380",
+    "corp_code": "00164742",
+    "corp_name": "현대자동차",
+    "ksic_code": "30121",
+    "ksic_name": "",
+    "middle_class": "30",
+    "top_industry": "방산·항공",
+    "success": true,
+    "error": null
+  },
+  {
+    "stock_code": "051910",
+    "corp_code": "00356361",
+    "corp_name": "LG화학",
+    "ksic_code": "20111",
+    "ksic_name": "",
+    "middle_class": "20",
+    "top_industry": "화학",
+    "success": true,
+    "error": null
+  },
+  {
+    "stock_code": "006400",
+    "corp_code": "00126362",
+    "corp_name": "삼성SDI",
+    "ksic_code": "28202",
+    "ksic_name": "",
+    "middle_class": "28",
+    "top_industry": "전기장비",
+    "success": true,
+    "error": null
+  },
+  {
+    "stock_code": "035720",
+    "corp_code": "00258801",
+    "corp_name": "카카오",
+    "ksic_code": "63120",
+    "ksic_name": "",
+    "middle_class": "63",
+    "top_industry": "정보서비스",
+    "success": true,
+    "error": null
+  },
+  {
+    "stock_code": "000270",
+    "corp_code": "00106641",
+    "corp_name": "기아",
+    "ksic_code": "30121",
+    "ksic_name": "",
+    "middle_class": "30",
+    "top_industry": "방산·항공",
+    "success": true,
+    "error": null
+  },
+  {
+    "stock_code": "068270",
+    "corp_code": "00413046",
+    "corp_name": "셀트리온",
+    "ksic_code": "211",
+    "ksic_name": "",
+    "middle_class": "21",
+    "top_industry": "바이오·제약",
+    "success": true,
+    "error": null
+  }
+]
