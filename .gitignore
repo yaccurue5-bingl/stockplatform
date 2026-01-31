@@ -129,3 +129,6 @@ ipython_config.py
 
 # Pre-commit
 .pre-commit-config.yaml.backup
+
+# MCP config (contains secrets)
+.mcp.json
