@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn, signInWithGoogle } from '@/lib/supabase/client';
@@ -15,6 +15,24 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // ✅ 뒤로가기로 돌아왔을 때 버튼 상태 초기화 (bfcache 대응)
+  useEffect(() => {
+    // 페이지가 bfcache에서 복원될 때 loading 상태 초기화
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        // bfcache에서 복원된 경우
+        setLoading(false);
+        setErrorMessage('');
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, []);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +54,8 @@ function LoginForm() {
     setErrorMessage('');
 
     try {
-      await signInWithGoogle();
+      // ✅ redirectTo를 전달하여 로그인 후 원래 페이지로 복귀
+      await signInWithGoogle(redirectTo);
       // OAuth는 자동으로 리다이렉트됨
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Login failed');
