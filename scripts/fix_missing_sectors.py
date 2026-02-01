@@ -90,15 +90,12 @@ def classify_stock(stock_code: str):
         }
 
 
-def update_sector(supabase, stock_code: str, sector: str, ksic_code: str = None):
+def update_sector(supabase, stock_code: str, sector: str):
     """Supabase에 sector 업데이트"""
     update_data = {
         'sector': sector,
         'updated_at': datetime.now().isoformat()
     }
-
-    if ksic_code:
-        update_data['ksic_code'] = ksic_code
 
     response = supabase.table("companies").update(update_data).eq("stock_code", stock_code).execute()
     return response
@@ -161,14 +158,13 @@ def main():
 
         if result['success']:
             new_sector = result['sector']
-            ksic_code = result.get('ksic_code')
 
             if new_sector and new_sector != '기타':
                 print(f"→ {new_sector}")
 
                 if not args.dry_run:
                     try:
-                        update_sector(supabase, stock_code, new_sector, ksic_code)
+                        update_sector(supabase, stock_code, new_sector)
                         success_count += 1
                         results.append({
                             'stock_code': stock_code,
