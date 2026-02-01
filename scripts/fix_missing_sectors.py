@@ -64,6 +64,49 @@ def get_missing_sector_stocks(supabase, limit=None):
     return stocks
 
 
+def is_preferred_stock(corp_name: str) -> bool:
+    """우선주 여부 확인"""
+    if not corp_name:
+        return False
+    # 우선주 접미사 패턴: 우, 우B, 우C, 1우, 2우, 3우 등
+    preferred_suffixes = ['우', '우B', '우C', '우D', '1우', '2우', '3우', '1우B', '2우B']
+    for suffix in preferred_suffixes:
+        if corp_name.endswith(suffix):
+            return True
+    return False
+
+
+def get_base_stock_name(corp_name: str) -> str:
+    """우선주에서 원본 종목명 추출 (예: 삼성전자우 → 삼성전자)"""
+    if not corp_name:
+        return corp_name
+
+    # 우선주 접미사 제거 (긴 것부터 확인)
+    preferred_suffixes = ['1우B', '2우B', '우B', '우C', '우D', '1우', '2우', '3우', '우']
+    for suffix in preferred_suffixes:
+        if corp_name.endswith(suffix):
+            return corp_name[:-len(suffix)]
+    return corp_name
+
+
+def find_base_stock_sector(supabase, corp_name: str) -> str:
+    """원본 종목(보통주)의 sector 조회"""
+    base_name = get_base_stock_name(corp_name)
+
+    if base_name == corp_name:
+        return None
+
+    # 원본 종목명으로 검색
+    response = supabase.table("companies").select("corp_name, sector").eq("corp_name", base_name).execute()
+
+    if response.data and len(response.data) > 0:
+        sector = response.data[0].get('sector')
+        if sector and sector != '기타':
+            return sector
+
+    return None
+
+
 def classify_stock(stock_code: str):
     """DART API를 통해 종목의 sector 분류"""
     try:
@@ -189,8 +232,41 @@ def main():
                 print(f"→ 여전히 '기타' (SKIP)")
                 skip_count += 1
         else:
-            print(f"→ 실패: {result.get('error', 'Unknown')}")
-            fail_count += 1
+            # DART API 실패 시 우선주 매칭 시도
+            if is_preferred_stock(corp_name):
+                base_sector = find_base_stock_sector(supabase, corp_name)
+                if base_sector:
+                    print(f"→ {base_sector} (우선주 매칭: {get_base_stock_name(corp_name)})")
+
+                    if not args.dry_run:
+                        try:
+                            update_sector(supabase, stock_code, base_sector)
+                            success_count += 1
+                            results.append({
+                                'stock_code': stock_code,
+                                'corp_name': corp_name,
+                                'old_sector': old_sector,
+                                'new_sector': base_sector,
+                                'status': 'updated (우선주)'
+                            })
+                        except Exception as e:
+                            print(f"    ⚠️  DB 업데이트 실패: {e}")
+                            fail_count += 1
+                    else:
+                        success_count += 1
+                        results.append({
+                            'stock_code': stock_code,
+                            'corp_name': corp_name,
+                            'old_sector': old_sector,
+                            'new_sector': base_sector,
+                            'status': 'would_update (우선주)'
+                        })
+                else:
+                    print(f"→ 실패: 원본 종목({get_base_stock_name(corp_name)}) sector 없음")
+                    fail_count += 1
+            else:
+                print(f"→ 실패: {result.get('error', 'Unknown')}")
+                fail_count += 1
 
         # API Rate Limit 방지
         time.sleep(args.delay)
