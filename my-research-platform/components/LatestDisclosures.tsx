@@ -31,7 +31,8 @@ export default function LatestDisclosures() {
       const response = await fetch('/api/disclosures/latest');
       if (response.ok) {
         const data = await response.json();
-        setDisclosures(data.slice(0, 4)); // 최대 4개만 표시
+        // 최대 4개만 표시하여 메인 대시보드의 간결함 유지
+        setDisclosures(data.slice(0, 4));
       }
     } catch (error) {
       console.error('Failed to fetch disclosures:', error);
@@ -51,58 +52,42 @@ export default function LatestDisclosures() {
 
   const getImpactColor = (importance: string) => {
     switch (importance) {
-      case 'HIGH':
-        return 'bg-red-900 bg-opacity-30 text-red-400';
-      case 'MEDIUM':
-        return 'bg-orange-900 bg-opacity-30 text-orange-400';
-      default:
-        return 'bg-blue-900 bg-opacity-30 text-blue-400';
+      case 'HIGH': return 'bg-red-900 bg-opacity-30 text-red-400';
+      case 'MEDIUM': return 'bg-orange-900 bg-opacity-30 text-orange-400';
+      default: return 'bg-blue-900 bg-opacity-30 text-blue-400';
     }
   };
 
   const getImpactLabel = (importance: string) => {
     switch (importance) {
-      case 'HIGH':
-        return 'High Impact';
-      case 'MEDIUM':
-        return 'Medium Impact';
-      default:
-        return 'Low Impact';
+      case 'HIGH': return 'High Impact';
+      case 'MEDIUM': return 'Medium Impact';
+      default: return 'Low Impact';
     }
   };
 
   const getSentimentColor = (sentiment: string) => {
     switch (sentiment) {
-      case 'POSITIVE':
-        return 'bg-green-900 bg-opacity-30 text-green-400';
-      case 'NEGATIVE':
-        return 'bg-red-900 bg-opacity-30 text-red-400';
-      default:
-        return 'bg-blue-900 bg-opacity-30 text-blue-400';
+      case 'POSITIVE': return 'bg-green-900 bg-opacity-30 text-green-400';
+      case 'NEGATIVE': return 'bg-red-900 bg-opacity-30 text-red-400';
+      default: return 'bg-blue-900 bg-opacity-30 text-blue-400';
     }
   };
 
   const getTimeAgo = (date: string | null | undefined) => {
     if (!date) return 'Recently';
-
     try {
       const now = new Date();
       const analyzed = new Date(date);
-
-      // Invalid date 체크
       if (isNaN(analyzed.getTime())) return 'Recently';
-
       const diffMs = now.getTime() - analyzed.getTime();
       const diffMins = Math.floor(diffMs / 60000);
-
       if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-
+      if (diffMins < 60) return `${diffMins}m ago`;
       const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-
+      if (diffHours < 24) return `${diffHours}h ago`;
       const diffDays = Math.floor(diffHours / 24);
-      return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+      return `${diffDays}d ago`;
     } catch (error) {
       return 'Recently';
     }
@@ -112,60 +97,25 @@ export default function LatestDisclosures() {
     if (stockCode && stockCode !== 'null' && stockCode !== '') {
       router.push(`/stock/${stockCode}`);
     } else {
-      // 종목코드가 없는 공시는 dashboard로 보내서 상세보기
       router.push(`/dashboard?id=${disclosureId}`);
     }
   };
 
   if (loading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-5 animate-pulse">
-            <div className="h-20 bg-gray-800 rounded"></div>
-          </div>
+          <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 animate-pulse h-40"></div>
         ))}
       </div>
     );
   }
 
-  if (disclosures.length === 0) {
-    return (
-      <div className="space-y-3">
-        {/* Fallback to demo data */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer" onClick={() => router.push('/signup')}>
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center font-bold">SS</div>
-              <div>
-                <h4 className="font-semibold text-lg">Samsung Electronics</h4>
-                <p className="text-sm text-gray-400">005930 • KOSPI</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-gray-500 mb-1">2 minutes ago</div>
-              <span className="inline-block bg-red-900 bg-opacity-30 text-red-400 text-xs px-3 py-1 rounded-full font-medium">High Impact</span>
-            </div>
-          </div>
-          <h5 className="font-medium mb-2">Q4 2024 Earnings Report - Revenue Exceeds Expectations</h5>
-          <p className="text-sm text-gray-400 mb-3">Samsung Electronics reported Q4 revenue of 67.4 trillion KRW, up 11.2% YoY, driven by strong semiconductor and mobile divisions...</p>
-          <div className="flex items-center justify-between">
-            <div className="flex space-x-2">
-              <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">Financial Results</span>
-            </div>
-            <div className="flex items-center space-x-4 text-sm">
-              <span className="text-blue-500">Read Full Analysis →</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col space-y-4">
+      <div className="grid grid-cols-1 gap-4">
         {disclosures.map((disclosure) => {
-          // 1. 핵심 키워드(30% 변동 등) 감지 로직
+          // 중요 공시 키워드 감지 (예: 매출액 30% 변동 등)
           const isCritical = disclosure.report_name?.includes('30%') || disclosure.importance === 'HIGH';
           
           return (
@@ -205,7 +155,7 @@ export default function LatestDisclosures() {
                 </div>
               </div>
 
-              {/* 중단: 공시 제목 (isCritical일 때 폰트 강조) */}
+              {/* 중단: 공시 제목 */}
               <h5 className={`font-bold mb-2 text-slate-100 transition-colors group-hover:text-white ${isCritical ? 'text-lg leading-tight' : 'text-base'}`}>
                 {disclosure.report_name || 'Disclosure Report'}
               </h5>
@@ -214,14 +164,13 @@ export default function LatestDisclosures() {
                 {disclosure.summary || 'Summary not available.'}
               </p>
 
-              {/* 하단: 감성 분석 결과 및 액션 */}
+              {/* 하단: 감성 분석 및 스코어 */}
               <div className="flex items-center justify-between pt-4 border-t border-slate-800/50">
                 <div className="flex items-center gap-2">
                   <span className={`text-[10px] px-2.5 py-1 rounded-md font-bold shadow-sm ${getSentimentColor(disclosure.sentiment || 'NEUTRAL')}`}>
                     {disclosure.sentiment || 'NEUTRAL'}
                   </span>
                   <span className="bg-slate-800 text-slate-400 text-[10px] px-2.5 py-1 rounded-md font-bold border border-slate-700">
-                    {/* Score가 0일 때의 어색함 해결 */}
                     {disclosure.sentiment_score === 0 ? 'NEUTRAL ANALYSIS' : `SCORE: ${(disclosure.sentiment_score || 0).toFixed(2)}`}
                   </span>
                 </div>
@@ -232,4 +181,18 @@ export default function LatestDisclosures() {
             </div>
           );
         })}
-      </div>)}
+      </div>
+
+      {/* View All Disclosures 버튼 복구 */}
+      <div className="mt-6 text-center">
+        <Link 
+          href="/dashboard" 
+          className="inline-flex items-center gap-2 px-8 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-sm font-bold transition-all border border-slate-700 hover:border-slate-500 group"
+        >
+          View All Disclosures
+          <span className="group-hover:translate-x-1 transition-transform text-lg">→</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
