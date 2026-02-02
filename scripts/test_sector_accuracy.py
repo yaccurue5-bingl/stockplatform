@@ -62,12 +62,35 @@ def main():
 
     # DART API로 KSIC 코드 조회
     import requests
+    import zipfile
+    import io
+    import xml.etree.ElementTree as ET
     DART_API_KEY = os.getenv("DART_API_KEY")
+
+    # DART corp_code 매핑 로드
+    print("DART 기업코드 로딩 중...")
+    corp_code_map = {}  # stock_code -> corp_code
+    try:
+        url = "https://opendart.fss.or.kr/api/corpCode.xml"
+        resp = requests.get(url, params={"crtfc_key": DART_API_KEY}, timeout=30)
+        if resp.status_code == 200:
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+                with z.open("CORPCODE.xml") as f:
+                    tree = ET.parse(f)
+                    for corp in tree.getroot().findall("list"):
+                        stock_code = corp.findtext("stock_code", "").strip()
+                        corp_code = corp.findtext("corp_code", "").strip()
+                        if stock_code:
+                            corp_code_map[stock_code] = corp_code
+            print(f"  → {len(corp_code_map)}개 기업 로드 완료")
+    except Exception as e:
+        print(f"  → DART 로드 실패: {e}")
+    print()
 
     for stock_code, expected_name in test_stocks:
         # 1. companies 테이블에서 현재 sector 조회
         company = supabase.table("companies").select(
-            "corp_name, sector, corp_code"
+            "corp_name, sector"
         ).eq("stock_code", stock_code).execute()
 
         if not company.data:
@@ -76,10 +99,10 @@ def main():
 
         corp_name = company.data[0].get("corp_name", "")
         db_sector = company.data[0].get("sector") or "없음"
-        corp_code = company.data[0].get("corp_code", "")
 
         # 2. DART API로 KSIC 코드 조회
         ksic_code = ""
+        corp_code = corp_code_map.get(stock_code, "")
         if corp_code and DART_API_KEY:
             try:
                 url = "https://opendart.fss.or.kr/api/company.json"
