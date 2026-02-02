@@ -163,54 +163,73 @@ export default function LatestDisclosures() {
   }
 
   return (
-    <div className="space-y-3">
-      {disclosures.map((disclosure) => (
-        <div
-          key={disclosure.id}
-          className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer"
-          onClick={() => handleCardClick(disclosure.stock_code, disclosure.id)}
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center font-bold">
-                {getCompanyInitials(disclosure.corp_name)}
+    <div className="space-y-4">
+        {disclosures.map((disclosure) => {
+          // 1. 핵심 키워드(30% 변동 등) 감지 로직
+          const isCritical = disclosure.report_name?.includes('30%') || disclosure.importance === 'HIGH';
+          
+          return (
+            <div
+              key={disclosure.id}
+              onClick={() => handleCardClick(disclosure.stock_code, disclosure.id)}
+              className={`group relative bg-slate-900 border transition-all duration-300 cursor-pointer rounded-2xl p-6 
+                ${isCritical 
+                  ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)] hover:border-orange-500' 
+                  : 'border-slate-800 hover:border-blue-500 hover:bg-slate-800/50'
+                }`}
+            >
+              {/* 상단: 회사 정보 및 시간 */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center space-x-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold shadow-inner transition-colors
+                    ${isCritical ? 'bg-orange-600 text-white' : 'bg-blue-700 text-white group-hover:bg-blue-600'}`}>
+                    {getCompanyInitials(disclosure.corp_name)}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-lg group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                      {disclosure.corp_name}
+                      {isCritical && <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />}
+                    </h4>
+                    <p className="text-xs text-slate-500 font-medium tracking-wide">
+                      {disclosure.stock_code} • {disclosure.market}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-500 font-bold mb-2 uppercase tracking-tighter">
+                    {getTimeAgo(disclosure.analyzed_at)}
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm ${getImpactColor(disclosure.importance || 'MEDIUM')}`}>
+                    {getImpactLabel(disclosure.importance || 'MEDIUM')}
+                  </span>
+                </div>
               </div>
-              <div>
-                <h4 className="font-semibold text-lg">{disclosure.corp_name || 'Unknown'}</h4>
-                <p className="text-sm text-gray-400">
-                  {disclosure.stock_code || '000000'} • {disclosure.market || 'KOSPI'}
-                </p>
+
+              {/* 중단: 공시 제목 (isCritical일 때 폰트 강조) */}
+              <h5 className={`font-bold mb-2 text-slate-100 transition-colors group-hover:text-white ${isCritical ? 'text-lg leading-tight' : 'text-base'}`}>
+                {disclosure.report_name || 'Disclosure Report'}
+              </h5>
+              
+              <p className="text-sm text-slate-400 leading-relaxed mb-5 line-clamp-2 group-hover:text-slate-300">
+                {disclosure.summary || 'Summary not available.'}
+              </p>
+
+              {/* 하단: 감성 분석 결과 및 액션 */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-800/50">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] px-2.5 py-1 rounded-md font-bold shadow-sm ${getSentimentColor(disclosure.sentiment || 'NEUTRAL')}`}>
+                    {disclosure.sentiment || 'NEUTRAL'}
+                  </span>
+                  <span className="bg-slate-800 text-slate-400 text-[10px] px-2.5 py-1 rounded-md font-bold border border-slate-700">
+                    {/* Score가 0일 때의 어색함 해결 */}
+                    {disclosure.sentiment_score === 0 ? 'NEUTRAL ANALYSIS' : `SCORE: ${(disclosure.sentiment_score || 0).toFixed(2)}`}
+                  </span>
+                </div>
+                <div className="text-blue-500 text-xs font-black flex items-center group-hover:translate-x-1 transition-transform uppercase tracking-widest">
+                  View Analysis <span className="ml-1.5 text-lg">→</span>
+                </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-xs text-gray-500 mb-1">{getTimeAgo(disclosure.analyzed_at)}</div>
-              <span className={`inline-block text-xs px-3 py-1 rounded-full font-medium ${getImpactColor(disclosure.importance || 'MEDIUM')}`}>
-                {getImpactLabel(disclosure.importance || 'MEDIUM')}
-              </span>
-            </div>
-          </div>
-          <h5 className="font-medium mb-2">{disclosure.report_name || 'Disclosure Report'}</h5>
-          <p className="text-sm text-gray-400 mb-3">
-            {(disclosure.summary || '').substring(0, 150)}
-            {(disclosure.summary || '').length > 150 ? '...' : ''}
-          </p>
-          <div className="flex items-center justify-between">
-            <div className="flex space-x-2">
-              <span className={`text-xs px-3 py-1 rounded-full ${getSentimentColor(disclosure.sentiment || 'NEUTRAL')}`}>
-                {disclosure.sentiment || 'NEUTRAL'}
-              </span>
-              <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">
-                Score: {(disclosure.sentiment_score || 0).toFixed(2)}
-              </span>
-            </div>
-            <div className="flex items-center space-x-4 text-sm">
-              <span className="text-blue-500 hover:text-blue-400 transition">
-                Read Full Analysis →
-              </span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+          );
+        })}
+      </div>)}
