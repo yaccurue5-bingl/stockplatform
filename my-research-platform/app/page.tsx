@@ -151,7 +151,7 @@ export default function LandingPage() {
 
             {/* View More */}
             <div className="text-center mt-8">
-              <Link href="/signup" className="inline-block bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-600 rounded-lg px-8 py-3 text-sm font-medium transition">
+              <Link href="/disclosures" className="inline-block bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-600 rounded-lg px-8 py-3 text-sm font-medium transition">
                 View All Disclosures →
               </Link>
             </div>
