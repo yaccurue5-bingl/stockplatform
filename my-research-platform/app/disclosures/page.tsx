@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 interface Disclosure {
   id: string;
@@ -15,6 +14,10 @@ interface Disclosure {
   sentiment_score: number;
   importance: string;
   analyzed_at: string;
+  detailed_analysis?: string;
+  investment_implications?: string;
+  risk_factors?: string[];
+  key_metrics?: string[];
 }
 
 interface GroupedStock {
@@ -27,9 +30,9 @@ interface GroupedStock {
 }
 
 export default function DisclosuresPage() {
-  const router = useRouter();
   const [groupedStocks, setGroupedStocks] = useState<GroupedStock[]>([]);
   const [selectedStock, setSelectedStock] = useState<GroupedStock | null>(null);
+  const [selectedDisclosure, setSelectedDisclosure] = useState<Disclosure | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -80,7 +83,7 @@ export default function DisclosuresPage() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const getImpactColor = (importance: string, hasHigh: boolean) => {
+  const getImpactColor = (importance: string, hasHigh: boolean = false) => {
     if (hasHigh) return 'bg-red-900/30 text-red-400';
     switch (importance) {
       case 'HIGH': return 'bg-red-900/30 text-red-400';
@@ -116,37 +119,105 @@ export default function DisclosuresPage() {
     }
   };
 
-  // 개별 공시 상세 모달
-  if (selectedStock) {
+  // 개별 공시 상세 보기
+  if (selectedDisclosure && selectedStock) {
     return (
       <div className="bg-gray-950 text-white font-sans min-h-screen">
-        {/* Header */}
         <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setSelectedStock(null)}
-                className="text-gray-400 hover:text-white transition"
-              >
-                ← Back
-              </button>
-              <div className="flex items-center space-x-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${selectedStock.hasHighImpact ? 'bg-orange-600' : 'bg-blue-600'}`}>
-                  {getCompanyInitials(selectedStock.corp_name)}
-                </div>
-                <div>
-                  <span className="text-xl font-bold">{selectedStock.corp_name}</span>
-                  <span className="text-gray-400 ml-2">{selectedStock.stock_code}</span>
-                </div>
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
+            <button
+              onClick={() => setSelectedDisclosure(null)}
+              className="text-gray-400 hover:text-white transition mr-4"
+            >
+              ← Back
+            </button>
+            <div className="flex items-center space-x-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${selectedStock.hasHighImpact ? 'bg-orange-600' : 'bg-blue-600'}`}>
+                {getCompanyInitials(selectedStock.corp_name)}
+              </div>
+              <div>
+                <span className="text-lg font-bold">{selectedStock.corp_name}</span>
+                <span className="text-gray-400 ml-2 text-sm">{selectedStock.stock_code}</span>
               </div>
             </div>
-            <Link href={`/stock/${selectedStock.stock_code}`} className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
-              View Stock Details →
-            </Link>
           </div>
         </header>
 
-        {/* Disclosures List */}
+        <main className="max-w-4xl mx-auto px-4 py-8">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className={`text-xs px-2 py-1 rounded ${getImpactColor(selectedDisclosure.importance, false)}`}>
+                {selectedDisclosure.importance || 'MEDIUM'} IMPACT
+              </span>
+              <span className={`text-xs px-2 py-1 rounded ${getSentimentColor(selectedDisclosure.sentiment)}`}>
+                {selectedDisclosure.sentiment || 'NEUTRAL'}
+              </span>
+              <span className="text-xs text-gray-500">{getTimeAgo(selectedDisclosure.analyzed_at)}</span>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-2xl font-bold mb-6">{selectedDisclosure.report_name}</h1>
+
+            {/* Summary */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-gray-400 uppercase mb-2">Summary</h3>
+              <p className="text-gray-300 leading-relaxed">{selectedDisclosure.summary}</p>
+            </div>
+
+            {/* Detailed Analysis */}
+            {selectedDisclosure.detailed_analysis && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase mb-2">Detailed Analysis</h3>
+                <p className="text-gray-300 leading-relaxed">{selectedDisclosure.detailed_analysis}</p>
+              </div>
+            )}
+
+            {/* Investment Implications */}
+            {selectedDisclosure.investment_implications && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-400 uppercase mb-2">Investment Implications</h3>
+                <p className="text-gray-300 leading-relaxed">{selectedDisclosure.investment_implications}</p>
+              </div>
+            )}
+
+            {/* Sentiment Score */}
+            <div className="pt-4 border-t border-gray-800">
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-400">Sentiment Score:</span>
+                <span className="text-lg font-bold">{(selectedDisclosure.sentiment_score || 0).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // 종목별 공시 목록
+  if (selectedStock) {
+    return (
+      <div className="bg-gray-950 text-white font-sans min-h-screen">
+        <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
+            <button
+              onClick={() => setSelectedStock(null)}
+              className="text-gray-400 hover:text-white transition mr-4"
+            >
+              ← Back
+            </button>
+            <div className="flex items-center space-x-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${selectedStock.hasHighImpact ? 'bg-orange-600' : 'bg-blue-600'}`}>
+                {getCompanyInitials(selectedStock.corp_name)}
+              </div>
+              <div>
+                <span className="text-xl font-bold">{selectedStock.corp_name}</span>
+                <span className="text-gray-400 ml-2">{selectedStock.stock_code}</span>
+              </div>
+            </div>
+          </div>
+        </header>
+
         <main className="max-w-7xl mx-auto px-4 py-8">
           <div className="mb-6">
             <h1 className="text-2xl font-bold mb-2">{selectedStock.corp_name} Disclosures</h1>
@@ -157,7 +228,8 @@ export default function DisclosuresPage() {
             {selectedStock.disclosures.map((disclosure) => (
               <div
                 key={disclosure.id}
-                className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition"
+                onClick={() => setSelectedDisclosure(disclosure)}
+                className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
@@ -171,7 +243,7 @@ export default function DisclosuresPage() {
                   </div>
                 </div>
 
-                <p className="text-sm text-gray-400 mb-4">
+                <p className="text-sm text-gray-400 mb-4 line-clamp-2">
                   {disclosure.summary || 'No summary available'}
                 </p>
 
@@ -184,6 +256,7 @@ export default function DisclosuresPage() {
                       Score: {(disclosure.sentiment_score || 0).toFixed(2)}
                     </span>
                   </div>
+                  <span className="text-blue-500 text-sm">View Details →</span>
                 </div>
               </div>
             ))}
@@ -193,9 +266,9 @@ export default function DisclosuresPage() {
     );
   }
 
+  // 메인 목록
   return (
     <div className="bg-gray-950 text-white font-sans min-h-screen">
-      {/* Header */}
       <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-3">
@@ -210,7 +283,6 @@ export default function DisclosuresPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">All Disclosures</h1>
