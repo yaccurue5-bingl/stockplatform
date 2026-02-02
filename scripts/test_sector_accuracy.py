@@ -57,13 +57,17 @@ def main():
     print("=" * 100)
     print()
 
-    print(f"{'종목코드':<10} {'종목명':<15} {'DB sector':<20} {'ksic_codes':<20} {'rule_table':<20} {'KSIC코드':<10}")
-    print("-" * 100)
+    print(f"{'종목코드':<10} {'종목명':<15} {'DB sector':<20} {'DART KSIC':<12} {'rule_table 결과':<20}")
+    print("-" * 90)
+
+    # DART API로 KSIC 코드 조회
+    import requests
+    DART_API_KEY = os.getenv("DART_API_KEY")
 
     for stock_code, expected_name in test_stocks:
         # 1. companies 테이블에서 현재 sector 조회
         company = supabase.table("companies").select(
-            "corp_name, sector, ksic_code"
+            "corp_name, sector, corp_code"
         ).eq("stock_code", stock_code).execute()
 
         if not company.data:
@@ -71,31 +75,38 @@ def main():
             continue
 
         corp_name = company.data[0].get("corp_name", "")
-        db_sector = company.data[0].get("sector", "없음")
-        ksic_code = company.data[0].get("ksic_code", "")
+        db_sector = company.data[0].get("sector") or "없음"
+        corp_code = company.data[0].get("corp_code", "")
 
-        # 2. ksic_codes 테이블에서 매핑 조회
-        ksic_sector = "없음"
-        if ksic_code:
-            ksic_result = supabase.table("ksic_codes").select(
-                "top_industry"
-            ).eq("ksic_code", ksic_code[:2]).execute()  # 중분류로 조회
-
-            if ksic_result.data:
-                ksic_sector = ksic_result.data[0].get("top_industry", "없음")
+        # 2. DART API로 KSIC 코드 조회
+        ksic_code = ""
+        if corp_code and DART_API_KEY:
+            try:
+                url = "https://opendart.fss.or.kr/api/company.json"
+                params = {"crtfc_key": DART_API_KEY, "corp_code": corp_code}
+                resp = requests.get(url, params=params, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("status") == "000":
+                        ksic_code = data.get("induty_code", "")
+            except Exception as e:
+                pass
 
         # 3. rule_table.py로 매핑
-        rule_sector = get_top_industry(ksic_code) if ksic_code else "없음"
+        rule_sector = get_top_industry(ksic_code) if ksic_code else "미조회"
 
         # 결과 출력
-        print(f"{stock_code:<10} {corp_name:<15} {db_sector:<20} {ksic_sector:<20} {rule_sector:<20} {ksic_code or '없음':<10}")
+        match_icon = "✅" if db_sector == rule_sector else "❌"
+        print(f"{stock_code:<10} {corp_name:<15} {db_sector:<20} {ksic_code or '없음':<12} {rule_sector:<20} {match_icon}")
 
     print()
     print("=" * 100)
     print("분석:")
     print("- DB sector: 현재 companies 테이블에 저장된 값")
-    print("- ksic_codes: DB의 ksic_codes 테이블 기반 매핑")
-    print("- rule_table: Python rule_table.py 기반 매핑 (5자리→4자리→2자리 순서)")
+    print("- DART KSIC: DART API에서 조회한 induty_code")
+    print("- rule_table 결과: Python rule_table.py 기반 매핑 (5자리→4자리→2자리 순서)")
+    print("- ✅: DB와 rule_table 결과 일치")
+    print("- ❌: DB와 rule_table 결과 불일치 (수정 필요)")
     print("=" * 100)
 
 if __name__ == "__main__":
