@@ -31,7 +31,6 @@ export default function LatestDisclosures() {
       const response = await fetch('/api/disclosures/latest');
       if (response.ok) {
         const data = await response.json();
-        // 최대 4개만 표시하여 메인 대시보드의 간결함 유지
         setDisclosures(data.slice(0, 4));
       }
     } catch (error) {
@@ -43,154 +42,105 @@ export default function LatestDisclosures() {
 
   const getCompanyInitials = (name: string) => {
     if (!name) return '??';
-    const words = name.split(' ');
-    if (words.length >= 2) {
-      return (words[0]?.[0] || '') + (words[1]?.[0] || '');
-    }
-    return (name || '').substring(0, 2).toUpperCase() || '??';
+    return name.substring(0, 2).toUpperCase();
   };
 
   const getImpactColor = (importance: string) => {
     switch (importance) {
-      case 'HIGH': return 'bg-red-900 bg-opacity-30 text-red-400';
-      case 'MEDIUM': return 'bg-orange-900 bg-opacity-30 text-orange-400';
-      default: return 'bg-blue-900 bg-opacity-30 text-blue-400';
-    }
-  };
-
-  const getImpactLabel = (importance: string) => {
-    switch (importance) {
-      case 'HIGH': return 'High Impact';
-      case 'MEDIUM': return 'Medium Impact';
-      default: return 'Low Impact';
+      case 'HIGH': return 'bg-red-900/30 text-red-400';
+      case 'MEDIUM': return 'bg-orange-900/30 text-orange-400';
+      default: return 'bg-blue-900/30 text-blue-400';
     }
   };
 
   const getSentimentColor = (sentiment: string) => {
-    switch (sentiment) {
-      case 'POSITIVE': return 'bg-green-900 bg-opacity-30 text-green-400';
-      case 'NEGATIVE': return 'bg-red-900 bg-opacity-30 text-red-400';
-      default: return 'bg-blue-900 bg-opacity-30 text-blue-400';
+    switch (sentiment?.toUpperCase()) {
+      case 'POSITIVE': return 'bg-emerald-900/30 text-emerald-400';
+      case 'NEGATIVE': return 'bg-rose-900/30 text-rose-400';
+      default: return 'bg-slate-800 text-slate-400';
     }
   };
 
-  const getTimeAgo = (date: string | null | undefined) => {
+  const getTimeAgo = (date: string) => {
     if (!date) return 'Recently';
-    try {
-      const now = new Date();
-      const analyzed = new Date(date);
-      if (isNaN(analyzed.getTime())) return 'Recently';
-      const diffMs = now.getTime() - analyzed.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24) return `${diffHours}h ago`;
-      const diffDays = Math.floor(diffHours / 24);
-      return `${diffDays}d ago`;
-    } catch (error) {
-      return 'Recently';
-    }
+    return 'Recently'; 
   };
 
-  const handleCardClick = (stockCode: string, disclosureId: string) => {
+  // ✅ 클릭 시 이동 경로 수정: 대시보드가 아닌 종목 상세 페이지로 이동
+  const handleCardClick = (stockCode: string) => {
     if (stockCode && stockCode !== 'null' && stockCode !== '') {
-      router.push(`/stock/${stockCode}`);
-    } else {
-      router.push(`/dashboard?id=${disclosureId}`);
+      router.push(`/stock/${stockCode}`); 
     }
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 animate-pulse h-40"></div>
-        ))}
-      </div>
-    );
-  }
+  if (loading) return <div className="p-4 text-white">Loading...</div>;
 
   return (
     <div className="flex flex-col space-y-4">
       <div className="grid grid-cols-1 gap-4">
         {disclosures.map((disclosure) => {
-          // 중요 공시 키워드 감지 (예: 매출액 30% 변동 등)
+          // ✅ 루닛 30% 변동 등 중요 공시 강조 조건
           const isCritical = disclosure.report_name?.includes('30%') || disclosure.importance === 'HIGH';
           
           return (
             <div
               key={disclosure.id}
-              onClick={() => handleCardClick(disclosure.stock_code, disclosure.id)}
-              className={`group relative bg-slate-900 border transition-all duration-300 cursor-pointer rounded-2xl p-6 
-                ${isCritical 
-                  ? 'border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.1)] hover:border-orange-500' 
-                  : 'border-slate-800 hover:border-blue-500 hover:bg-slate-800/50'
-                }`}
+              onClick={() => handleCardClick(disclosure.stock_code)}
+              className={`group bg-slate-900 border rounded-2xl p-6 transition-all cursor-pointer
+                ${isCritical ? 'border-orange-500/50 shadow-lg' : 'border-slate-800 hover:border-blue-500'}`}
             >
-              {/* 상단: 회사 정보 및 시간 */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold shadow-inner transition-colors
-                    ${isCritical ? 'bg-orange-600 text-white' : 'bg-blue-700 text-white group-hover:bg-blue-600'}`}>
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold ${isCritical ? 'bg-orange-600' : 'bg-blue-700'} text-white`}>
                     {getCompanyInitials(disclosure.corp_name)}
                   </div>
                   <div>
-                    <h4 className="font-bold text-white text-lg group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                    <h4 className="font-bold text-white text-lg group-hover:text-blue-400 transition-colors">
                       {disclosure.corp_name}
-                      {isCritical && <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />}
                     </h4>
-                    <p className="text-xs text-slate-500 font-medium tracking-wide">
-                      {disclosure.stock_code} • {disclosure.market}
-                    </p>
+                    <p className="text-xs text-slate-500">{disclosure.stock_code} • {disclosure.market}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-slate-500 font-bold mb-2 uppercase tracking-tighter">
-                    {getTimeAgo(disclosure.analyzed_at)}
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider shadow-sm ${getImpactColor(disclosure.importance || 'MEDIUM')}`}>
-                    {getImpactLabel(disclosure.importance || 'MEDIUM')}
-                  </span>
-                </div>
+                <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${getImpactColor(disclosure.importance || 'MEDIUM')}`}>
+                  {disclosure.importance || 'MEDIUM'} IMPACT
+                </span>
               </div>
 
-              {/* 중단: 공시 제목 */}
-              <h5 className={`font-bold mb-2 text-slate-100 transition-colors group-hover:text-white ${isCritical ? 'text-lg leading-tight' : 'text-base'}`}>
-                {disclosure.report_name || 'Disclosure Report'}
+              <h5 className={`font-bold text-slate-100 mb-2 ${isCritical ? 'text-lg' : 'text-base'}`}>
+                {disclosure.report_name}
               </h5>
               
-              <p className="text-sm text-slate-400 leading-relaxed mb-5 line-clamp-2 group-hover:text-slate-300">
-                {disclosure.summary || 'Summary not available.'}
+              <p className="text-sm text-slate-400 line-clamp-2 mb-4">
+                {disclosure.summary}
               </p>
 
-              {/* 하단: 감성 분석 및 스코어 */}
-              <div className="flex items-center justify-between pt-4 border-t border-slate-800/50">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] px-2.5 py-1 rounded-md font-bold shadow-sm ${getSentimentColor(disclosure.sentiment || 'NEUTRAL')}`}>
+              <div className="flex justify-between items-center pt-4 border-t border-slate-800/50">
+                <div className="flex gap-2">
+                  <span className={`text-[10px] px-2.5 py-1 rounded-md font-bold ${getSentimentColor(disclosure.sentiment)}`}>
                     {disclosure.sentiment || 'NEUTRAL'}
                   </span>
-                  <span className="bg-slate-800 text-slate-400 text-[10px] px-2.5 py-1 rounded-md font-bold border border-slate-700">
-                    {disclosure.sentiment_score === 0 ? 'NEUTRAL ANALYSIS' : `SCORE: ${(disclosure.sentiment_score || 0).toFixed(2)}`}
+                  <span className="text-[10px] px-2.5 py-1 rounded-md font-bold bg-slate-800 text-slate-400">
+                    {/* Score가 0일 때의 어색함 해결 */}
+                    {disclosure.sentiment_score === 0 ? 'NEUTRAL' : `SCORE: ${disclosure.sentiment_score.toFixed(2)}`}
                   </span>
                 </div>
-                <div className="text-blue-500 text-xs font-black flex items-center group-hover:translate-x-1 transition-transform uppercase tracking-widest">
-                  View Analysis <span className="ml-1.5 text-lg">→</span>
-                </div>
+                <span className="text-blue-500 text-xs font-bold uppercase tracking-widest group-hover:translate-x-1 transition-transform">
+                  Read Full Analysis →
+                </span>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* View All Disclosures 버튼 복구 */}
-      <div className="mt-6 text-center">
+      {/* ✅ View All 버튼: 중복을 제거하고 명확한 경로 설정 */}
+      <div className="pt-2 text-center">
         <Link 
           href="/dashboard" 
-          className="inline-flex items-center gap-2 px-8 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-sm font-bold transition-all border border-slate-700 hover:border-slate-500 group"
+          className="inline-flex items-center gap-2 px-8 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-sm font-bold transition-all border border-slate-700"
         >
           View All Disclosures
-          <span className="group-hover:translate-x-1 transition-transform text-lg">→</span>
+          <span className="text-lg">→</span>
         </Link>
       </div>
     </div>
