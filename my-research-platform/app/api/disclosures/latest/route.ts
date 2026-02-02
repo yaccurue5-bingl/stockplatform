@@ -4,20 +4,25 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // URL에서 limit 파라미터 추출 (기본값: 10, 최대: 100)
+    const { searchParams } = new URL(request.url);
+    const limitParam = searchParams.get('limit');
+    const limit = Math.min(parseInt(limitParam || '10', 10), 100);
+
     console.log('🔍 [API] Fetching latest disclosures...');
 
-    // 최신 공시 데이터 가져오기 (최대 10개)
+    // 최신 공시 데이터 가져오기
     // analysis_status가 'completed'인 것만 가져오기
     const { data: disclosures, error } = await supabase
       .from('disclosure_insights')
       .select('*')
       .eq('analysis_status', 'completed')
       .order('analyzed_at', { ascending: false })
-      .limit(10);
+      .limit(limit);
 
     if (error) {
       console.error('❌ [API] Error fetching disclosures:', error);
