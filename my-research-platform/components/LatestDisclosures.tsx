@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 interface Disclosure {
   id: string;
@@ -16,8 +15,11 @@ interface Disclosure {
   analyzed_at: string;
 }
 
-export default function LatestDisclosures() {
-  const router = useRouter();
+interface LatestDisclosuresProps {
+  onCardClick?: () => void;
+}
+
+export default function LatestDisclosures({ onCardClick }: LatestDisclosuresProps) {
   const [disclosures, setDisclosures] = useState<Disclosure[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,9 +67,10 @@ export default function LatestDisclosures() {
     return 'Recently';
   };
 
-  const handleCardClick = (stockCode: string) => {
-    if (stockCode && stockCode !== 'null' && stockCode !== '') {
-      router.push(`/stock/${stockCode}`); // 종목 상세로 정확히 이동
+  const handleCardClick = () => {
+    // 정식 오픈 전: waitlist 모달 열기
+    if (onCardClick) {
+      onCardClick();
     }
   };
 
@@ -82,7 +85,7 @@ export default function LatestDisclosures() {
         return (
           <div
             key={disclosure.id}
-            onClick={() => handleCardClick(disclosure.stock_code)}
+            onClick={handleCardClick}
             className={`bg-slate-900 border rounded-2xl p-6 transition-all cursor-pointer
               ${isCritical ? 'border-orange-500/50 shadow-lg' : 'border-slate-800 hover:border-blue-500'}`}
           >
