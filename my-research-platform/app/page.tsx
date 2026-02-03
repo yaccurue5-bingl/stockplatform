@@ -1,14 +1,55 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import MarketIndices from '@/components/MarketIndices';
 import LatestDisclosures from '@/components/LatestDisclosures';
 import UserButton from '@/components/UserButton';
 import WaitlistModal from '@/components/WaitlistModal';
+import { isSuperAdmin } from '@/lib/constants';
+import { getSupabase, startSessionTimer, clearSessionTimer } from '@/lib/supabase/client';
 
 export default function LandingPage() {
+  const router = useRouter();
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const isSuper = isSuperAdmin(userEmail);
+
+  useEffect(() => {
+    const supabase = getSupabase();
+
+    // 현재 세션 확인
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        setUserEmail(session.user.email);
+        // 30분 세션 타이머 시작
+        startSessionTimer(() => {
+          setUserEmail(null);
+          window.location.href = '/login';
+        });
+      }
+    });
+
+    // 인증 상태 변화 구독
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.email) {
+        setUserEmail(session.user.email);
+        startSessionTimer(() => {
+          setUserEmail(null);
+          window.location.href = '/login';
+        });
+      } else {
+        setUserEmail(null);
+        clearSessionTimer();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      clearSessionTimer();
+    };
+  }, []);
 
   return (
     <div className="bg-gray-950 text-white font-sans min-h-screen">
@@ -149,16 +190,28 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <LatestDisclosures onCardClick={() => setIsWaitlistOpen(true)} />
+            <LatestDisclosures
+              isSuperUser={isSuper}
+              onCardClick={isSuper ? undefined : () => setIsWaitlistOpen(true)}
+            />
 
             {/* View More */}
             <div className="text-center mt-8">
-              <button
-                onClick={() => setIsWaitlistOpen(true)}
-                className="inline-block bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-600 rounded-lg px-8 py-3 text-sm font-medium transition"
-              >
-                View All Disclosures →
-              </button>
+              {isSuper ? (
+                <Link
+                  href="/disclosures"
+                  className="inline-block bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-600 rounded-lg px-8 py-3 text-sm font-medium transition"
+                >
+                  View All Disclosures →
+                </Link>
+              ) : (
+                <button
+                  onClick={() => setIsWaitlistOpen(true)}
+                  className="inline-block bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-600 rounded-lg px-8 py-3 text-sm font-medium transition"
+                >
+                  View All Disclosures →
+                </button>
+              )}
             </div>
           </div>
         </section>
