@@ -36,7 +36,8 @@ export async function POST(request: Request) {
     // Resend로 이메일 발송
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
-      to: Array.isArray(to) ? to : [String(to)],
+      to : ["yaccurue3@naver.com"],
+      //to: Array.isArray(to) ? to : [String(to)],
       subject:  subject || 'No Subject',
       html: html ? String(html) : '',
       text: text || undefined,
