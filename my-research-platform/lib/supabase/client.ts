@@ -29,7 +29,37 @@ export function createClient() {
     );
   }
 
-  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
+  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  });
+}
+
+// 세션 만료 체크 (30분 = 1800000ms)
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+let sessionTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function startSessionTimer(onExpire: () => void) {
+  if (sessionTimer) clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => {
+    const supabase = getSupabase();
+    supabase.auth.signOut();
+    onExpire();
+  }, SESSION_TIMEOUT_MS);
+}
+
+export function resetSessionTimer(onExpire: () => void) {
+  startSessionTimer(onExpire);
+}
+
+export function clearSessionTimer() {
+  if (sessionTimer) {
+    clearTimeout(sessionTimer);
+    sessionTimer = null;
+  }
 }
 
 // 편의를 위한 싱글톤 인스턴스
