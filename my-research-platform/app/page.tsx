@@ -192,7 +192,7 @@ export default function LandingPage() {
                 </div>
                 <h4 className="text-lg font-bold mb-2">Comprehensive Market Data</h4>
                 <p className="text-gray-400 text-sm">
-                  Access real-time stock prices, financial reports, and market indices. All KRX data integrated in one platform.
+                  Access real-time stock prices, financial reports, and market indices. All DART data integrated in one platform.
                 </p>
               </div>
 
@@ -204,7 +204,7 @@ export default function LandingPage() {
                 </div>
                 <h4 className="text-lg font-bold mb-2">Verified Data Sources</h4>
                 <p className="text-gray-400 text-sm">
-                  Official data from DART (Korean SEC) and KRX. Reliable, accurate, and compliant with Korean regulations.
+                  Official data from DART (Korean SEC). Reliable, accurate, and compliant with Korean regulations.
                 </p>
               </div>
             </div>
