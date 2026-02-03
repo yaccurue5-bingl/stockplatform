@@ -103,7 +103,7 @@ export async function POST(request: Request) {
     // 각 사용자에게 이메일 발송 (배치 처리)
     for (const user of waitlistUsers) {
       try {
-        const { error: sendError } = await resend.emails.send({
+        const { data: sendData, error: sendError } = await resend.emails.send({
           from: FROM_EMAIL,
           to: user.email,
           subject: '🚀 K-MarketInsight is Now Live!',
@@ -113,8 +113,26 @@ export async function POST(request: Request) {
         if (sendError) {
           failCount++;
           errors.push(`${user.email}: ${sendError.message}`);
+
+          // 실패 로그
+          await supabase.from('mail_logs').insert({
+            recipient: user.email,
+            subject: '🚀 K-MarketInsight is Now Live!',
+            mail_type: 'waitlist_notify',
+            status: 'failed',
+            error_message: sendError.message,
+          });
         } else {
           successCount++;
+
+          // 성공 로그
+          await supabase.from('mail_logs').insert({
+            resend_id: sendData?.id,
+            recipient: user.email,
+            subject: '🚀 K-MarketInsight is Now Live!',
+            mail_type: 'waitlist_notify',
+            status: 'sent',
+          });
 
           // 발송 성공 시 notified_at 업데이트
           await supabase
@@ -125,6 +143,14 @@ export async function POST(request: Request) {
       } catch (err) {
         failCount++;
         errors.push(`${user.email}: Unknown error`);
+
+        await supabase.from('mail_logs').insert({
+          recipient: user.email,
+          subject: '🚀 K-MarketInsight is Now Live!',
+          mail_type: 'waitlist_notify',
+          status: 'failed',
+          error_message: 'Unknown error',
+        });
       }
 
       // Rate limiting: Resend 무료 플랜 제한 대응
