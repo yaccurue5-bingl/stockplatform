@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // 발신자 이메일 (Resend에서 인증된 도메인 필요)
-const FROM_EMAIL = 'K-MarketInsight <noreply@k-marketinsight.com>';
+const FROM_EMAIL = 'K-MarketInsight <support@k-marketinsight.com>';
 
 interface SendEmailRequest {
   to: string | string[];
@@ -36,9 +36,9 @@ export async function POST(request: Request) {
     // Resend로 이메일 발송
     const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
-      to: Array.isArray(to) ? to : [to],
-      subject,
-      html: html || undefined,
+      to: Array.isArray(to) ? to : [String(to)],
+      subject:  subject || 'No Subject',
+      html: html ? String(html) : '',
       text: text || undefined,
     });
 
