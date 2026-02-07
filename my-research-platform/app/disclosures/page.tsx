@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Disclosure {
   id: string;
   corp_name: string;
+  corp_name_en?: string;
   stock_code: string;
   market: string;
   report_name: string;
@@ -23,21 +25,119 @@ interface Disclosure {
 interface GroupedStock {
   stock_code: string;
   corp_name: string;
+  corp_name_en?: string;
   market: string;
   disclosures: Disclosure[];
   latestImportance: string;
   hasHighImpact: boolean;
 }
 
-export default function DisclosuresPage() {
+function DisclosuresContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [groupedStocks, setGroupedStocks] = useState<GroupedStock[]>([]);
+  const [filteredStocks, setFilteredStocks] = useState<GroupedStock[]>([]);
   const [selectedStock, setSelectedStock] = useState<GroupedStock | null>(null);
   const [selectedDisclosure, setSelectedDisclosure] = useState<Disclosure | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [savedScrollPosition, setSavedScrollPosition] = useState(0);
+
+  // URL에서 stock과 disclosure 파라미터 읽기
+  const stockCodeParam = searchParams.get('stock');
+  const disclosureIdParam = searchParams.get('disclosure');
+
+  // 검색 필터링
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredStocks(groupedStocks);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = groupedStocks.filter(stock =>
+      stock.corp_name.toLowerCase().includes(query) ||
+      stock.stock_code.includes(query) ||
+      (stock.corp_name_en && stock.corp_name_en.toLowerCase().includes(query))
+    );
+    setFilteredStocks(filtered);
+  }, [searchQuery, groupedStocks]);
+
+  // 데이터 로드 후 URL 파라미터에 따라 선택 상태 복원
+  useEffect(() => {
+    if (groupedStocks.length > 0 && stockCodeParam) {
+      const stock = groupedStocks.find(s => s.stock_code === stockCodeParam);
+      if (stock) {
+        setSelectedStock(stock);
+        if (disclosureIdParam) {
+          const disclosure = stock.disclosures.find(d => d.id === disclosureIdParam);
+          if (disclosure) {
+            setSelectedDisclosure(disclosure);
+          }
+        }
+      }
+    }
+  }, [groupedStocks, stockCodeParam, disclosureIdParam]);
 
   useEffect(() => {
     fetchDisclosures();
   }, []);
+
+  // URL 기반 네비게이션 함수들
+  const navigateToStock = useCallback((stock: GroupedStock) => {
+    // 현재 스크롤 위치 저장
+    setSavedScrollPosition(window.scrollY);
+    setSelectedStock(stock);
+    setSelectedDisclosure(null);
+    router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
+  }, [router]);
+
+  const navigateToDisclosure = useCallback((stock: GroupedStock, disclosure: Disclosure) => {
+    setSelectedDisclosure(disclosure);
+    router.push(`/disclosures?stock=${stock.stock_code}&disclosure=${disclosure.id}`, { scroll: false });
+  }, [router]);
+
+  const navigateBack = useCallback(() => {
+    if (selectedDisclosure) {
+      // 공시 상세 → 종목별 공시 목록
+      setSelectedDisclosure(null);
+      router.push(`/disclosures?stock=${selectedStock?.stock_code}`, { scroll: false });
+    } else if (selectedStock) {
+      // 종목별 공시 목록 → 메인 목록
+      setSelectedStock(null);
+      router.push('/disclosures', { scroll: false });
+      // 스크롤 위치 복원
+      setTimeout(() => {
+        window.scrollTo(0, savedScrollPosition);
+      }, 50);
+    }
+  }, [selectedDisclosure, selectedStock, savedScrollPosition, router]);
+
+  // 브라우저 뒤로가기 처리
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const stockCode = params.get('stock');
+      const disclosureId = params.get('disclosure');
+
+      if (!stockCode) {
+        // 메인 목록으로 돌아옴
+        setSelectedStock(null);
+        setSelectedDisclosure(null);
+        // 스크롤 위치 복원
+        setTimeout(() => {
+          window.scrollTo(0, savedScrollPosition);
+        }, 50);
+      } else if (!disclosureId && selectedStock) {
+        // 종목별 공시 목록으로 돌아옴
+        setSelectedDisclosure(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedStock, savedScrollPosition]);
 
   const fetchDisclosures = async () => {
     try {
@@ -61,6 +161,7 @@ export default function DisclosuresPage() {
             stockMap.set(key, {
               stock_code: disclosure.stock_code,
               corp_name: disclosure.corp_name,
+              corp_name_en: disclosure.corp_name_en,
               market: disclosure.market,
               disclosures: [disclosure],
               latestImportance: disclosure.importance,
@@ -69,7 +170,9 @@ export default function DisclosuresPage() {
           }
         });
 
-        setGroupedStocks(Array.from(stockMap.values()));
+        const grouped = Array.from(stockMap.values());
+        setGroupedStocks(grouped);
+        setFilteredStocks(grouped);
       }
     } catch (error) {
       console.error('Failed to fetch disclosures:', error);
@@ -126,7 +229,7 @@ export default function DisclosuresPage() {
         <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
             <button
-              onClick={() => setSelectedDisclosure(null)}
+              onClick={navigateBack}
               className="text-gray-400 hover:text-white transition mr-4"
             >
               ← Back
@@ -201,7 +304,7 @@ export default function DisclosuresPage() {
         <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
             <button
-              onClick={() => setSelectedStock(null)}
+              onClick={navigateBack}
               className="text-gray-400 hover:text-white transition mr-4"
             >
               ← Back
@@ -228,7 +331,7 @@ export default function DisclosuresPage() {
             {selectedStock.disclosures.map((disclosure) => (
               <div
                 key={disclosure.id}
-                onClick={() => setSelectedDisclosure(disclosure)}
+                onClick={() => navigateToDisclosure(selectedStock, disclosure)}
                 className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
@@ -277,9 +380,24 @@ export default function DisclosuresPage() {
             </div>
             <span className="text-xl font-bold">K-Market Insight</span>
           </Link>
-          <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
-            Sign Up
-          </Link>
+          <div className="flex items-center gap-4">
+            {/* 검색바 */}
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search company..."
+                className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 pl-10 w-48 md:w-80 text-sm focus:outline-none focus:border-blue-600"
+              />
+              <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 512 512">
+                <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+              </svg>
+            </div>
+            <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
+              Sign Up
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -287,7 +405,8 @@ export default function DisclosuresPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">All Disclosures</h1>
           <p className="text-gray-400">
-            {groupedStocks.length} companies with recent announcements
+            {filteredStocks.length} companies with recent announcements
+            {searchQuery && ` (searching: "${searchQuery}")`}
           </p>
         </div>
 
@@ -299,20 +418,22 @@ export default function DisclosuresPage() {
               </div>
             ))}
           </div>
-        ) : groupedStocks.length === 0 ? (
+        ) : filteredStocks.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-gray-400 text-lg">No disclosures found</p>
+            <p className="text-gray-400 text-lg">
+              {searchQuery ? `No results for "${searchQuery}"` : 'No disclosures found'}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {groupedStocks.map((stock) => {
+            {filteredStocks.map((stock) => {
               const latestDisclosure = stock.disclosures[0];
               const disclosureCount = stock.disclosures.length;
 
               return (
                 <div
                   key={stock.stock_code || stock.corp_name}
-                  onClick={() => setSelectedStock(stock)}
+                  onClick={() => navigateToStock(stock)}
                   className={`bg-gray-900 border rounded-xl p-5 cursor-pointer transition-all
                     ${stock.hasHighImpact ? 'border-orange-500/50 shadow-lg shadow-orange-500/10' : 'border-gray-800 hover:border-blue-500'}`}
                 >
@@ -323,6 +444,9 @@ export default function DisclosuresPage() {
                       </div>
                       <div>
                         <h4 className="font-bold text-lg">{stock.corp_name}</h4>
+                        {stock.corp_name_en && (
+                          <p className="text-sm text-gray-400">{stock.corp_name_en}</p>
+                        )}
                         <p className="text-sm text-gray-500">{stock.stock_code} • {stock.market}</p>
                       </div>
                     </div>
@@ -363,5 +487,18 @@ export default function DisclosuresPage() {
         )}
       </main>
     </div>
+  );
+}
+
+// Suspense 경계로 useSearchParams를 감싸서 클라이언트 사이드 렌더링 보장
+export default function DisclosuresPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-gray-950 text-white font-sans min-h-screen flex items-center justify-center">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    }>
+      <DisclosuresContent />
+    </Suspense>
   );
 }

@@ -24,6 +24,26 @@ export async function GET(request: Request) {
       .order('analyzed_at', { ascending: false })
       .limit(limit);
 
+    // 영문 기업명 조회를 위한 stock_code 목록 추출
+    const stockCodes = [...new Set((disclosures || []).map((d: any) => d.stock_code).filter(Boolean))];
+
+    // dart_corp_codes에서 영문명 조회
+    let corpNameEnMap: Record<string, string> = {};
+    if (stockCodes.length > 0) {
+      const { data: corpData } = await supabase
+        .from('dart_corp_codes')
+        .select('stock_code, corp_name_en')
+        .in('stock_code', stockCodes);
+
+      if (corpData) {
+        corpData.forEach((item: any) => {
+          if (item.corp_name_en) {
+            corpNameEnMap[item.stock_code] = item.corp_name_en;
+          }
+        });
+      }
+    }
+
     if (error) {
       console.error('❌ [API] Error fetching disclosures:', error);
       return NextResponse.json([]);
@@ -65,9 +85,13 @@ export async function GET(request: Request) {
       // Sonnet 분석이 있으면 Sonnet summary 사용, 없으면 Groq summary 사용
       const summary = safeString(item.sonnet_summary || item.ai_summary);
 
+      // 영문 기업명 조회
+      const corpNameEn = corpNameEnMap[item.stock_code] || null;
+
       const transformed = {
         id: item.id,
         corp_name: safeString(item.corp_name, 'Unknown'),
+        corp_name_en: corpNameEn,
         stock_code: safeString(item.stock_code, '000000'),
         market: safeString(item.market, 'KOSPI'),
         report_name: safeString(item.report_nm, 'Disclosure Report'),
