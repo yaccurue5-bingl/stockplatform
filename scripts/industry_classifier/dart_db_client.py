@@ -217,6 +217,57 @@ class DARTDBClient:
             'induty_code': company_info.get('induty_code', ''),
             'induty_name': company_info.get('induty_name', ''),
         }
+    
+    def get_recent_disclosures_with_details(self, limit: int = 20):
+        try:
+            # 1. 공시 정보만 먼저 가져옵니다 (조인 없이)
+            res = self.supabase.table("disclosure_insights") \
+                .select("rcept_no, corp_code, corp_name, stock_code, report_nm, rcept_dt") \
+                .order("rcept_dt", desc=True) \
+                .limit(limit) \
+                .execute()
+            
+            disclosures = res.data
+            if not disclosures:
+                return []
+
+            # 2. 이번 공시에 포함된 기업 코드들만 추출
+            corp_codes = list(set(d['corp_code'] for d in disclosures))
+            stock_codes = list(set(d['stock_code'] for d in disclosures if d.get('stock_code')))
+
+            # 3. 영문명 한꺼번에 조회 (IN 연산자 사용으로 효율화)
+            en_names_res = self.supabase.table("dart_corp_codes") \
+                .select("corp_code, corp_name_en") \
+                .in_("corp_code", corp_codes) \
+                .execute()
+            en_map = {item['corp_code']: item['corp_name_en'] for item in en_names_res.data}
+
+            # 4. 섹터 정보 한꺼번에 조회
+            sector_res = self.supabase.table("companies") \
+                .select("stock_code, sector") \
+                .in_("stock_code", stock_codes) \
+                .execute()
+            sector_map = {item['stock_code']: item['sector'] for item in sector_res.data}
+
+            # 5. 데이터 병합 (Python 레벨 조인)
+            formatted_data = []
+            for d in disclosures:
+                formatted_data.append({
+                    "rcept_no": d.get("rcept_no"),
+                    "corp_code": d.get("corp_code"),
+                    "corp_name": d.get("corp_name"),
+                    "corp_name_en": en_map.get(d.get("corp_code")), # 매칭 안되면 None
+                    "stock_code": d.get("stock_code"),
+                    "report_nm": d.get("report_nm"),
+                    "rcept_dt": d.get("rcept_dt"),
+                    "sector": sector_map.get(d.get("stock_code")) # 'sector' 변수명 사용
+                })
+            
+            return formatted_data
+
+        except Exception as e:
+            logger.error(f"데이터 수동 병합 조회 실패: {e}")
+            return []
 
     def search_by_name(self, corp_name_pattern: str, limit: int = 10) -> list:
         """
@@ -280,3 +331,23 @@ if __name__ == "__main__":
     results = client.search_by_name("삼성", limit=5)
     for i, company in enumerate(results, 1):
         print(f"  {i}. {company['corp_name']} ({company['stock_code']})")
+
+    # 영문명 코드 테스트
+    print("\n" + "="*50)
+    print("🚀 로컬 DB 조인 테스트 시작")
+    print("="*50)
+
+    # 2. 신규 메서드 호출 (최신 5건만)
+    results = client.get_recent_disclosures_with_details(limit=5)
+
+    if not results:
+        print("❌ 데이터를 가져오지 못했습니다. DB 연결이나 조인 쿼리를 확인하세요.")
+    else:
+        for d in results:
+            print(f"📍 [기업명] {d['corp_name']} ({d['corp_name_en'] or '영문명 없음'})")
+            print(f"   [섹터] {d['sector'] or '미분류'}")
+            print(f"   [공시] {d['report_nm']} ({d['rcept_dt']})")
+            print("-" * 30)
+
+    print("="*50)
+    print("✅ 테스트 완료")
