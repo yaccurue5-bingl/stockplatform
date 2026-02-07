@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 interface Disclosure {
   id: string;
   corp_name: string;
+  corp_name_en?: string | null;
   stock_code: string;
   market: string;
   report_name: string;
@@ -98,6 +99,9 @@ export default function LatestDisclosures({ onCardClick }: LatestDisclosuresProp
                   <h4 className="font-bold text-white text-lg group-hover:text-blue-400">
                     {disclosure.corp_name}
                   </h4>
+                  {disclosure.corp_name_en && (
+                    <p className="text-xs text-slate-400">{disclosure.corp_name_en}</p>
+                  )}
                   <p className="text-xs text-slate-500">{disclosure.stock_code} • {disclosure.market}</p>
                 </div>
               </div>
