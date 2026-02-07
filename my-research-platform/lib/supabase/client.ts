@@ -157,3 +157,29 @@ export async function getUserPlan(userId: string) {
 
   return data;
 }
+
+// ============================================
+// 세션 타이머 (30분 자동 로그아웃)
+// ============================================
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30분
+let sessionTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function startSessionTimer(onExpire: () => void) {
+  if (sessionTimer) clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => {
+    const supabase = getSupabase();
+    supabase.auth.signOut();
+    onExpire();
+  }, SESSION_TIMEOUT_MS);
+}
+
+export function resetSessionTimer(onExpire: () => void) {
+  startSessionTimer(onExpire);
+}
+
+export function clearSessionTimer() {
+  if (sessionTimer) {
+    clearTimeout(sessionTimer);
+    sessionTimer = null;
+  }
+}
