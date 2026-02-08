@@ -96,11 +96,12 @@ export default function LatestDisclosures({ onCardClick }: LatestDisclosuresProp
                   {getCompanyInitials(disclosure.corp_name)}
                 </div>
                 <div>
+                  {/* 영문명 우선, 한글명 아래 배치 */}
                   <h4 className="font-bold text-white text-lg group-hover:text-blue-400">
-                    {disclosure.corp_name}
+                    {disclosure.corp_name_en || disclosure.corp_name}
                   </h4>
                   {disclosure.corp_name_en && (
-                    <p className="text-xs text-slate-400">{disclosure.corp_name_en}</p>
+                    <p className="text-xs text-slate-400">{disclosure.corp_name}</p>
                   )}
                   <p className="text-xs text-slate-500">{disclosure.stock_code} • {disclosure.market}</p>
                 </div>
