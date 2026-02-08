@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-// Supabase 클라이언트 (서버 전용)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Supabase 클라이언트를 런타임에 생성 (빌드 시점에는 환경변수 없을 수 있음)
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Supabase environment variables are not configured');
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
 
 // Paddle webhook 서명 검증
 function verifyPaddleWebhook(requestBody: string, signature: string): boolean {
@@ -96,6 +102,7 @@ async function handleSubscriptionCreated(event: any) {
   console.log(`✅ Subscription created: ${subscription_id} for user ${user_id}`);
 
   // Supabase에 구독 정보 저장
+  const supabase = getSupabaseClient();
   const { error } = await supabase.from('subscriptions').upsert({
     user_id,
     paddle_subscription_id: subscription_id,
@@ -127,6 +134,7 @@ async function handleSubscriptionUpdated(event: any) {
 
   console.log(`🔄 Subscription updated: ${subscription_id} -> ${status}`);
 
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('subscriptions')
     .update({
@@ -147,6 +155,7 @@ async function handleSubscriptionCanceled(event: any) {
 
   console.log(`❌ Subscription canceled: ${subscription_id}`);
 
+  const supabase = getSupabaseClient();
   // 구독 상태를 canceled로 변경
   const { error } = await supabase
     .from('subscriptions')
@@ -178,6 +187,7 @@ async function handlePaymentSucceeded(event: any) {
 
   console.log(`💰 Payment succeeded: ${amount} ${currency} for ${subscription_id}`);
 
+  const supabase = getSupabaseClient();
   // 결제 이력 저장
   const { error } = await supabase.from('payments').insert({
     paddle_subscription_id: subscription_id,
@@ -199,6 +209,7 @@ async function handlePaymentFailed(event: any) {
 
   console.log(`❌ Payment failed: ${amount} ${currency} for ${subscription_id}`);
 
+  const supabase = getSupabaseClient();
   // 결제 실패 이력 저장
   const { error } = await supabase.from('payments').insert({
     paddle_subscription_id: subscription_id,
