@@ -289,77 +289,327 @@ function DisclosuresContent() {
     }
   };
 
-  // 개별 공시 상세 보기
+  // 날짜 포맷팅 함수
+  const formatDate = (date: string | null | undefined) => {
+    if (!date) return 'N/A';
+    try {
+      const d = new Date(date);
+      return d.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  const formatDateTime = (date: string | null | undefined) => {
+    if (!date) return 'N/A';
+    try {
+      const d = new Date(date);
+      return d.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short'
+      });
+    } catch {
+      return 'N/A';
+    }
+  };
+
+  // 개별 공시 상세 보기 (새로운 디자인)
   if (selectedDisclosure && selectedStock) {
+    const currentIndex = selectedStock.disclosures.findIndex(d => d.id === selectedDisclosure.id);
+
     return (
       <div className="bg-gray-950 text-white font-sans min-h-screen">
+        {/* Header */}
         <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
-            <button
-              onClick={navigateBack}
-              className="text-gray-400 hover:text-white transition mr-4"
-            >
-              ← Back
-            </button>
-            <div className="flex items-center space-x-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${selectedStock.hasHighImpact ? 'bg-orange-600' : 'bg-blue-600'}`}>
-                {getCompanyInitials(selectedStock.corp_name)}
-              </div>
-              <div>
-                <span className="text-lg font-bold">{selectedStock.corp_name}</span>
-                <span className="text-gray-400 ml-2 text-sm">{selectedStock.stock_code}</span>
-              </div>
+          <div className="max-w-full mx-auto px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={navigateBack}
+                className="text-gray-400 hover:text-white transition"
+              >
+                ← Back
+              </button>
+              <span className="text-lg font-semibold">AI Disclosure Detail</span>
+            </div>
+            <div className="text-sm text-gray-400">
+              {new Date().toLocaleString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZoneName: 'short'
+              })}
             </div>
           </div>
         </header>
 
-        <main className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            {/* Header */}
-            <div className="flex items-center gap-2 mb-4">
-              <span className={`text-xs px-2 py-1 rounded ${getImpactColor(selectedDisclosure.importance, false)}`}>
-                {selectedDisclosure.importance || 'MEDIUM'} IMPACT
-              </span>
-              <span className={`text-xs px-2 py-1 rounded ${getSentimentColor(selectedDisclosure.sentiment)}`}>
-                {selectedDisclosure.sentiment || 'NEUTRAL'}
-              </span>
-              <span className="text-xs text-gray-500">{getTimeAgo(selectedDisclosure.analyzed_at)}</span>
+        <div className="flex min-h-[calc(100vh-60px)]">
+          {/* Left Sidebar - Disclosure History */}
+          <aside className="w-64 bg-gray-900 border-r border-gray-800 flex-shrink-0">
+            <div className="p-4 border-b border-gray-800">
+              <h2 className="font-bold text-lg">Disclosure History</h2>
             </div>
+            <div className="overflow-y-auto max-h-[calc(100vh-120px)]">
+              {selectedStock.disclosures.map((disclosure, index) => {
+                const isSelected = disclosure.id === selectedDisclosure.id;
+                const isCurrent = index === 0;
 
-            {/* Title */}
-            <h1 className="text-2xl font-bold mb-6">{selectedDisclosure.report_name}</h1>
-
-            {/* Summary */}
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-400 uppercase mb-2">Summary</h3>
-              <p className="text-gray-300 leading-relaxed">{selectedDisclosure.summary}</p>
+                return (
+                  <div
+                    key={disclosure.id}
+                    onClick={() => navigateToDisclosure(disclosure)}
+                    className={`p-3 cursor-pointer border-b border-gray-800 transition-all ${
+                      isSelected
+                        ? 'bg-green-600 text-white'
+                        : 'hover:bg-gray-800'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      {!isSelected && (
+                        <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                          disclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'bg-green-500' :
+                          disclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'bg-red-500' :
+                          'bg-gray-500'
+                        }`} />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium truncate ${isSelected ? 'text-white' : 'text-gray-300'}`}>
+                          {formatDate(disclosure.analyzed_at)}: {disclosure.report_name?.substring(0, 20)}...
+                        </div>
+                        {isCurrent && isSelected && (
+                          <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded mt-1 inline-block">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          </aside>
 
-            {/* Detailed Analysis */}
-            {selectedDisclosure.detailed_analysis && (
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase mb-2">Detailed Analysis</h3>
-                <p className="text-gray-300 leading-relaxed">{selectedDisclosure.detailed_analysis}</p>
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              {/* Company Header */}
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center text-2xl font-bold flex-shrink-0">
+                  AI
+                </div>
+                <div className="flex-1">
+                  <h1 className="text-2xl font-bold mb-2">
+                    {selectedStock.corp_name_en || selectedStock.corp_name} ({selectedStock.stock_code}): {selectedDisclosure.report_name}
+                  </h1>
+
+                  {/* Badges */}
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                      selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE'
+                        ? 'bg-green-600 text-white'
+                        : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-gray-600 text-white'
+                    }`}>
+                      {selectedDisclosure.sentiment || 'NEUTRAL'}
+                    </span>
+                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                      selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE'
+                        ? 'bg-green-500/20 text-green-400 border border-green-500'
+                        : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE'
+                        ? 'bg-red-500/20 text-red-400 border border-red-500'
+                        : 'bg-gray-500/20 text-gray-400 border border-gray-500'
+                    }`}>
+                      {selectedDisclosure.sentiment || 'NEUTRAL'}
+                    </span>
+                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                      selectedDisclosure.importance === 'HIGH'
+                        ? 'bg-orange-500/20 text-orange-400 border border-orange-500'
+                        : 'bg-blue-500/20 text-blue-400 border border-blue-500'
+                    }`}>
+                      {selectedDisclosure.importance || 'MEDIUM'} Importance
+                    </span>
+                  </div>
+
+                  {/* Company Info */}
+                  <div className="text-sm text-gray-400">
+                    <p><span className="text-gray-500">corp_name</span></p>
+                    <p>{selectedStock.corp_name_en || selectedStock.corp_name}</p>
+                    <p><span className="text-gray-500">sector</span> Automotive / EV</p>
+                    <p>{formatDateTime(selectedDisclosure.analyzed_at)}</p>
+                  </div>
+                </div>
               </div>
-            )}
 
-            {/* Investment Implications */}
-            {selectedDisclosure.investment_implications && (
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-400 uppercase mb-2">Investment Implications</h3>
-                <p className="text-gray-300 leading-relaxed">{selectedDisclosure.investment_implications}</p>
-              </div>
-            )}
+              {/* Content Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column - Analysis */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Tabs */}
+                  <div className="flex gap-2">
+                    <button className="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                      AI Analysis
+                    </button>
+                    <button className="bg-gray-800 text-gray-400 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition">
+                      Original Text
+                    </button>
+                  </div>
 
-            {/* Sentiment Score */}
-            <div className="pt-4 border-t border-gray-800">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-400">Sentiment Score:</span>
-                <span className="text-lg font-bold">{(selectedDisclosure.sentiment_score || 0).toFixed(2)}</span>
+                  {/* Key Takeaways */}
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold">Key Takeaways</h3>
+                      <span className="text-green-400">↑</span>
+                    </div>
+                    <ol className="space-y-2 text-gray-300">
+                      {selectedDisclosure.summary ? (
+                        <li className="flex gap-2">
+                          <span className="text-gray-500">1.</span>
+                          <span>{selectedDisclosure.summary}</span>
+                        </li>
+                      ) : (
+                        <>
+                          <li className="flex gap-2">
+                            <span className="text-gray-500">1.</span>
+                            <span>Strategic investment in solid-state battery R&D</span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="text-gray-500">2.</span>
+                            <span>Partnership with [Battery Tech Co.]</span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="text-gray-500">3.</span>
+                            <span>Aims to enhance EV range and reduce costs</span>
+                          </li>
+                        </>
+                      )}
+                    </ol>
+                  </div>
+
+                  {/* Investor Impact Analysis */}
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold">Investor Impact Analysis</h3>
+                      <span className="text-green-400">↑</span>
+                    </div>
+                    <ol className="space-y-2 text-gray-300">
+                      {selectedDisclosure.investment_implications ? (
+                        <li className="flex gap-2">
+                          <span className="text-gray-500">1.</span>
+                          <span>{selectedDisclosure.investment_implications}</span>
+                        </li>
+                      ) : (
+                        <>
+                          <li className="flex gap-2">
+                            <span className="text-gray-500">1.</span>
+                            <span>Potential for mid-term stock price growth</span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="text-gray-500">2.</span>
+                            <span>Reduced reliance on external battery suppliers</span>
+                          </li>
+                          <li className="flex gap-2">
+                            <span className="text-gray-500">3.</span>
+                            <span>Market share expansion in EV sector <span className="text-green-400">↑</span></span>
+                          </li>
+                        </>
+                      )}
+                    </ol>
+                  </div>
+                </div>
+
+                {/* Right Column - Charts & Related */}
+                <div className="space-y-6">
+                  {/* Stock Price Trend (하드코딩) */}
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <h3 className="text-sm font-bold mb-4">Stock Price Trend (Past 1M)</h3>
+                    <div className="h-32 flex items-end justify-between gap-1 mb-2">
+                      {/* 하드코딩된 차트 바 */}
+                      {[40, 55, 45, 60, 50, 70, 65, 80, 75, 90, 85, 95].map((height, i) => (
+                        <div
+                          key={i}
+                          className="flex-1 bg-blue-500 rounded-t"
+                          style={{ height: `${height}%` }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>20</span>
+                      <span>300</span>
+                      <span>400</span>
+                      <span>300</span>
+                    </div>
+                    <div className="text-right mt-2">
+                      <span className="text-green-400 font-bold">+15.2%</span>
+                    </div>
+                  </div>
+
+                  {/* Financial Ratios (하드코딩) */}
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <h3 className="text-sm font-bold mb-4">Financial Ratios (YoY)</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-gray-400">Revenue</span>
+                          <span className="text-green-400">+10%</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="h-6 bg-green-600 rounded" style={{ width: '60%' }}></div>
+                          <div className="h-6 bg-green-400 rounded" style={{ width: '30%' }}></div>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">Revenue</div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-gray-400">Net Profit</span>
+                          <span className="text-green-400">+17%</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="h-6 bg-green-600 rounded" style={{ width: '50%' }}></div>
+                          <div className="h-6 bg-green-400 rounded" style={{ width: '40%' }}></div>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">Net Profit</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Related Disclosures (하드코딩) */}
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <h3 className="text-sm font-bold mb-4">Related Disclosures (Automotive Sector)</h3>
+                    <ol className="space-y-2 text-sm text-gray-300">
+                      <li className="flex gap-2">
+                        <span className="text-gray-500">1.</span>
+                        <span>Kia Corp: New EV Platform Launch</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-gray-500">2.</span>
+                        <span>Tesla Inc: Gigafactory Expansion Plans</span>
+                      </li>
+                    </ol>
+                    <div className="flex gap-2 mt-4">
+                      <button className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded text-xs hover:bg-gray-700 transition">
+                        This Company (2)
+                      </button>
+                      <button className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded text-xs hover:bg-gray-700 transition">
+                        (This Company) (2)
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </main>
+          </main>
+        </div>
       </div>
     );
   }
