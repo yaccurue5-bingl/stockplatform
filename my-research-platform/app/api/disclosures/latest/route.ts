@@ -37,12 +37,18 @@ export async function GET(request: Request) {
       );
     }).slice(0, limit);  // 요청된 limit 만큼만 반환
 
-    // 영문 기업명 조회를 위한 stock_code 목록 추출
+    // 영문 기업명 및 섹터 조회를 위한 stock_code 목록 추출
     const stockCodes = [...new Set((disclosures || []).map((d: any) => d.stock_code).filter(Boolean))];
 
     // dart_corp_codes에서 영문명 조회
     let corpNameEnMap: Record<string, string> = {};
+    // companies에서 섹터 조회
+    let sectorMap: Record<string, string> = {};
+    // sectors에서 섹터 영문명 조회
+    let sectorEnMap: Record<string, string> = {};
+
     if (stockCodes.length > 0) {
+      // 영문 기업명 조회
       const { data: corpData } = await supabase
         .from('dart_corp_codes')
         .select('stock_code, corp_name_en')
@@ -54,6 +60,37 @@ export async function GET(request: Request) {
             corpNameEnMap[item.stock_code] = item.corp_name_en;
           }
         });
+      }
+
+      // companies 테이블에서 섹터 조회
+      const { data: companiesData } = await supabase
+        .from('companies')
+        .select('stock_code, sector')
+        .in('stock_code', stockCodes);
+
+      if (companiesData) {
+        companiesData.forEach((item: any) => {
+          if (item.sector) {
+            sectorMap[item.stock_code] = item.sector;
+          }
+        });
+      }
+
+      // 고유 섹터명 추출 후 영문명 조회
+      const uniqueSectors = [...new Set(Object.values(sectorMap).filter(Boolean))];
+      if (uniqueSectors.length > 0) {
+        const { data: sectorsData } = await supabase
+          .from('sectors')
+          .select('name, sector_en')
+          .in('name', uniqueSectors);
+
+        if (sectorsData) {
+          sectorsData.forEach((item: any) => {
+            if (item.sector_en) {
+              sectorEnMap[item.name] = item.sector_en;
+            }
+          });
+        }
       }
     }
 
@@ -101,6 +138,10 @@ export async function GET(request: Request) {
       // 영문 기업명 조회
       const corpNameEn = corpNameEnMap[item.stock_code] || null;
 
+      // 섹터 정보 조회
+      const sectorKr = sectorMap[item.stock_code] || null;
+      const sectorEn = sectorKr ? (sectorEnMap[sectorKr] || 'Others') : null;
+
       const transformed = {
         id: item.id,
         corp_name: safeString(item.corp_name, 'Unknown'),
@@ -113,6 +154,10 @@ export async function GET(request: Request) {
         sentiment_score: typeof item.sentiment_score === 'number' ? item.sentiment_score : 0,
         importance: safeString(item.importance, 'MEDIUM'),
         analyzed_at: safeString(item.analyzed_at, new Date().toISOString()),
+
+        // 섹터 정보
+        sector: sectorKr,
+        sector_en: sectorEn,
 
         // 추가 정보 (상세 페이지용)
         sonnet_analyzed: Boolean(item.sonnet_analyzed),
