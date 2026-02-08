@@ -47,9 +47,8 @@ function DisclosuresContent() {
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // URL에서 stock과 disclosure 파라미터 읽기
+  // URL에서 stock 파라미터 읽기 (disclosure는 URL에 저장하지 않음)
   const stockCodeParam = searchParams.get('stock');
-  const disclosureIdParam = searchParams.get('disclosure');
 
   // 서버 사이드 검색 함수
   const searchFromServer = useCallback(async (query: string) => {
@@ -145,15 +144,10 @@ function DisclosuresContent() {
       const stock = groupedStocks.find(s => s.stock_code === stockCodeParam);
       if (stock) {
         setSelectedStock(stock);
-        if (disclosureIdParam) {
-          const disclosure = stock.disclosures.find(d => d.id === disclosureIdParam);
-          if (disclosure) {
-            setSelectedDisclosure(disclosure);
-          }
-        }
+        // disclosure는 URL에 저장하지 않음 - 상태만 관리
       }
     }
-  }, [groupedStocks, stockCodeParam, disclosureIdParam]);
+  }, [groupedStocks, stockCodeParam]);
 
   useEffect(() => {
     fetchDisclosures();
@@ -168,17 +162,15 @@ function DisclosuresContent() {
     router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
   }, [router]);
 
-  const navigateToDisclosure = useCallback((stock: GroupedStock, disclosure: Disclosure) => {
+  const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
+    // URL을 변경하지 않고 상태만 변경 - 브라우저 뒤로가기 시 종목별 공시 목록으로 이동
     setSelectedDisclosure(disclosure);
-    // replace를 사용하여 히스토리를 쌓지 않음 - 뒤로가기 시 항상 종목별 공시 목록으로 이동
-    router.replace(`/disclosures?stock=${stock.stock_code}&disclosure=${disclosure.id}`, { scroll: false });
-  }, [router]);
+  }, []);
 
   const navigateBack = useCallback(() => {
     if (selectedDisclosure) {
-      // 공시 상세 → 종목별 공시 목록
+      // 공시 상세 → 종목별 공시 목록 (URL 변경 없음, 상태만 변경)
       setSelectedDisclosure(null);
-      router.push(`/disclosures?stock=${selectedStock?.stock_code}`, { scroll: false });
     } else if (selectedStock) {
       // 종목별 공시 목록 → 메인 목록
       setSelectedStock(null);
@@ -195,7 +187,6 @@ function DisclosuresContent() {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const stockCode = params.get('stock');
-      const disclosureId = params.get('disclosure');
 
       if (!stockCode) {
         // 메인 목록으로 돌아옴
@@ -205,15 +196,15 @@ function DisclosuresContent() {
         setTimeout(() => {
           window.scrollTo(0, savedScrollPosition);
         }, 50);
-      } else if (!disclosureId && selectedStock) {
-        // 종목별 공시 목록으로 돌아옴
+      } else {
+        // 종목별 공시 목록으로 돌아옴 - 공시 상세는 항상 닫힘
         setSelectedDisclosure(null);
       }
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [selectedStock, savedScrollPosition]);
+  }, [savedScrollPosition]);
 
   const fetchDisclosures = async () => {
     try {
@@ -407,7 +398,7 @@ function DisclosuresContent() {
             {selectedStock.disclosures.map((disclosure) => (
               <div
                 key={disclosure.id}
-                onClick={() => navigateToDisclosure(selectedStock, disclosure)}
+                onClick={() => navigateToDisclosure(disclosure)}
                 className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
