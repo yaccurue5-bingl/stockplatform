@@ -18,20 +18,33 @@ export async function GET(request: Request) {
 
     console.log(`🔍 [Search API] Searching for: "${query}"`);
 
+    // 스팩/기업인수목적 종목 제외 키워드
+    const SPAC_KEYWORDS = ['스팩', '기업인수목적', '인수목적', 'SPAC'];
+
     // dart_corp_codes 테이블에서 검색
     // 종목코드, 한글명, 영문명으로 검색
-    const { data: companies, error } = await supabase
+    // 스팩 필터링을 위해 더 많이 가져옴
+    const { data: rawCompanies, error } = await supabase
       .from('dart_corp_codes')
       .select('stock_code, corp_code, corp_name, corp_name_en')
       .or(`stock_code.ilike.%${query}%,corp_name.ilike.%${query}%,corp_name_en.ilike.%${query}%`)
-      .limit(limit);
+      .limit(limit * 2);
 
     if (error) {
       console.error('❌ [Search API] Error:', error);
       return NextResponse.json({ results: [], error: error.message });
     }
 
-    console.log(`✅ [Search API] Found ${companies?.length || 0} companies`);
+    // 스팩/기업인수목적 종목 필터링
+    const companies = (rawCompanies || []).filter((company) => {
+      const corpName = company.corp_name || '';
+      // 스팩 키워드가 포함된 종목 제외
+      return !SPAC_KEYWORDS.some(keyword =>
+        corpName.includes(keyword)
+      );
+    }).slice(0, limit);
+
+    console.log(`✅ [Search API] Found ${companies?.length || 0} companies (after SPAC filtering)`);
 
     // 검색 결과에 최신 공시 정보 추가
     const results = await Promise.all(

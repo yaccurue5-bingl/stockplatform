@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -43,26 +43,101 @@ function DisclosuresContent() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
+  const [isSearching, setIsSearching] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   // URL에서 stock과 disclosure 파라미터 읽기
   const stockCodeParam = searchParams.get('stock');
   const disclosureIdParam = searchParams.get('disclosure');
 
-  // 검색 필터링
-  useEffect(() => {
-    if (!searchQuery.trim()) {
+  // 서버 사이드 검색 함수
+  const searchFromServer = useCallback(async (query: string) => {
+    if (!query.trim()) {
       setFilteredStocks(groupedStocks);
+      setIsSearching(false);
       return;
     }
 
-    const query = searchQuery.toLowerCase();
-    const filtered = groupedStocks.filter(stock =>
-      stock.corp_name.toLowerCase().includes(query) ||
-      stock.stock_code.includes(query) ||
-      (stock.corp_name_en && stock.corp_name_en.toLowerCase().includes(query))
-    );
-    setFilteredStocks(filtered);
-  }, [searchQuery, groupedStocks]);
+    setIsSearching(true);
+    try {
+      // 검색 API 호출
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=50`);
+      if (response.ok) {
+        const data = await response.json();
+        const searchResults = data.results || [];
+
+        // 검색 결과를 GroupedStock 형식으로 변환
+        const searchedStocks: GroupedStock[] = searchResults.map((result: any) => {
+          // 해당 종목의 공시가 있는지 groupedStocks에서 찾기
+          const existingStock = groupedStocks.find(s => s.stock_code === result.stock_code);
+          if (existingStock) {
+            return existingStock;
+          }
+          // 기존 공시가 없으면 검색 결과로 새 항목 생성
+          return {
+            stock_code: result.stock_code,
+            corp_name: result.corp_name,
+            corp_name_en: result.corp_name_en,
+            market: 'KOSPI',
+            disclosures: result.latest_disclosure ? [{
+              id: result.latest_disclosure.id,
+              corp_name: result.corp_name,
+              corp_name_en: result.corp_name_en,
+              stock_code: result.stock_code,
+              market: 'KOSPI',
+              report_name: result.latest_disclosure.report_nm,
+              summary: '',
+              sentiment: result.latest_disclosure.sentiment || 'NEUTRAL',
+              sentiment_score: 0,
+              importance: result.latest_disclosure.importance || 'MEDIUM',
+              analyzed_at: result.latest_disclosure.analyzed_at,
+            }] : [],
+            latestImportance: result.latest_disclosure?.importance || 'MEDIUM',
+            hasHighImpact: result.latest_disclosure?.importance === 'HIGH',
+          };
+        }).filter((stock: GroupedStock) => stock.disclosures.length > 0);
+
+        setFilteredStocks(searchedStocks);
+      }
+    } catch (error) {
+      console.error('Search failed:', error);
+      // 실패 시 클라이언트 사이드 검색으로 폴백
+      const query_lower = query.toLowerCase();
+      const filtered = groupedStocks.filter(stock =>
+        stock.corp_name.toLowerCase().includes(query_lower) ||
+        stock.stock_code.includes(query) ||
+        (stock.corp_name_en && stock.corp_name_en.toLowerCase().includes(query_lower))
+      );
+      setFilteredStocks(filtered);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [groupedStocks]);
+
+  // 검색 필터링 (디바운스 적용)
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    if (!searchQuery.trim()) {
+      setFilteredStocks(groupedStocks);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    debounceRef.current = setTimeout(() => {
+      searchFromServer(searchQuery);
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [searchQuery, searchFromServer, groupedStocks]);
 
   // 데이터 로드 후 URL 파라미터에 따라 선택 상태 복원
   useEffect(() => {
@@ -381,18 +456,22 @@ function DisclosuresContent() {
             <span className="text-xl font-bold">K-Market Insight</span>
           </Link>
           <div className="flex items-center gap-4">
-            {/* 검색바 */}
-            <div className="relative">
+            {/* 검색바 - 고정 너비로 UI 흔들림 방지 */}
+            <div ref={searchContainerRef} className="relative w-48 md:w-80">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search company..."
-                className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 pl-10 w-48 md:w-80 text-sm focus:outline-none focus:border-blue-600"
+                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:border-blue-600 transition-colors"
               />
               <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 512 512">
                 <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
               </svg>
+              {/* 검색 중 로딩 표시 */}
+              {isSearching && (
+                <div className="absolute right-3 top-2.5 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              )}
             </div>
             <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
               Sign Up
@@ -402,11 +481,16 @@ function DisclosuresContent() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8">
+        <div className="mb-8 min-h-[60px]">
           <h1 className="text-3xl font-bold mb-2">All Disclosures</h1>
-          <p className="text-gray-400">
-            {filteredStocks.length} companies with recent announcements
-            {searchQuery && ` (searching: "${searchQuery}")`}
+          <p className="text-gray-400 h-6">
+            {isSearching ? (
+              'Searching...'
+            ) : searchQuery ? (
+              `${filteredStocks.length} results for "${searchQuery}"`
+            ) : (
+              `${filteredStocks.length} companies with recent announcements`
+            )}
           </p>
         </div>
 
@@ -418,11 +502,16 @@ function DisclosuresContent() {
               </div>
             ))}
           </div>
-        ) : filteredStocks.length === 0 ? (
-          <div className="text-center py-16">
+        ) : filteredStocks.length === 0 && !isSearching ? (
+          <div className="text-center py-16 min-h-[200px]">
             <p className="text-gray-400 text-lg">
               {searchQuery ? `No results for "${searchQuery}"` : 'No disclosures found'}
             </p>
+            {searchQuery && (
+              <p className="text-gray-500 text-sm mt-2">
+                Try searching with Korean or English company name, or stock code
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
