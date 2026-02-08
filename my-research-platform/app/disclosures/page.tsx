@@ -170,7 +170,8 @@ function DisclosuresContent() {
 
   const navigateToDisclosure = useCallback((stock: GroupedStock, disclosure: Disclosure) => {
     setSelectedDisclosure(disclosure);
-    router.push(`/disclosures?stock=${stock.stock_code}&disclosure=${disclosure.id}`, { scroll: false });
+    // replace를 사용하여 히스토리를 쌓지 않음 - 뒤로가기 시 항상 종목별 공시 목록으로 이동
+    router.replace(`/disclosures?stock=${stock.stock_code}&disclosure=${disclosure.id}`, { scroll: false });
   }, [router]);
 
   const navigateBack = useCallback(() => {
@@ -532,9 +533,10 @@ function DisclosuresContent() {
                         {getCompanyInitials(stock.corp_name)}
                       </div>
                       <div>
-                        <h4 className="font-bold text-lg">{stock.corp_name}</h4>
+                        {/* 영문명 우선, 한글명 아래 배치 */}
+                        <h4 className="font-bold text-lg">{stock.corp_name_en || stock.corp_name}</h4>
                         {stock.corp_name_en && (
-                          <p className="text-sm text-gray-400">{stock.corp_name_en}</p>
+                          <p className="text-sm text-gray-400">{stock.corp_name}</p>
                         )}
                         <p className="text-sm text-gray-500">{stock.stock_code} • {stock.market}</p>
                       </div>

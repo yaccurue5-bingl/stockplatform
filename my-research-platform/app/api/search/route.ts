@@ -46,8 +46,8 @@ export async function GET(request: Request) {
 
     console.log(`✅ [Search API] Found ${companies?.length || 0} companies (after SPAC filtering)`);
 
-    // 검색 결과에 최신 공시 정보 추가
-    const results = await Promise.all(
+    // 검색 결과에 최신 공시 정보 추가 (공시가 있는 종목만 반환)
+    const resultsWithDisclosures = await Promise.all(
       (companies || []).map(async (company) => {
         // 해당 종목의 최신 공시 1개 조회
         const { data: latestDisclosure } = await supabase
@@ -68,6 +68,11 @@ export async function GET(request: Request) {
         };
       })
     );
+
+    // disclosure_insights에 데이터가 있는 종목만 필터링
+    const results = resultsWithDisclosures.filter(item => item.latest_disclosure !== null);
+
+    console.log(`✅ [Search API] Returning ${results.length} companies with disclosures`);
 
     return NextResponse.json({ results });
   } catch (error) {
