@@ -134,6 +134,7 @@ class DARTClient:
         for company in root.findall('list'):
             corp_code = company.findtext('corp_code', '').strip()
             corp_name = company.findtext('corp_name', '').strip()
+            corp_name_en = company.findtext('corp_name_eng', '').strip()
             stock_code = company.findtext('stock_code', '').strip()
             modify_date = company.findtext('modify_date', '').strip()
 
@@ -142,6 +143,7 @@ class DARTClient:
                 corp_code_map[stock_code] = {
                     'corp_code': corp_code,
                     'corp_name': corp_name,
+                    'corp_name_en': corp_name_en,
                     'stock_code': stock_code,
                     'modify_date': modify_date,
                 }

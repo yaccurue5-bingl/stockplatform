@@ -13,6 +13,7 @@ import { getSupabase, startSessionTimer, clearSessionTimer } from '@/lib/supabas
 
 export default function LandingPage() {
   const router = useRouter();
+  const router = useRouter();
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const isSuper = isSuperAdmin(userEmail);
@@ -236,6 +237,21 @@ export default function LandingPage() {
                   View All Disclosures →
                 </button>
               )}
+              {isSuper ? (
+                <Link
+                  href="/disclosures"
+                  className="inline-block bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-600 rounded-lg px-8 py-3 text-sm font-medium transition"
+                >
+                  View All Disclosures →
+                </Link>
+              ) : (
+                <button
+                  onClick={() => setIsWaitlistOpen(true)}
+                  className="inline-block bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-blue-600 rounded-lg px-8 py-3 text-sm font-medium transition"
+                >
+                  View All Disclosures →
+                </button>
+              )}
             </div>
           </div>
         </section>
@@ -270,6 +286,7 @@ export default function LandingPage() {
                 <h4 className="text-lg font-bold mb-2">Comprehensive Market Data</h4>
                 <p className="text-gray-400 text-sm">
                   Access real-time stock prices, financial reports, and market indices. All DART data integrated in one platform.
+                  Access real-time stock prices, financial reports, and market indices. All DART data integrated in one platform.
                 </p>
               </div>
 
@@ -281,6 +298,7 @@ export default function LandingPage() {
                 </div>
                 <h4 className="text-lg font-bold mb-2">Verified Data Sources</h4>
                 <p className="text-gray-400 text-sm">
+                  Official data from DART (Korean SEC). Reliable, accurate, and compliant with Korean regulations.
                   Official data from DART (Korean SEC). Reliable, accurate, and compliant with Korean regulations.
                 </p>
               </div>
