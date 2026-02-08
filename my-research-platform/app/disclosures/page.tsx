@@ -144,10 +144,13 @@ function DisclosuresContent() {
       const stock = groupedStocks.find(s => s.stock_code === stockCodeParam);
       if (stock) {
         setSelectedStock(stock);
-        // disclosure는 URL에 저장하지 않음 - 상태만 관리
+        // 첫 번째 공시 자동 선택 - 바로 공시 상세 화면으로
+        if (stock.disclosures.length > 0 && !selectedDisclosure) {
+          setSelectedDisclosure(stock.disclosures[0]);
+        }
       }
     }
-  }, [groupedStocks, stockCodeParam]);
+  }, [groupedStocks, stockCodeParam, selectedDisclosure]);
 
   useEffect(() => {
     fetchDisclosures();
@@ -158,29 +161,28 @@ function DisclosuresContent() {
     // 현재 스크롤 위치 저장
     setSavedScrollPosition(window.scrollY);
     setSelectedStock(stock);
-    setSelectedDisclosure(null);
+    // 첫 번째 공시 자동 선택 - 바로 공시 상세 화면으로 이동
+    if (stock.disclosures.length > 0) {
+      setSelectedDisclosure(stock.disclosures[0]);
+    }
     router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
   }, [router]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
-    // URL을 변경하지 않고 상태만 변경 - 브라우저 뒤로가기 시 종목별 공시 목록으로 이동
+    // URL을 변경하지 않고 상태만 변경
     setSelectedDisclosure(disclosure);
   }, []);
 
   const navigateBack = useCallback(() => {
-    if (selectedDisclosure) {
-      // 공시 상세 → 종목별 공시 목록 (URL 변경 없음, 상태만 변경)
-      setSelectedDisclosure(null);
-    } else if (selectedStock) {
-      // 종목별 공시 목록 → 메인 목록
-      setSelectedStock(null);
-      router.push('/disclosures', { scroll: false });
-      // 스크롤 위치 복원
-      setTimeout(() => {
-        window.scrollTo(0, savedScrollPosition);
-      }, 50);
-    }
-  }, [selectedDisclosure, selectedStock, savedScrollPosition, router]);
+    // 공시 상세에서 바로 메인 목록으로 이동
+    setSelectedStock(null);
+    setSelectedDisclosure(null);
+    router.push('/disclosures', { scroll: false });
+    // 스크롤 위치 복원
+    setTimeout(() => {
+      window.scrollTo(0, savedScrollPosition);
+    }, 50);
+  }, [savedScrollPosition, router]);
 
   // 브라우저 뒤로가기 처리
   useEffect(() => {
@@ -196,9 +198,6 @@ function DisclosuresContent() {
         setTimeout(() => {
           window.scrollTo(0, savedScrollPosition);
         }, 50);
-      } else {
-        // 종목별 공시 목록으로 돌아옴 - 공시 상세는 항상 닫힘
-        setSelectedDisclosure(null);
       }
     };
 
@@ -610,78 +609,6 @@ function DisclosuresContent() {
             </div>
           </main>
         </div>
-      </div>
-    );
-  }
-
-  // 종목별 공시 목록
-  if (selectedStock) {
-    return (
-      <div className="bg-gray-950 text-white font-sans min-h-screen">
-        <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
-            <button
-              onClick={navigateBack}
-              className="text-gray-400 hover:text-white transition mr-4"
-            >
-              ← Back
-            </button>
-            <div className="flex items-center space-x-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${selectedStock.hasHighImpact ? 'bg-orange-600' : 'bg-blue-600'}`}>
-                {getCompanyInitials(selectedStock.corp_name)}
-              </div>
-              <div>
-                <span className="text-xl font-bold">{selectedStock.corp_name}</span>
-                <span className="text-gray-400 ml-2">{selectedStock.stock_code}</span>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main className="max-w-7xl mx-auto px-4 py-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold mb-2">{selectedStock.corp_name} Disclosures</h1>
-            <p className="text-gray-400">{selectedStock.disclosures.length} disclosure{selectedStock.disclosures.length > 1 ? 's' : ''} found</p>
-          </div>
-
-          <div className="space-y-4">
-            {selectedStock.disclosures.map((disclosure) => (
-              <div
-                key={disclosure.id}
-                onClick={() => navigateToDisclosure(disclosure)}
-                className="bg-gray-900 border border-gray-800 rounded-xl p-5 hover:border-blue-600 transition cursor-pointer"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-xs px-2 py-1 rounded ${getImpactColor(disclosure.importance, false)}`}>
-                        {disclosure.importance || 'MEDIUM'}
-                      </span>
-                      <span className="text-xs text-gray-500">{getTimeAgo(disclosure.analyzed_at)}</span>
-                    </div>
-                    <h5 className="font-semibold text-lg mb-2">{disclosure.report_name}</h5>
-                  </div>
-                </div>
-
-                <p className="text-sm text-gray-400 mb-4 line-clamp-2">
-                  {disclosure.summary || 'No summary available'}
-                </p>
-
-                <div className="flex items-center justify-between pt-3 border-t border-gray-800">
-                  <div className="flex gap-2">
-                    <span className={`text-xs px-3 py-1 rounded-full ${getSentimentColor(disclosure.sentiment)}`}>
-                      {disclosure.sentiment || 'NEUTRAL'}
-                    </span>
-                    <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">
-                      Score: {(disclosure.sentiment_score || 0).toFixed(2)}
-                    </span>
-                  </div>
-                  <span className="text-blue-500 text-sm">View Details →</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
       </div>
     );
   }
