@@ -16,6 +16,8 @@ interface Disclosure {
   sentiment_score: number;
   importance: string;
   analyzed_at: string;
+  sector?: string;
+  sector_en?: string;
   detailed_analysis?: string;
   investment_implications?: string;
   risk_factors?: string[];
@@ -165,7 +167,8 @@ function DisclosuresContent() {
     if (stock.disclosures.length > 0) {
       setSelectedDisclosure(stock.disclosures[0]);
     }
-    router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
+    // replace 사용으로 히스토리에 쌓이지 않음 - Back 버튼 한 번에 메인으로 이동
+    router.replace(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
   }, [router]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
@@ -177,7 +180,8 @@ function DisclosuresContent() {
     // 공시 상세에서 바로 메인 목록으로 이동
     setSelectedStock(null);
     setSelectedDisclosure(null);
-    router.push('/disclosures', { scroll: false });
+    // replace 사용으로 히스토리를 깔끔하게 유지
+    router.replace('/disclosures', { scroll: false });
     // 스크롤 위치 복원
     setTimeout(() => {
       window.scrollTo(0, savedScrollPosition);
@@ -444,7 +448,7 @@ function DisclosuresContent() {
                   <div className="text-sm text-gray-400">
                     <p><span className="text-gray-500">corp_name</span></p>
                     <p>{selectedStock.corp_name_en || selectedStock.corp_name}</p>
-                    <p><span className="text-gray-500">sector</span> Automotive / EV</p>
+                    <p><span className="text-gray-500">sector</span> {selectedDisclosure.sector_en || selectedDisclosure.sector || 'Others'}</p>
                     <p>{formatDateTime(selectedDisclosure.analyzed_at)}</p>
                   </div>
                 </div>
