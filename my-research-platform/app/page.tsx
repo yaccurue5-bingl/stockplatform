@@ -13,7 +13,6 @@ import { getSupabase, startSessionTimer, clearSessionTimer } from '@/lib/supabas
 
 export default function LandingPage() {
   const router = useRouter();
-  const router = useRouter();
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const isSuper = isSuperAdmin(userEmail);
