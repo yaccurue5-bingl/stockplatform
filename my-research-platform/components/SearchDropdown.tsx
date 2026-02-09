@@ -102,15 +102,32 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
   }, [selectedIndex]);
 
   // 결과 선택
-  const handleSelect = (result: SearchResult) => {
+  const handleSelect = (e: React.MouseEvent, result: SearchResult) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setQuery('');
+    setResults([]);
+    setIsOpen(false);
+
     if (onSelectStock) {
       onSelectStock(result.stock_code);
     } else if (isSuperUser) {
       router.push(`/stock/${result.stock_code}`);
     }
+  };
+
+  // 키보드로 선택
+  const handleKeyboardSelect = (result: SearchResult) => {
     setQuery('');
     setResults([]);
     setIsOpen(false);
+
+    if (onSelectStock) {
+      onSelectStock(result.stock_code);
+    } else if (isSuperUser) {
+      router.push(`/stock/${result.stock_code}`);
+    }
   };
 
   // 키보드 네비게이션
@@ -125,7 +142,7 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
       setSelectedIndex(prev => Math.max(prev - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      handleSelect(results[selectedIndex]);
+      handleKeyboardSelect(results[selectedIndex]);
     } else if (e.key === 'Escape') {
       setIsOpen(false);
       inputRef.current?.blur();
@@ -170,7 +187,8 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
                 <div
                   key={result.stock_code}
                   ref={(el) => { itemRefs.current[index] = el; }}
-                  onClick={() => handleSelect(result)}
+                  onClick={(e) => handleSelect(e, result)}
+                  onMouseDown={(e) => e.preventDefault()}
                   className={`px-3 py-2 cursor-pointer transition-colors ${
                     index === selectedIndex ? 'bg-blue-600/20' : 'hover:bg-gray-800'
                   }`}
