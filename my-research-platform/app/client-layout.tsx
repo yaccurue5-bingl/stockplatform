@@ -1,17 +1,6 @@
 // app/client-layout.tsx
 'use client';
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Swal from 'sweetalert2'; // 설치한 라이브러리 임포트
-import { startSessionTimer, resetSessionTimer, clearSessionTimer } from "@/lib/supabase/client";
-
-export default function ClientLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-
-  useEffect(() => {
-    const handleSessionExpire = () => {
-      // 브라우저 기본 alert 대신 SweetAlert2 사용
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Swal from 'sweetalert2';
@@ -60,9 +49,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         text: "For your security, you have been logged out due to 30 minutes of inactivity.",
         icon: 'warning',
         confirmButtonColor: '#3085d6',
-
-        confirmButtonText: 'OK'
-      }).then((result) => {
         confirmButtonText: 'OK',
         allowOutsideClick: false,
         allowEscapeKey: false,
@@ -70,7 +56,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           confirmButton: 'swal2-confirm-visible'
         }
       }).then(() => {
->>>>>>> d1e82752b1a7af3610b8e924a982012339026d2a
         router.push("/");
       });
     };
@@ -78,13 +63,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     startSessionTimer(handleSessionExpire);
 
     const handleActivity = () => {
-<<<<<<< HEAD
-      resetSessionTimer(handleSessionExpire);
-=======
       if (isLoggedIn) {
         resetSessionTimer(handleSessionExpire);
       }
->>>>>>> d1e82752b1a7af3610b8e924a982012339026d2a
     };
 
     // 활동 감지 이벤트
@@ -98,14 +79,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       window.removeEventListener("keydown", handleActivity);
       window.removeEventListener("click", handleActivity);
     };
-<<<<<<< HEAD
-  }, [router]);
-
-  return <>{children}</>;
-}
-=======
   }, [router, isLoggedIn]);
 
   return <>{children}</>;
 }
->>>>>>> d1e82752b1a7af3610b8e924a982012339026d2a
