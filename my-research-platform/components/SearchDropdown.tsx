@@ -36,15 +36,15 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 외부 클릭 시 닫기
+  // 외부 클릭 시 닫기 - click 이벤트 사용 (mousedown은 드롭다운 항목 클릭 시 문제 발생)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   // 검색 실행 (디바운스 적용)
@@ -103,31 +103,52 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
 
   // 결과 선택
   const handleSelect = (e: React.MouseEvent, result: SearchResult) => {
+    // 이벤트 전파 중지 - document 레벨 click 핸들러가 드롭다운을 닫지 않도록
     e.preventDefault();
     e.stopPropagation();
 
+    console.log('[SearchDropdown] handleSelect called:', {
+      stockCode: result.stock_code,
+      hasOnSelectStock: !!onSelectStock,
+      isSuperUser
+    });
+
+    // 상태 업데이트 먼저 (드롭다운 닫기)
     setQuery('');
     setResults([]);
     setIsOpen(false);
 
-    if (onSelectStock) {
-      onSelectStock(result.stock_code);
-    } else if (isSuperUser) {
-      router.push(`/stock/${result.stock_code}`);
-    }
+    // 콜백 호출은 상태 업데이트 후 (setTimeout으로 다음 틱에서 실행)
+    setTimeout(() => {
+      if (onSelectStock) {
+        console.log('[SearchDropdown] calling onSelectStock with:', result.stock_code);
+        onSelectStock(result.stock_code);
+      } else if (isSuperUser) {
+        console.log('[SearchDropdown] navigating to /stock/' + result.stock_code);
+        router.push(`/stock/${result.stock_code}`);
+      }
+    }, 0);
   };
 
   // 키보드로 선택
   const handleKeyboardSelect = (result: SearchResult) => {
+    console.log('[SearchDropdown] handleKeyboardSelect called:', result.stock_code);
+
+    // 상태 업데이트 먼저 (드롭다운 닫기)
     setQuery('');
     setResults([]);
     setIsOpen(false);
 
-    if (onSelectStock) {
-      onSelectStock(result.stock_code);
-    } else if (isSuperUser) {
-      router.push(`/stock/${result.stock_code}`);
-    }
+    // 콜백 호출은 상태 업데이트 후
+    setTimeout(() => {
+      if (onSelectStock) {
+        console.log('[SearchDropdown] calling onSelectStock with:', result.stock_code);
+        onSelectStock(result.stock_code);
+      } else if (isSuperUser) {
+        console.log('[SearchDropdown] navigating to /stock/' + result.stock_code);
+        router.push(`/stock/${result.stock_code}`);
+      }
+    }, 0);
   };
 
   // 키보드 네비게이션
