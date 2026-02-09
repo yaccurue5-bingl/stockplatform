@@ -19,7 +19,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         confirmButtonColor: '#3085d6',
         confirmButtonText: 'OK'
       }).then((result) => {
-        router.push("/auth/login");
+        router.push("/");
       });
     };
 
