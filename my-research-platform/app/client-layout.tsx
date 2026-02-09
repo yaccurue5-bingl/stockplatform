@@ -3,6 +3,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Swal from 'sweetalert2'; // 설치한 라이브러리 임포트
 import { startSessionTimer, resetSessionTimer, clearSessionTimer } from "@/lib/supabase/client";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -10,18 +11,25 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     const handleSessionExpire = () => {
-      alert("For your security, you have been logged out due to 30 minutes of inactivity.");
-      router.push("/auth/login");
+      // 브라우저 기본 alert 대신 SweetAlert2 사용
+      Swal.fire({
+        title: 'Session Expired',
+        text: "For your security, you have been logged out due to 30 minutes of inactivity.",
+        icon: 'warning',
+        confirmButtonColor: '#3085d6',
+        confirmButtonText: 'OK'
+      }).then((result) => {
+        router.push("/auth/login");
+      });
     };
 
-    // 초기 타이머 시작
     startSessionTimer(handleSessionExpire);
 
-    // 활동 감지하여 타이머 리셋 (마지막 활동 기준 30분)
     const handleActivity = () => {
       resetSessionTimer(handleSessionExpire);
     };
 
+    // 활동 감지 이벤트
     window.addEventListener("mousemove", handleActivity);
     window.addEventListener("keydown", handleActivity);
     window.addEventListener("click", handleActivity);
