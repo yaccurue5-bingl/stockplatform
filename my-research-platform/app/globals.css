@@ -12,3 +12,21 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* SweetAlert2 확인 버튼 항상 보이도록 */
+.swal2-confirm-visible,
+.swal2-confirm {
+  opacity: 1 !important;
+  visibility: visible !important;
+  background-color: #3085d6 !important;
+  color: white !important;
+  border: none !important;
+  padding: 10px 24px !important;
+  font-size: 1rem !important;
+  border-radius: 5px !important;
+  cursor: pointer !important;
+}
+
+.swal2-confirm:hover {
+  background-color: #2573c1 !important;
+}
