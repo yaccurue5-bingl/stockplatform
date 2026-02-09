@@ -12,7 +12,9 @@ GICS 기반 영문 섹터명을 sectors 테이블에 업데이트합니다.
 """
 
 import os
+from dotenv import load_dotenv 
 from supabase import create_client, Client
+load_dotenv('.env.local')
 
 # GICS 기반 섹터 한글 -> 영문 매핑
 SECTOR_MAPPING = {
@@ -124,41 +126,43 @@ def get_supabase_client() -> Client:
 
 
 def update_sectors():
-    """sectors 테이블에 영문 섹터명 업데이트"""
+    """companies 테이블의 한글 sector를 기반으로 sector_en 업데이트"""
     print("🔄 Connecting to Supabase...")
     supabase = get_supabase_client()
 
-    print("📊 Fetching sectors from database...")
-    response = supabase.table('sectors').select('name, sector_en').execute()
-    sectors = response.data
+    print("📊 Fetching companies from database...")
+    # 1. 한글 섹터명이 저장된 'sector' 컬럼을 반드시 가져와야 합니다.
+    response = supabase.table('companies').select('corp_name, sector, sector_en').execute()
+    companies = response.data
 
-    print(f"✅ Found {len(sectors)} sectors")
+    print(f"✅ Found {len(companies)} companies")
 
     updated_count = 0
     skipped_count = 0
 
-    for sector in sectors:
-        sector_name = sector['name']
-        current_en = sector.get('sector_en')
+    for company in companies:
+        name_val = company['corp_name']
+        kr_sector = company.get('sector')  # DB의 한글 섹터명
+        current_en = company.get('sector_en')
 
-        # 매핑에서 영문명 찾기
-        if sector_name in SECTOR_MAPPING:
-            new_en = SECTOR_MAPPING[sector_name]
+        # 2. 매핑의 키(Key)인 'kr_sector'가 있는지 확인합니다.
+        if kr_sector in SECTOR_MAPPING:
+            new_en = SECTOR_MAPPING[kr_sector]
 
-            # 이미 같은 값이면 스킵
+            # 이미 업데이트가 되어 있다면 스킵
             if current_en == new_en:
                 skipped_count += 1
                 continue
 
-            # 업데이트
-            print(f"  📝 {sector_name} -> {new_en}")
-            supabase.table('sectors').update({'sector_en': new_en}).eq('name', sector_name).execute()
+            # 3. 해당 종목(corp_name)의 영문 섹터명을 업데이트
+            print(f"  📝 {name_val} ({kr_sector}) -> {new_en}")
+            supabase.table('companies').update({'sector_en': new_en}).eq('corp_name', name_val).execute()
             updated_count += 1
         else:
-            # 매핑에 없는 섹터는 'Others'로 설정 (이미 설정되어 있지 않은 경우)
+            # 매핑 테이블에 없는 한글 섹터명인 경우
             if not current_en:
-                print(f"  ⚠️ {sector_name} -> Others (not in mapping)")
-                supabase.table('sectors').update({'sector_en': 'Others'}).eq('name', sector_name).execute()
+                print(f"  ⚠️ {name_val} ({kr_sector}) -> Others (not in mapping)")
+                supabase.table('companies').update({'sector_en': 'Others'}).eq('corp_name', name_val).execute()
                 updated_count += 1
             else:
                 skipped_count += 1
@@ -173,7 +177,7 @@ def verify_mapping():
     print("\n🔍 Verifying sector mapping...")
     supabase = get_supabase_client()
 
-    response = supabase.table('sectors').select('name, sector_en').order('sector_en').execute()
+    response = supabase.table('companies').select('corp_name, sector_en').order('sector_en').execute()
     sectors = response.data
 
     # 그룹별로 출력
@@ -182,7 +186,7 @@ def verify_mapping():
         en = sector.get('sector_en') or 'NULL'
         if en not in groups:
             groups[en] = []
-        groups[en].append(sector['name'])
+        groups[en].append(sector['corp_name'])
 
     print("\n📋 Sector groups:")
     for en_name, kr_names in sorted(groups.items()):
