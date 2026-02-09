@@ -8,34 +8,41 @@ export async function GET(request: Request) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // URL에서 limit 파라미터 추출 (기본값: 10, 최대: 100)
+    // URL에서 파라미터 추출
     const { searchParams } = new URL(request.url);
     const limitParam = searchParams.get('limit');
+    const stockParam = searchParams.get('stock');  // 특정 종목 필터
     const limit = Math.min(parseInt(limitParam || '10', 10), 100);
 
-    console.log('🔍 [API] Fetching latest disclosures...');
+    console.log('🔍 [API] Fetching latest disclosures...', stockParam ? `for stock: ${stockParam}` : '');
 
     // 스팩/기업인수목적 종목 제외 키워드
     const SPAC_KEYWORDS = ['스팩', '기업인수목적', '인수목적', 'SPAC'];
 
-    // 최신 공시 데이터 가져오기
-    // analysis_status가 'completed'인 것만 가져오기
-    // 스팩 종목 제외를 위해 여유있게 더 많이 가져옴
-    const { data: rawDisclosures, error } = await supabase
+    // 쿼리 빌더 시작
+    let query = supabase
       .from('disclosure_insights')
       .select('*')
-      .eq('analysis_status', 'completed')
-      .order('analyzed_at', { ascending: false })
-      .limit(limit * 2);  // 스팩 필터링 후 충분한 개수 확보
+      .eq('analysis_status', 'completed');
 
-    // 스팩/기업인수목적 종목 필터링
-    const disclosures = (rawDisclosures || []).filter((item: any) => {
-      const corpName = item.corp_name || '';
-      // 스팩 키워드가 포함된 종목 제외
-      return !SPAC_KEYWORDS.some(keyword =>
-        corpName.includes(keyword)
-      );
-    }).slice(0, limit);  // 요청된 limit 만큼만 반환
+    // 특정 종목 필터 적용
+    if (stockParam) {
+      query = query.eq('stock_code', stockParam);
+      console.log(`🎯 [API] Filtering by stock_code: ${stockParam}`);
+    }
+
+    // 최신 공시 데이터 가져오기
+    const { data: rawDisclosures, error } = await query
+      .order('analyzed_at', { ascending: false })
+      .limit(stockParam ? 50 : limit * 2);  // 특정 종목은 더 많이, 전체는 스팩 필터링용
+
+    // 스팩/기업인수목적 종목 필터링 (특정 종목 필터가 없을 때만)
+    const disclosures = stockParam
+      ? (rawDisclosures || [])  // 특정 종목 검색 시 스팩 필터 생략
+      : (rawDisclosures || []).filter((item: any) => {
+          const corpName = item.corp_name || '';
+          return !SPAC_KEYWORDS.some(keyword => corpName.includes(keyword));
+        }).slice(0, limit);
 
     // 영문 기업명 및 섹터 조회를 위한 stock_code 목록 추출
     const stockCodes = [...new Set((disclosures || []).map((d: any) => d.stock_code).filter(Boolean))];

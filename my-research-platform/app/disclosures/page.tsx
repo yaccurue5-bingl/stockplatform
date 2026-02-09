@@ -141,23 +141,12 @@ function DisclosuresContent() {
     };
   }, [searchQuery, searchFromServer, groupedStocks]);
 
-  // 데이터 로드 후 URL 파라미터에 따라 선택 상태 복원
-  useEffect(() => {
-    if (groupedStocks.length > 0 && stockCodeParam) {
-      const stock = groupedStocks.find(s => s.stock_code === stockCodeParam);
-      if (stock) {
-        setSelectedStock(stock);
-        // 첫 번째 공시 자동 선택 - 바로 공시 상세 화면으로
-        if (stock.disclosures.length > 0 && !selectedDisclosure) {
-          setSelectedDisclosure(stock.disclosures[0]);
-        }
-      }
-    }
-  }, [groupedStocks, stockCodeParam, selectedDisclosure]);
+  // 참고: stock 파라미터 처리는 fetchDisclosures에서 수행됨
 
+  // stock 파라미터가 있으면 해당 종목의 공시만 가져오기
   useEffect(() => {
-    fetchDisclosures();
-  }, []);
+    fetchDisclosures(stockCodeParam || undefined);
+  }, [stockCodeParam]);
 
   // URL 기반 네비게이션 함수들
   const navigateToStock = useCallback((stock: GroupedStock) => {
@@ -210,11 +199,19 @@ function DisclosuresContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [savedScrollPosition]);
 
-  const fetchDisclosures = async () => {
+  const fetchDisclosures = async (stockCode?: string) => {
     try {
-      const response = await fetch('/api/disclosures/latest?limit=100');
+      // stock 파라미터가 있으면 해당 종목만, 없으면 전체
+      const url = stockCode
+        ? `/api/disclosures/latest?stock=${stockCode}&limit=50`
+        : '/api/disclosures/latest?limit=100';
+
+      console.log(`🔍 [Disclosures] Fetching: ${url}`);
+      const response = await fetch(url);
+
       if (response.ok) {
         const data: Disclosure[] = await response.json();
+        console.log(`✅ [Disclosures] Got ${data.length} disclosures`);
 
         // 종목별로 그룹화
         const stockMap = new Map<string, GroupedStock>();
@@ -242,6 +239,19 @@ function DisclosuresContent() {
         });
 
         const grouped = Array.from(stockMap.values());
+
+        // stock 파라미터가 있으면 해당 종목을 바로 선택
+        if (stockCode && grouped.length > 0) {
+          const targetStock = grouped.find(s => s.stock_code === stockCode);
+          if (targetStock) {
+            console.log(`🎯 [Disclosures] Auto-selecting stock: ${stockCode}`);
+            setSelectedStock(targetStock);
+            if (targetStock.disclosures.length > 0) {
+              setSelectedDisclosure(targetStock.disclosures[0]);
+            }
+          }
+        }
+
         setGroupedStocks(grouped);
         setFilteredStocks(grouped);
       }
