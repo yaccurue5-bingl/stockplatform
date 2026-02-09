@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import SearchDropdown from '@/components/SearchDropdown';
 
 interface Disclosure {
   id: string;
@@ -629,22 +630,19 @@ function DisclosuresContent() {
             <span className="text-xl font-bold">K-Market Insight</span>
           </Link>
           <div className="flex items-center gap-4">
-            {/* 검색바 - 고정 너비로 UI 흔들림 방지 */}
-            <div ref={searchContainerRef} className="relative w-48 md:w-80">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+            {/* 검색 드롭다운 */}
+            <div className="w-48 md:w-80">
+              <SearchDropdown
+                onSelectStock={(stockCode) => {
+                  const stock = groupedStocks.find(s => s.stock_code === stockCode);
+                  if (stock) {
+                    navigateToStock(stock);
+                  } else {
+                    router.push(`/disclosures?stock=${stockCode}`);
+                  }
+                }}
                 placeholder="Search company..."
-                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:border-blue-600 transition-colors"
               />
-              <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 512 512">
-                <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
-              </svg>
-              {/* 검색 중 로딩 표시 */}
-              {isSearching && (
-                <div className="absolute right-3 top-2.5 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              )}
             </div>
             <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
               Sign Up

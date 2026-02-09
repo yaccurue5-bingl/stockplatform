@@ -18,13 +18,9 @@ export default function LandingPage() {
   const isSuper = isSuperAdmin(userEmail);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // 검색 결과 선택 시 처리
+  // 검색 결과 선택 시 처리 - 해당 종목의 공시 상세로 이동
   const handleSearchSelect = (stockCode: string) => {
-    if (isSuper) {
-      router.push(`/stock/${stockCode}`);
-    } else {
-      setIsWaitlistOpen(true);
-    }
+    router.push(`/disclosures?stock=${stockCode}`);
   };
 
   // 키보드 단축키 (Cmd+K / Ctrl+K) - 검색 입력창에 포커스
