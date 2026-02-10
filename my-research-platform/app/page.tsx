@@ -217,6 +217,7 @@ export default function LandingPage() {
 
             <LatestDisclosures
               onCardClick={() => setIsWaitlistOpen(true)}
+              isSuperUser={isSuper}
             />
 
             {/* View More */}
