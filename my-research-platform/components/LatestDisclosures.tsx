@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface Disclosure {
   id: string;
@@ -18,9 +19,11 @@ interface Disclosure {
 
 interface LatestDisclosuresProps {
   onCardClick?: () => void;
+  isSuperUser?: boolean;
 }
 
-export default function LatestDisclosures({ onCardClick }: LatestDisclosuresProps) {
+export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDisclosuresProps) {
+  const router = useRouter();
   const [disclosures, setDisclosures] = useState<Disclosure[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -68,9 +71,12 @@ export default function LatestDisclosures({ onCardClick }: LatestDisclosuresProp
     return 'Recently';
   };
 
-  const handleCardClick = () => {
-    // 정식 오픈 전: waitlist 모달 열기
-    if (onCardClick) {
+  const handleCardClick = (disclosure: Disclosure) => {
+    // 슈퍼 유저는 해당 공시 상세 페이지로 이동
+    if (isSuperUser) {
+      router.push(`/disclosures?stock=${disclosure.stock_code}`);
+    } else if (onCardClick) {
+      // 일반 사용자는 waitlist 모달 열기
       onCardClick();
     }
   };
@@ -86,7 +92,7 @@ export default function LatestDisclosures({ onCardClick }: LatestDisclosuresProp
         return (
           <div
             key={disclosure.id}
-            onClick={handleCardClick}
+            onClick={() => handleCardClick(disclosure)}
             className={`bg-slate-900 border rounded-2xl p-6 transition-all cursor-pointer
               ${isCritical ? 'border-orange-500/50 shadow-lg' : 'border-slate-800 hover:border-blue-500'}`}
           >
