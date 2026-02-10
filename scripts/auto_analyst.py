@@ -6,15 +6,28 @@ import hashlib
 from datetime import datetime
 from groq import Groq
 from supabase import create_client, Client
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# 1. 로컬 경로 설정
+local_env_path = r"C:\stockplatform\.env.local"
+
+# 2. 로컬 경로에 파일이 있을 때만 로드 (Windows 로컬 환경)
+if os.path.exists(local_env_path):
+    load_dotenv(local_env_path)
+    logger.info(f"Loaded config from {local_env_path}")
+else:
+    # 3. 로컬 파일이 없으면 시스템 환경 변수(온라인 서비스 설정값)를 자동으로 사용
+    load_dotenv() 
+    logger.info("Using system environment variables")
 
 def generate_hash_key(corp_code: str, rcept_no: str) -> str:
     """공시 hash key 생성"""
     return hashlib.sha256(f"{corp_code}_{rcept_no}".encode()).hexdigest()
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
@@ -52,14 +65,14 @@ Scoring rules:
     def analyze_content(self, corp_name, title):
         try:
             response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": f"Company: {corp_name}\nDisclosure: {title}"}
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.2,
-                max_tokens=1000  # 토큰 제한 추가
+                max_completion_tokens=1000 # 토큰 제한 추가
             )
             
             result = json.loads(response.choices[0].message.content)
@@ -97,7 +110,7 @@ def run():
         .eq("analysis_status", "pending") \
         .or_("analysis_retry_count.is.null,analysis_retry_count.lt.3") \
         .order("created_at", desc=True) \
-        .limit(20) \
+        .limit(200) \
         .execute()
     
     if not res.data:
