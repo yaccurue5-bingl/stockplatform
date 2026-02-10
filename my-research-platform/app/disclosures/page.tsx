@@ -50,8 +50,9 @@ function DisclosuresContent() {
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // URL에서 stock 파라미터 읽기 (disclosure는 URL에 저장하지 않음)
+  // URL에서 파라미터 읽기
   const stockCodeParam = searchParams.get('stock');
+  const searchQueryParam = searchParams.get('search');  // 검색어 파라미터
 
   // 서버 사이드 검색 함수
   const searchFromServer = useCallback(async (query: string) => {
@@ -141,12 +142,29 @@ function DisclosuresContent() {
     };
   }, [searchQuery, searchFromServer, groupedStocks]);
 
-  // 참고: stock 파라미터 처리는 fetchDisclosures에서 수행됨
-
-  // stock 파라미터가 있으면 해당 종목의 공시만 가져오기
+  // stock 파라미터에 따라 데이터 로드
   useEffect(() => {
-    fetchDisclosures(stockCodeParam || undefined);
+    if (stockCodeParam) {
+      // 특정 종목 조회
+      fetchDisclosures(stockCodeParam);
+    } else if (groupedStocks.length === 0) {
+      // 전체 공시 로드 (데이터가 없을 때만)
+      fetchDisclosures();
+    } else {
+      // 이미 데이터가 있으면 선택 상태만 초기화
+      setSelectedStock(null);
+      setSelectedDisclosure(null);
+      setLoading(false);
+    }
   }, [stockCodeParam]);
+
+  // search 파라미터가 있으면 검색 실행
+  useEffect(() => {
+    if (searchQueryParam && groupedStocks.length > 0) {
+      setSearchQuery(searchQueryParam);
+      searchFromServer(searchQueryParam);
+    }
+  }, [searchQueryParam, groupedStocks.length]);
 
   // URL 기반 네비게이션 함수들
   const navigateToStock = useCallback((stock: GroupedStock) => {
@@ -157,8 +175,8 @@ function DisclosuresContent() {
     if (stock.disclosures.length > 0) {
       setSelectedDisclosure(stock.disclosures[0]);
     }
-    // replace 사용으로 히스토리에 쌓이지 않음 - Back 버튼 한 번에 메인으로 이동
-    router.replace(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
+    // push 사용 - 뒤로가기 시 이전 페이지로 이동
+    router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
   }, [router]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
@@ -167,37 +185,26 @@ function DisclosuresContent() {
   }, []);
 
   const navigateBack = useCallback(() => {
-    // 공시 상세에서 바로 메인 목록으로 이동
-    setSelectedStock(null);
-    setSelectedDisclosure(null);
-    // replace 사용으로 히스토리를 깔끔하게 유지
-    router.replace('/disclosures', { scroll: false });
-    // 스크롤 위치 복원
-    setTimeout(() => {
-      window.scrollTo(0, savedScrollPosition);
-    }, 50);
-  }, [savedScrollPosition, router]);
+    // 브라우저 히스토리 뒤로가기 - 이전 페이지로 바로 이동
+    router.back();
+  }, [router]);
 
-  // 브라우저 뒤로가기 처리
+  // 브라우저 뒤로가기 처리 - 상태만 초기화 (데이터는 유지)
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const stockCode = params.get('stock');
 
       if (!stockCode) {
-        // 메인 목록으로 돌아옴
+        // 선택 상태만 초기화 (데이터는 이미 있으므로 유지)
         setSelectedStock(null);
         setSelectedDisclosure(null);
-        // 스크롤 위치 복원
-        setTimeout(() => {
-          window.scrollTo(0, savedScrollPosition);
-        }, 50);
       }
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [savedScrollPosition]);
+  }, []);
 
   const fetchDisclosures = async (stockCode?: string) => {
     try {
@@ -627,6 +634,11 @@ function DisclosuresContent() {
                     router.push(`/disclosures?stock=${stockCode}`);
                   }
                 }}
+                onSearch={(query) => {
+                  // 검색어로 전체 검색 - URL 업데이트
+                  router.push(`/disclosures?search=${encodeURIComponent(query)}`);
+                }}
+                isSuperUser={true}
                 placeholder="Search company..."
               />
             </div>
