@@ -483,62 +483,38 @@ function DisclosuresContent() {
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-bold">Key Takeaways</h3>
-                      <span className="text-green-400">↑</span>
+                      <span className={selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400'}>
+                        {selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→'}
+                      </span>
                     </div>
-                    <ol className="space-y-2 text-gray-300">
+                    <div className="text-gray-300">
                       {selectedDisclosure.summary ? (
-                        <li className="flex gap-2">
-                          <span className="text-gray-500">1.</span>
-                          <span>{selectedDisclosure.summary}</span>
-                        </li>
+                        <p className="whitespace-pre-wrap">{selectedDisclosure.summary}</p>
                       ) : (
-                        <>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">1.</span>
-                            <span>Strategic investment in solid-state battery R&D</span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">2.</span>
-                            <span>Partnership with [Battery Tech Co.]</span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">3.</span>
-                            <span>Aims to enhance EV range and reduce costs</span>
-                          </li>
-                        </>
+                        <p className="text-gray-500 italic">AI 분석 요약이 없습니다.</p>
                       )}
-                    </ol>
+                    </div>
                   </div>
 
                   {/* Investor Impact Analysis */}
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-bold">Investor Impact Analysis</h3>
-                      <span className="text-green-400">↑</span>
+                      <span className={selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400'}>
+                        {selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→'}
+                      </span>
                     </div>
-                    <ol className="space-y-2 text-gray-300">
+                    <div className="text-gray-300">
                       {selectedDisclosure.investment_implications ? (
-                        <li className="flex gap-2">
-                          <span className="text-gray-500">1.</span>
-                          <span>{selectedDisclosure.investment_implications}</span>
-                        </li>
+                        <p className="whitespace-pre-wrap">{selectedDisclosure.investment_implications}</p>
+                      ) : selectedDisclosure.detailed_analysis ? (
+                        <p className="whitespace-pre-wrap">{selectedDisclosure.detailed_analysis}</p>
+                      ) : selectedDisclosure.summary ? (
+                        <p className="whitespace-pre-wrap text-gray-400">{selectedDisclosure.summary}</p>
                       ) : (
-                        <>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">1.</span>
-                            <span>Potential for mid-term stock price growth</span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">2.</span>
-                            <span>Reduced reliance on external battery suppliers</span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">3.</span>
-                            <span>Market share expansion in EV sector <span className="text-green-400">↑</span></span>
-                          </li>
-                        </>
+                        <p className="text-gray-500 italic">상세 분석 정보가 없습니다.</p>
                       )}
-                    </ol>
+                    </div>
                   </div>
                 </div>
 
