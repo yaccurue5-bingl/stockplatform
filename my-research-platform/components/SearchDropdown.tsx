@@ -19,11 +19,12 @@ interface SearchResult {
 
 interface SearchDropdownProps {
   onSelectStock?: (stockCode: string) => void;
+  onSearch?: (query: string) => void;  // 검색어로 전체 검색 시 호출
   isSuperUser?: boolean;
   placeholder?: string;
 }
 
-export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder = "Search company..." }: SearchDropdownProps) {
+export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, placeholder = "Search company..." }: SearchDropdownProps) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -151,8 +152,45 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
     }, 0);
   };
 
+  // 검색어로 전체 검색 실행 (엔터 또는 돋보기 클릭)
+  const handleFullSearch = () => {
+    if (!query.trim()) return;
+
+    const searchQuery = query.trim();
+    setQuery('');
+    setResults([]);
+    setIsOpen(false);
+
+    setTimeout(() => {
+      if (onSearch) {
+        onSearch(searchQuery);
+      } else if (isSuperUser) {
+        // 기본 동작: disclosures 페이지에서 검색
+        router.push(`/disclosures?search=${encodeURIComponent(searchQuery)}`);
+      }
+    }, 0);
+  };
+
   // 키보드 네비게이션
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // 드롭다운이 열려있고 결과가 있으면 선택된 항목으로 이동
+      if (isOpen && results.length > 0) {
+        handleKeyboardSelect(results[selectedIndex]);
+      } else {
+        // 그 외에는 검색어로 전체 검색
+        handleFullSearch();
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+      inputRef.current?.blur();
+      return;
+    }
+
     if (!isOpen || results.length === 0) return;
 
     if (e.key === 'ArrowDown') {
@@ -161,12 +199,6 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setSelectedIndex(prev => Math.max(prev - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      handleKeyboardSelect(results[selectedIndex]);
-    } else if (e.key === 'Escape') {
-      setIsOpen(false);
-      inputRef.current?.blur();
     }
   };
 
@@ -174,9 +206,15 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
     <div ref={containerRef} className="relative">
       {/* 검색 입력 */}
       <div className="relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 512 512">
-          <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
-        </svg>
+        <button
+          onClick={handleFullSearch}
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 hover:text-white transition cursor-pointer"
+          type="button"
+        >
+          <svg fill="currentColor" viewBox="0 0 512 512">
+            <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+          </svg>
+        </button>
         <input
           ref={inputRef}
           type="text"

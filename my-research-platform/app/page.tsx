@@ -142,6 +142,13 @@ export default function LandingPage() {
             <div className="hidden sm:block w-32 sm:w-48 md:w-80">
               <SearchDropdown
                 onSelectStock={handleSearchSelect}
+                onSearch={(query) => {
+                  if (isSuper) {
+                    router.push(`/disclosures?search=${encodeURIComponent(query)}`);
+                  } else {
+                    setIsWaitlistOpen(true);
+                  }
+                }}
                 isSuperUser={isSuper}
                 placeholder="Search... ⌘K"
               />
