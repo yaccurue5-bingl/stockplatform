@@ -29,7 +29,7 @@ export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, p
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(-1);  // -1 = 선택 없음 (입력창 포커스)
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -61,7 +61,7 @@ export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, p
       if (response.ok) {
         const data = await response.json();
         setResults(data.results || []);
-        setSelectedIndex(0);
+        setSelectedIndex(-1);  // 기본 선택 없음 - 입력창에 포커스 유지
       }
     } catch (error) {
       console.error('Search failed:', error);
@@ -92,9 +92,9 @@ export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, p
     };
   }, [query, search]);
 
-  // 선택된 항목으로 스크롤
+  // 선택된 항목으로 스크롤 (selectedIndex가 0 이상일 때만)
   useEffect(() => {
-    if (itemRefs.current[selectedIndex]) {
+    if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
       itemRefs.current[selectedIndex]?.scrollIntoView({
         block: 'nearest',
         behavior: 'smooth'
@@ -175,11 +175,11 @@ export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, p
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // 드롭다운이 열려있고 결과가 있으면 선택된 항목으로 이동
-      if (isOpen && results.length > 0) {
+      // 드롭다운이 열려있고 항목이 선택되어 있으면 (selectedIndex >= 0) 해당 항목으로 이동
+      if (isOpen && results.length > 0 && selectedIndex >= 0) {
         handleKeyboardSelect(results[selectedIndex]);
       } else {
-        // 그 외에는 검색어로 전체 검색
+        // 선택 없음 (selectedIndex === -1) 또는 결과 없음 → 전체 검색
         handleFullSearch();
       }
       return;
@@ -195,10 +195,12 @@ export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, p
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      // -1 → 0 → 1 → ... → results.length - 1
       setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => Math.max(prev - 1, 0));
+      // results.length - 1 → ... → 1 → 0 → -1 (입력창으로 돌아감)
+      setSelectedIndex(prev => Math.max(prev - 1, -1));
     }
   };
 
