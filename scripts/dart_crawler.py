@@ -5,6 +5,7 @@ from supabase import create_client, Client
 import urllib3
 import logging
 import hashlib
+import re
 
 # SSL 경고 비활성화
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -35,6 +36,27 @@ def is_disclosure_processed(corp_code: str, rcept_no: str) -> bool:
     except Exception as e:
         logger.warning(f"해시 확인 실패 (처리 진행): {e}")
         return False
+def get_disclosure_content(rcept_no):
+    """공시 번호를 이용해 본문 텍스트 추출"""
+    dart_key = os.environ.get("DART_API_KEY")
+    if not dart_key:
+        return None
+        
+    # XML 원문 API 호출
+    content_url = f"https://opendart.fss.or.kr/api/document.xml?crtfc_key={dart_key}&rcept_no={rcept_no}"
+    
+    try:
+        response = requests.get(content_url, verify=False, timeout=30)
+        if response.status_code == 200:
+            # 1. 태그 제거 (정규표현식 사용)
+            clean_text = re.sub(r'<[^>]*>', '', response.text)
+            # 2. 불필요한 공백 및 특수문자 정리
+            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+            # 3. 2,500자 슬라이싱 (AI 분석 최적화)
+            return clean_text[:2500]
+    except Exception as e:
+        logger.warning(f"⚠️ 본문 수집 실패 ({rcept_no}): {e}")
+    return None
 
 def run_crawler():
     today = datetime.now().strftime('%Y%m%d')
@@ -96,7 +118,8 @@ def run_crawler():
                 logger.debug(f"⏭️ 이미 처리됨 - 건너뜀: {corp_name} ({rcept_no})")
                 duplicates += 1
                 continue
-
+            
+            content = get_disclosure_content(rcept_no)
             payload = {
                 "rcept_no": rcept_no,
                 "corp_code": corp_code,
@@ -104,6 +127,7 @@ def run_crawler():
                 "stock_code": stock_code,
                 "rcept_dt": rcept_dt,  # ✅ 접수일자 추가
                 "report_nm": item.get("report_nm"),
+                "content": content,
                 "analysis_status": "pending",  # 분석 대기 상태
                 "created_at": datetime.now().isoformat()
             }
