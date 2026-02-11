@@ -65,7 +65,7 @@ Scoring rules:
     def analyze_content(self, corp_name, title):
         try:
             response = groq_client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": f"Company: {corp_name}\nDisclosure: {title}"}
