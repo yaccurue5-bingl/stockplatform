@@ -2,8 +2,6 @@ import os
 import json
 import logging
 import time
-import hashlib
-import re
 from datetime import datetime
 from groq import Groq
 from supabase import create_client, Client
@@ -27,71 +25,159 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
+
 class AIAnalyst:
+
     def __init__(self):
-        # AI 프롬프트: 수치 중심 분석 및 본문 부재 시 제목 활용 지침 포함
-        self.system_prompt = """
-You are a professional Korean stock analyst. 
-Analyze the provided disclosure content to determine its financial impact.
+
+        # ✅ Core Prompt (공통 규칙)
+        self.core_prompt = """
+You are a professional Korean stock disclosure analyst.
 
 STRICT RULES:
-1. Identify specific numbers: revenue changes, profit/loss, contract amounts.
-2. Sentiment must reflect the ACTUAL financial impact:
-   - POSITIVE: Profit increase, deficit reduction, major new contracts, capital increase.
-   - NEGATIVE: Profit decrease, deficit increase, lawsuit, recall, cancellation.
-3. If the content is "CONTENT_NOT_AVAILABLE" or too short, analyze based on the Title and company context.
-4. Escape all double quotes within the summary strings.
+1. Always extract specific numbers (amounts, percentages, dates).
+2. Distinguish between one-time events and structural changes.
+3. Do not use exaggerated language.
+4. If content lacks financial data, focus on business impact.
+5. Keep total output under 2000 Korean characters.
+6. Respond ONLY in valid JSON format.
 
-Respond ONLY in JSON format:
+Return JSON format:
+
 {
-  "headline": "English headline summarizing the core numerical change",
-  "summary": ["Detailed Korean bullet 1 including numbers", "Bullet 2", "Bullet 3"],
-  "sentiment": "POSITIVE or NEGATIVE or NEUTRAL",
-  "sentiment_score": 0.00,
-  "importance": "HIGH or MEDIUM or LOW"
+  "headline": "One-sentence core summary (max 30 Korean characters)",
+  "key_numbers": [
+    "Bullet 1 including numbers",
+    "Bullet 2 including numbers",
+    "Bullet 3 including numbers"
+  ],
+  "event_type": "ONE_TIME or STRUCTURAL or NEUTRAL",
+  "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
+  "short_term_impact_score": 1-5,
+  "analysis": "Concise investment-focused analysis",
+  "risk_factors": "Main risk factors if any"
 }
 """
 
+        # ✅ 유형별 추가 규칙
+        self.type_rules = {
+            "EARNINGS": """
+Additional Rules for EARNINGS:
+- 반드시 YoY 및 QoQ 증감률 포함
+- 영업이익과 순이익을 분리 분석
+- 일회성 요인 여부 판단
+- 부채비율 또는 현금흐름 변화 강조
+""",
+            "CONTRACT": """
+Additional Rules for CONTRACT:
+- 계약 금액이 최근 매출 대비 몇 %인지 계산
+- 계약 기간 명시
+- 신규/반복 계약 구분
+- 실적 반영 시점 언급
+""",
+            "DILUTION": """
+Additional Rules for DILUTION:
+- 발행 주식 수 및 전환가 포함
+- 최대 희석률 추정
+- 기존 주주 가치 희석 여부 분석
+- 자금 사용 목적 명확히 구분
+""",
+            "BUYBACK": """
+Additional Rules for BUYBACK:
+- 취득 금액 및 기간 명시
+- 유통주식수 대비 비율 계산
+- 소각 여부 구분
+- 단기 수급 영향 분석
+""",
+            "MNA": """
+Additional Rules for MNA:
+- 인수/합병 금액 명시
+- 자기자본 대비 비율 계산
+- 지배구조 변화 여부 분석
+- 재무 부담 여부 판단
+""",
+            "LEGAL": """
+Additional Rules for LEGAL:
+- 소송/제재 금액 명시
+- 자본 대비 영향 분석
+- 충당금 설정 가능성 판단
+- 평판 리스크 언급
+""",
+            "CAPEX": """
+Additional Rules for CAPEX:
+- 투자 금액 명시
+- 최근 매출 대비 비율 계산
+- 회수 기간 가능성 언급
+- 단기 재무 부담 여부 분석
+"""
+        }
+
+    # ✅ 공시 유형 자동 분류
+    def classify_disclosure(self, title: str) -> str:
+        title = title.lower()
+
+        if "분기" in title or "사업보고서" in title or "잠정" in title:
+            return "EARNINGS"
+        elif "단일판매" in title or "공급계약" in title:
+            return "CONTRACT"
+        elif "전환사채" in title or "bw" in title or "유상증자" in title:
+            return "DILUTION"
+        elif "자기주식" in title:
+            return "BUYBACK"
+        elif "합병" in title or "분할" in title or "지분" in title:
+            return "MNA"
+        elif "소송" in title or "횡령" in title or "배임" in title:
+            return "LEGAL"
+        elif "신규시설" in title or "투자" in title:
+            return "CAPEX"
+        else:
+            return "OTHER"
+
+    # ✅ 프롬프트 생성
+    def build_prompt(self, corp_name, report_nm, content):
+
+        disclosure_type = self.classify_disclosure(report_nm)
+        type_rule = self.type_rules.get(disclosure_type, "")
+
+        is_empty = not content or str(content).strip() == ""
+        is_not_available = str(content) == "CONTENT_NOT_AVAILABLE"
+
+        if is_empty or is_not_available:
+            input_text = f"Title: {report_nm}\n(Note: Content not available. Analyze based on title.)"
+        else:
+            clean_content = str(content).replace('\x00', '').replace('\u0000', '')
+            input_text = f"Title: {report_nm}\n\nContent:\n{clean_content}"
+
+        final_system_prompt = self.core_prompt + "\n" + type_rule
+
+        return final_system_prompt, f"Company: {corp_name}\n\n{input_text}"
+
+    # ✅ 분석 실행
     def analyze_content(self, corp_name, report_nm, content):
         try:
-            # 1. 본문 상태 체크 (수집 불가 마킹 확인)
-            is_empty = not content or str(content).strip() == ""
-            is_not_available = str(content) == "CONTENT_NOT_AVAILABLE"
-            
-            if is_empty or is_not_available:
-                # 본문이 없을 경우 제목 기반 분석 유도
-                input_text = f"Title: {report_nm}\n(Note: Detailed document content is not available. Analyze based on Title.)"
-                logger.info(f"ℹ️ {corp_name}: 제목 기반 분석 진행")
-            else:
-                # 본문 정제 및 입력 구성
-                clean_content = str(content).replace('\x00', '').replace('\u0000', '')
-                if len(clean_content) < 20:
-                    input_text = f"Title: {report_nm}\nContent: {clean_content}\n(Note: Short content. Use Title primarily.)"
-                else:
-                    input_text = f"Title: {report_nm}\n\nContent: {clean_content}"
+            system_prompt, user_prompt = self.build_prompt(corp_name, report_nm, content)
 
-            # 2. Groq AI 호출
             response = groq_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": f"Company: {corp_name}\n{input_text}"}
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
                 ],
                 response_format={"type": "json_object"},
-                temperature=0.1,
-                max_completion_tokens=1000
+                temperature=0.2,
+                max_completion_tokens=1200
             )
-            
+
             return json.loads(response.choices[0].message.content)
-            
+
         except Exception as e:
             logger.error(f"❌ [{corp_name}] 분석 에러: {e}")
             return None
 
+
 def run():
     analyst = AIAnalyst()
-    
-    # 분석 대기 중이거나 재시도 횟수가 3회 미만인 데이터 가져오기
+
     res = supabase.table("disclosure_insights") \
         .select("id, corp_name, report_nm, content, rcept_no, analysis_retry_count") \
         .eq("analysis_status", "pending") \
@@ -99,41 +185,57 @@ def run():
         .order("created_at", desc=True) \
         .limit(50) \
         .execute()
-    
+
     if not res.data:
         logger.info("✅ 분석할 데이터가 없습니다.")
         return
 
     for item in res.data:
-        # 현재 상태를 processing으로 변경
-        supabase.table("disclosure_insights").update({"analysis_status": "processing"}).eq("id", item['id']).execute()
-        
-        result = analyst.analyze_content(item['corp_name'], item['report_nm'], item.get('content'))
-        
+
+        supabase.table("disclosure_insights").update({
+            "analysis_status": "processing"
+        }).eq("id", item['id']).execute()
+
+        result = analyst.analyze_content(
+            item['corp_name'],
+            item['report_nm'],
+            item.get('content')
+        )
+
         if result:
-            # 성공 시 데이터 업데이트
             update_data = {
-                "ai_summary": "\n".join(result.get("summary", ["내용 없음"])),
-                "sentiment": result.get("sentiment", "NEUTRAL").upper(),
-                "sentiment_score": float(result.get("sentiment_score", 0.0)),
-                "importance": result.get("importance", "MEDIUM").upper(),
+                "headline": result.get("headline"),
+                "key_numbers": result.get("key_numbers"),
+                "event_type": result.get("event_type"),
+                "financial_impact": result.get("financial_impact"),
+                "short_term_impact_score": result.get("short_term_impact_score"),
+                "analysis": result.get("analysis"),
+                "risk_factors": result.get("risk_factors"),
                 "analysis_status": "completed",
                 "updated_at": datetime.now().isoformat()
             }
-            supabase.table("disclosure_insights").update(update_data).eq("id", item['id']).execute()
-            logger.info(f"✅ 완료: {item['corp_name']} ({result.get('sentiment')})")
+
+            supabase.table("disclosure_insights") \
+                .update(update_data) \
+                .eq("id", item['id']) \
+                .execute()
+
+            logger.info(f"✅ 완료: {item['corp_name']}")
+
         else:
-            # 실패 시 재시도 횟수 증가 및 상태 복구
             retry_count = (item.get('analysis_retry_count') or 0) + 1
             new_status = "failed" if retry_count >= 3 else "pending"
+
             supabase.table("disclosure_insights").update({
                 "analysis_status": new_status,
                 "analysis_retry_count": retry_count,
                 "updated_at": datetime.now().isoformat()
             }).eq("id", item['id']).execute()
+
             logger.warning(f"⚠️ 실패: {item['corp_name']} (재시도: {retry_count}/3)")
-            
-        time.sleep(2.0) # Rate Limit 방지
+
+        time.sleep(60)  # 무료티어 70B TPM 제한 대응 (1분 1건 안전)
+
 
 if __name__ == "__main__":
     run()
