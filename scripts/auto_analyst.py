@@ -234,7 +234,7 @@ def run():
 
             logger.warning(f"⚠️ 실패: {item['corp_name']} (재시도: {retry_count}/3)")
 
-        time.sleep(60)  # 무료티어 70B TPM 제한 대응 (1분 1건 안전)
+        time.sleep(3.0) 
 
 
 if __name__ == "__main__":
