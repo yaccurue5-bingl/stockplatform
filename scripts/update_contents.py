@@ -1,19 +1,20 @@
 import os
 import requests
 import re
+import zipfile
+import io
 import time
 import logging
-from datetime import datetime
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import urllib3
 
-# SSL 경고 비활성화 및 로깅 설정
+# 설정 및 SSL 경고 비활성화
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 환경 변수 로드 (경로는 본인 환경에 맞게 수정)
+# 환경 변수 로드 (본인의 경로에 맞게 수정)
 load_dotenv(r"C:\stockplatform\.env.local")
 
 SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
@@ -22,57 +23,80 @@ DART_API_KEY = os.environ.get("DART_API_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def get_clean_content(rcept_no):
-    """DART API를 통해 본문 추출 및 정제"""
+def get_final_content(rcept_no):
+    """ZIP 해제, 스타일 제거, 유니코드 정제가 통합된 추출 함수"""
     url = f"https://opendart.fss.or.kr/api/document.xml?crtfc_key={DART_API_KEY}&rcept_no={rcept_no}"
     try:
-        response = requests.get(url, verify=False, timeout=20)
-        if response.status_code == 200:
-            # HTML/XML 태그 제거
-            text = re.sub(r'<[^>]*>', '', response.text)
-            # 연속된 공백 및 줄바꿈 정리
-            text = re.sub(r'\s+', ' ', text).strip()
-            # AI 분석에 최적화된 길이로 슬라이싱 (추후 토큰 절약)
-            return text[:2500]
+        res = requests.get(url, verify=False, timeout=20)
+        if res.status_code != 200:
+            return None
+
+        # 1. ZIP 파일 여부 확인
+        if not res.content.startswith(b'PK'):
+            # 에러 메시지(013, 014 등)인 경우 로그 출력 후 None 반환
+            error_msg = res.text[:100].strip()
+            logger.warning(f"⚠️ {rcept_no} 수집 불가 (DART 메시지: {error_msg})")
+            return None
+
+        # 2. 압축 해제 및 텍스트 추출
+        with zipfile.ZipFile(io.BytesIO(res.content)) as z:
+            xml_name = z.namelist()[0]
+            with z.open(xml_name) as f:
+                raw_text = f.read().decode('utf-8')
+
+        # 3. 텍스트 정제
+        # <style> 및 <script> 태그 내부 내용 통째로 삭제
+        clean_text = re.sub(r'<(style|script)[^>]*>.*?</\1>', '', raw_text, flags=re.DOTALL | re.IGNORECASE)
+        # 모든 HTML/XML 태그 제거
+        clean_text = re.sub(r'<[^>]*>', '', clean_text)
+        # .xforms { ... } 같은 잔여 스타일 코드 제거
+        clean_text = re.sub(r'\.[a-zA-Z0-9_]+\s*\{[^}]*\}', '', clean_text)
+        # 유령 문자 및 연속 공백 정리
+        clean_text = clean_content = clean_text.replace('\x00', '').replace('\u0000', '')
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        
+        return clean_text[:2500]
+        
     except Exception as e:
-        logger.error(f"❌ 본문 수집 실패 ({rcept_no}): {e}")
+        logger.error(f"❌ {rcept_no} 처리 중 예외: {str(e)}")
     return None
 
-def update_existing_data():
-    logger.info("🚀 기존 데이터 본문 채우기 시작...")
+def update_all():
+    logger.info("🚀 공시 본문 업데이트 및 마킹 작업을 시작합니다.")
     
-    # 1. content가 null인 데이터 가져오기 (배치 단위로 처리)
     while True:
+        # content가 비어있는 데이터만 20개씩 가져옴
         res = supabase.table("disclosure_insights") \
             .select("id, rcept_no, corp_name") \
             .is_("content", "null") \
-            .limit(50) \
+            .limit(20) \
             .execute()
         
         items = res.data
         if not items:
-            logger.info("✅ 모든 데이터의 본문이 채워졌습니다.")
+            logger.info("✅ 모든 공시 본문 처리가 완료되었습니다.")
             break
             
         for item in items:
-            rcept_no = item['rcept_no']
-            corp_name = item['corp_name']
-            
-            content = get_clean_content(rcept_no)
+            content = get_final_content(item['rcept_no'])
             
             if content:
-                # 2. DB 업데이트
+                # 정상 수집 성공 시 본문 저장
                 supabase.table("disclosure_insights") \
                     .update({"content": content}) \
-                    .eq("id", item['id']) \
-                    .execute()
-                logger.info(f"✔️ 업데이트 완료: {corp_name} ({rcept_no})")
+                    .eq("id", item['id']).execute()
+                logger.info(f"✔️ 성공: {item['corp_name']} ({item['rcept_no']})")
+            else:
+                # 수집 실패 시(013, 014 등) 마킹 처리하여 재수집 대상에서 제외
+                supabase.table("disclosure_insights") \
+                    .update({"content": "CONTENT_NOT_AVAILABLE"}) \
+                    .eq("id", item['id']).execute()
+                logger.warning(f"⚠️ 마킹 (수집불가): {item['corp_name']}")
             
-            # DART API 속도 제한 고려 (약간의 지연)
-            time.sleep(0.2)
+            time.sleep(0.3) # API 제한 준수
 
 if __name__ == "__main__":
     if not DART_API_KEY:
-        logger.error("❌ DART_API_KEY가 설정되지 않았습니다.")
+        logger.error("DART_API_KEY가 없습니다.")
     else:
-        update_existing_data()
+        update_all()
