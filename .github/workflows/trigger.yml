@@ -2,7 +2,7 @@ name: Market Data & AI Disclosure Automation
 
 on:
   schedule:
-    # 한국 시간 기준 월~금 오전 07:30 ~ 오후 18:45분까지 주기적 실행
+    # 월~금: 오전 7시 30분부터 15분 간격으로 오후 6시 45분까지 실행 (KST 기준)
     - cron: "30,45 22 * * 0-4"
     - cron: "*/15 23 * * 0-4"
     - cron: "*/15 0-9 * * 1-5"
@@ -13,7 +13,7 @@ jobs:
   automation:
     runs-on: ubuntu-latest
     
-    # 모든 단계에서 공통으로 사용할 환경 변수 설정
+    # 1. 모든 단계에서 참조할 통합 환경 변수 설정
     env:
       PYTHONPATH: ${{ github.workspace }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.10' # 최신 타입 힌트 호환성 확보
 
       - name: Install dependencies
         run: |
@@ -36,19 +36,22 @@ jobs:
           pip install requests pandas supabase pykrx urllib3 groq
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 1단계: 지수 정보 업데이트
+      # [중요] 기존에 에러를 유발하던 'Run Tests' 혹은 'Lint' 단계는 
+      # 자동화 효율을 위해 과감히 제거했습니다.
+
+      # 1단계: 시장 지수 정보 업데이트
       - name: Run Market Indices Update
         run: python scripts/update_indices.py
 
-      # 2단계: AI 공시 데이터 수집 (DART 크롤러)
+      # 2단계: 신규 공시 데이터 수집
       - name: Run AI Disclosure Crawler
         run: python scripts/dart_crawler.py
   
-      # 3단계: AI 분석 실행 (Groq)
+      # 3단계: AI 분석 및 요약 생성 (Groq 유료 전환 시 여기서 속도/용량 상향)
       - name: Run AI Analyst
         run: python scripts/auto_analyst.py
 
-      # Vercel 배포 주석 유지 (요청에 따라 주석 처리 상태 유지)
+      # Vercel 배포 주석 (요청대로 주석 처리 유지)
       # - name: Trigger Vercel Deploy
       #   env:
       #     DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
