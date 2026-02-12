@@ -71,12 +71,12 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
     return 'Recently';
   };
 
-  const handleCardClick = (stockCode: string) => {
+  const handleCardClick = (disclosure: Disclosure) => {
+    // 슈퍼 유저는 해당 공시 상세 페이지로 이동
     if (isSuperUser) {
-      // 슈퍼계정: 종목 상세 페이지로 이동
-      router.push(`/stock/${stockCode}`);
+      router.push(`/disclosures?stock=${disclosure.stock_code}`);
     } else if (onCardClick) {
-      // 일반 방문자: waitlist 모달 열기
+      // 일반 사용자는 waitlist 모달 열기
       onCardClick();
     }
   };
@@ -92,7 +92,7 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
         return (
           <div
             key={disclosure.id}
-            onClick={() => handleCardClick(disclosure.stock_code)}
+            onClick={() => handleCardClick(disclosure)}
             className={`bg-slate-900 border rounded-2xl p-6 transition-all cursor-pointer
               ${isCritical ? 'border-orange-500/50 shadow-lg' : 'border-slate-800 hover:border-blue-500'}`}
           >

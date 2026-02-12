@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import SearchDropdown from '@/components/SearchDropdown';
 
 interface Disclosure {
   id: string;
@@ -49,8 +50,9 @@ function DisclosuresContent() {
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
-  // URL에서 stock 파라미터 읽기 (disclosure는 URL에 저장하지 않음)
+  // URL에서 파라미터 읽기
   const stockCodeParam = searchParams.get('stock');
+  const searchQueryParam = searchParams.get('search');  // 검색어 파라미터
 
   // 서버 사이드 검색 함수
   const searchFromServer = useCallback(async (query: string) => {
@@ -140,23 +142,29 @@ function DisclosuresContent() {
     };
   }, [searchQuery, searchFromServer, groupedStocks]);
 
-  // 데이터 로드 후 URL 파라미터에 따라 선택 상태 복원
+  // stock 파라미터에 따라 데이터 로드
   useEffect(() => {
-    if (groupedStocks.length > 0 && stockCodeParam) {
-      const stock = groupedStocks.find(s => s.stock_code === stockCodeParam);
-      if (stock) {
-        setSelectedStock(stock);
-        // 첫 번째 공시 자동 선택 - 바로 공시 상세 화면으로
-        if (stock.disclosures.length > 0 && !selectedDisclosure) {
-          setSelectedDisclosure(stock.disclosures[0]);
-        }
-      }
+    if (stockCodeParam) {
+      // 특정 종목 조회
+      fetchDisclosures(stockCodeParam);
+    } else if (groupedStocks.length === 0) {
+      // 전체 공시 로드 (데이터가 없을 때만)
+      fetchDisclosures();
+    } else {
+      // 이미 데이터가 있으면 선택 상태만 초기화
+      setSelectedStock(null);
+      setSelectedDisclosure(null);
+      setLoading(false);
     }
-  }, [groupedStocks, stockCodeParam, selectedDisclosure]);
+  }, [stockCodeParam]);
 
+  // search 파라미터가 있으면 검색 실행
   useEffect(() => {
-    fetchDisclosures();
-  }, []);
+    if (searchQueryParam && groupedStocks.length > 0) {
+      setSearchQuery(searchQueryParam);
+      searchFromServer(searchQueryParam);
+    }
+  }, [searchQueryParam, groupedStocks.length]);
 
   // URL 기반 네비게이션 함수들
   const navigateToStock = useCallback((stock: GroupedStock) => {
@@ -167,8 +175,8 @@ function DisclosuresContent() {
     if (stock.disclosures.length > 0) {
       setSelectedDisclosure(stock.disclosures[0]);
     }
-    // replace 사용으로 히스토리에 쌓이지 않음 - Back 버튼 한 번에 메인으로 이동
-    router.replace(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
+    // push 사용 - 뒤로가기 시 이전 페이지로 이동
+    router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
   }, [router]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
@@ -177,43 +185,40 @@ function DisclosuresContent() {
   }, []);
 
   const navigateBack = useCallback(() => {
-    // 공시 상세에서 바로 메인 목록으로 이동
-    setSelectedStock(null);
-    setSelectedDisclosure(null);
-    // replace 사용으로 히스토리를 깔끔하게 유지
-    router.replace('/disclosures', { scroll: false });
-    // 스크롤 위치 복원
-    setTimeout(() => {
-      window.scrollTo(0, savedScrollPosition);
-    }, 50);
-  }, [savedScrollPosition, router]);
+    // 브라우저 히스토리 뒤로가기 - 이전 페이지로 바로 이동
+    router.back();
+  }, [router]);
 
-  // 브라우저 뒤로가기 처리
+  // 브라우저 뒤로가기 처리 - 상태만 초기화 (데이터는 유지)
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const stockCode = params.get('stock');
 
       if (!stockCode) {
-        // 메인 목록으로 돌아옴
+        // 선택 상태만 초기화 (데이터는 이미 있으므로 유지)
         setSelectedStock(null);
         setSelectedDisclosure(null);
-        // 스크롤 위치 복원
-        setTimeout(() => {
-          window.scrollTo(0, savedScrollPosition);
-        }, 50);
       }
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [savedScrollPosition]);
+  }, []);
 
-  const fetchDisclosures = async () => {
+  const fetchDisclosures = async (stockCode?: string) => {
     try {
-      const response = await fetch('/api/disclosures/latest?limit=100');
+      // stock 파라미터가 있으면 해당 종목만, 없으면 전체
+      const url = stockCode
+        ? `/api/disclosures/latest?stock=${stockCode}&limit=50`
+        : '/api/disclosures/latest?limit=100';
+
+      console.log(`🔍 [Disclosures] Fetching: ${url}`);
+      const response = await fetch(url);
+
       if (response.ok) {
         const data: Disclosure[] = await response.json();
+        console.log(`✅ [Disclosures] Got ${data.length} disclosures`);
 
         // 종목별로 그룹화
         const stockMap = new Map<string, GroupedStock>();
@@ -241,6 +246,19 @@ function DisclosuresContent() {
         });
 
         const grouped = Array.from(stockMap.values());
+
+        // stock 파라미터가 있으면 해당 종목을 바로 선택
+        if (stockCode && grouped.length > 0) {
+          const targetStock = grouped.find(s => s.stock_code === stockCode);
+          if (targetStock) {
+            console.log(`🎯 [Disclosures] Auto-selecting stock: ${stockCode}`);
+            setSelectedStock(targetStock);
+            if (targetStock.disclosures.length > 0) {
+              setSelectedDisclosure(targetStock.disclosures[0]);
+            }
+          }
+        }
+
         setGroupedStocks(grouped);
         setFilteredStocks(grouped);
       }
@@ -472,62 +490,38 @@ function DisclosuresContent() {
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-bold">Key Takeaways</h3>
-                      <span className="text-green-400">↑</span>
+                      <span className={selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400'}>
+                        {selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→'}
+                      </span>
                     </div>
-                    <ol className="space-y-2 text-gray-300">
+                    <div className="text-gray-300">
                       {selectedDisclosure.summary ? (
-                        <li className="flex gap-2">
-                          <span className="text-gray-500">1.</span>
-                          <span>{selectedDisclosure.summary}</span>
-                        </li>
+                        <p className="whitespace-pre-wrap">{selectedDisclosure.summary}</p>
                       ) : (
-                        <>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">1.</span>
-                            <span>Strategic investment in solid-state battery R&D</span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">2.</span>
-                            <span>Partnership with [Battery Tech Co.]</span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">3.</span>
-                            <span>Aims to enhance EV range and reduce costs</span>
-                          </li>
-                        </>
+                        <p className="text-gray-500 italic">AI 분석 요약이 없습니다.</p>
                       )}
-                    </ol>
+                    </div>
                   </div>
 
                   {/* Investor Impact Analysis */}
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-bold">Investor Impact Analysis</h3>
-                      <span className="text-green-400">↑</span>
+                      <span className={selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400'}>
+                        {selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→'}
+                      </span>
                     </div>
-                    <ol className="space-y-2 text-gray-300">
+                    <div className="text-gray-300">
                       {selectedDisclosure.investment_implications ? (
-                        <li className="flex gap-2">
-                          <span className="text-gray-500">1.</span>
-                          <span>{selectedDisclosure.investment_implications}</span>
-                        </li>
+                        <p className="whitespace-pre-wrap">{selectedDisclosure.investment_implications}</p>
+                      ) : selectedDisclosure.detailed_analysis ? (
+                        <p className="whitespace-pre-wrap">{selectedDisclosure.detailed_analysis}</p>
+                      ) : selectedDisclosure.summary ? (
+                        <p className="whitespace-pre-wrap text-gray-400">{selectedDisclosure.summary}</p>
                       ) : (
-                        <>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">1.</span>
-                            <span>Potential for mid-term stock price growth</span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">2.</span>
-                            <span>Reduced reliance on external battery suppliers</span>
-                          </li>
-                          <li className="flex gap-2">
-                            <span className="text-gray-500">3.</span>
-                            <span>Market share expansion in EV sector <span className="text-green-400">↑</span></span>
-                          </li>
-                        </>
+                        <p className="text-gray-500 italic">상세 분석 정보가 없습니다.</p>
                       )}
-                    </ol>
+                    </div>
                   </div>
                 </div>
 
@@ -629,22 +623,24 @@ function DisclosuresContent() {
             <span className="text-xl font-bold">K-Market Insight</span>
           </Link>
           <div className="flex items-center gap-4">
-            {/* 검색바 - 고정 너비로 UI 흔들림 방지 */}
-            <div ref={searchContainerRef} className="relative w-48 md:w-80">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+            {/* 검색 드롭다운 */}
+            <div className="w-48 md:w-80">
+              <SearchDropdown
+                onSelectStock={(stockCode) => {
+                  const stock = groupedStocks.find(s => s.stock_code === stockCode);
+                  if (stock) {
+                    navigateToStock(stock);
+                  } else {
+                    router.push(`/disclosures?stock=${stockCode}`);
+                  }
+                }}
+                onSearch={(query) => {
+                  // 검색어로 전체 검색 - URL 업데이트
+                  router.push(`/disclosures?search=${encodeURIComponent(query)}`);
+                }}
+                isSuperUser={true}
                 placeholder="Search company..."
-                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:border-blue-600 transition-colors"
               />
-              <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 512 512">
-                <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
-              </svg>
-              {/* 검색 중 로딩 표시 */}
-              {isSearching && (
-                <div className="absolute right-3 top-2.5 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              )}
             </div>
             <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
               Sign Up
