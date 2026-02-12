@@ -41,6 +41,9 @@ def is_disclosure_processed(corp_code: str, rcept_no: str) -> bool:
 
 def get_clean_content(rcept_no):
     """ZIP 압축 해제, 상세 에러 로깅 및 정밀 정제 로직 통합"""
+    import time
+    time.sleep(1.0)
+    
     dart_key = os.environ.get("DART_API_KEY")
     if not dart_key:
         logger.error("❌ DART_API_KEY가 설정되지 않았습니다.")
@@ -130,6 +133,9 @@ def run_crawler():
             # ✅ 정제된 본문 추출 함수 호출
             content = get_clean_content(rcept_no)
             
+            import time
+            time.sleep(1.0)
+
             payload = {
                 "rcept_no": rcept_no,
                 "corp_code": corp_code,
