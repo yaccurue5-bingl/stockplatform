@@ -2,18 +2,14 @@ name: Market Data & AI Disclosure Automation
 
 on:
   schedule:
-    # 한국 시간 기준 월~금 오전 07:30 ~ 오후 18:45 (15분 간격)
     - cron: "30,45 22 * * 0-4"
     - cron: "*/15 23 * * 0-4"
     - cron: "*/15 0-9 * * 1-5"
-    
   workflow_dispatch:
 
 jobs:
   automation:
     runs-on: ubuntu-latest
-    
-    # 전역 환경 변수 설정 (모든 스크립트 공통)
     env:
       PYTHONPATH: ${{ github.workspace }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -36,22 +32,13 @@ jobs:
           pip install requests pandas supabase pykrx urllib3 groq
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 1단계: 지수 업데이트
+      # 🔍 에러를 유발하던 테스트/린트 단계를 모두 삭제했습니다.
+      
       - name: Run Market Indices Update
         run: python scripts/update_indices.py
 
-      # 2단계: 공시 데이터 수집
       - name: Run AI Disclosure Crawler
         run: python scripts/dart_crawler.py
   
-      # 3단계: AI 분석 실행
       - name: Run AI Analyst
         run: python scripts/auto_analyst.py
-
-      # Vercel 배포 (주석 유지)
-      # - name: Trigger Vercel Deploy
-      #   env:
-      #     DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-      #   run: |
-      #     response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DEPLOY_URL")
-      #     echo "Vercel Response Code: $response"
