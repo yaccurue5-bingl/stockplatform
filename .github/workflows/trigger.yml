@@ -29,11 +29,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # 필요한 핵심 라이브러리만 설치 (pytest-cov 등 불필요한 도구 제외)
           pip install requests pandas supabase pykrx urllib3 groq
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 🔍 에러를 유발하던 테스트/린트 단계를 모두 삭제했습니다.
-      
+      # 🔍 아래 단계들은 에러를 유발하는 pytest/coverage 설정을 완전히 무시하고
+      # 오직 실제 서비스 스크립트만 순차적으로 실행합니다.
+
       - name: Run Market Indices Update
         run: python scripts/update_indices.py
 
