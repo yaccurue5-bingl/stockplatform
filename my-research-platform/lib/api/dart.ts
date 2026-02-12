@@ -31,6 +31,10 @@ export interface DartDisclosure {
   rcept_no: string;         // 접수번호 (고유 ID)
   rcept_dt: string;         // 접수일자 (YYYYMMDD)
   rm?: string;              // 비고
+  // DB 연동 및 AI 분석 결과 컬럼
+  corp_name_en?: string;    // 👈 추가: dart_corp_codes 테이블 JOIN 결과
+  sector?: string;          // 👈 추가: AI 분석 결과 (가이드주신 변수명 반영)
+  
 }
 
 export interface DartDisclosureDetail {
@@ -187,12 +191,12 @@ export function groupDisclosuresByStock(disclosures: DartDisclosure[]): Map<stri
 export function createDisclosureSummary(stockCode: string, disclosures: DartDisclosure[]): string {
   if (disclosures.length === 0) return '';
 
-  const corpName = disclosures[0].corp_name;
+  const displayName = disclosures[0].corp_name_en || disclosures[0].corp_name;
   const summaryLines = disclosures.map((d, i) =>
     `${i + 1}. ${d.report_nm} (${formatDateKorean(d.rcept_dt)})`
   );
 
-  return `[${corpName}] Today's Disclosure Summary\n\n${summaryLines.join('\n')}`;
+  return `[${displayName}] Today's Disclosure Summary\n\n${summaryLines.join('\n')}`;
 }
 
 // ========== 유틸리티 함수 ==========
