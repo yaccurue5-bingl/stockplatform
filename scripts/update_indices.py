@@ -2,74 +2,30 @@ import os
 import requests
 from supabase import create_client, Client
 from datetime import datetime
+from utils.env_loader import load_env
 
 url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 supabase: Client = create_client(url, key)
 
-def get_daum_data(symbol_code, symbol, name):
-    """
-    다음 금융 API로 데이터 가져오기
-    symbol_code:
-    - KOSPI: DJI@DJI
-    - KOSDAQ: DJI@COMP
-    - USD/KRW: FRX.USDKRW
-    """
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Referer': 'https://finance.daum.net/'
-    }
-    
-    try:
-        if symbol == 'USDKRW':
-            # 환율 API
-            api_url = f"https://finance.daum.net/api/exchanges/{symbol_code}"
-        else:
-            # 지수 API
-            api_url = f"https://finance.daum.net/api/market_index/{symbol_code}"
-        
-        response = requests.get(api_url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if symbol == 'USDKRW':
-                price = str(data.get('basePrice', 0))
-                change_value = str(data.get('change', 0))
-                change_rate = float(data.get('changeRate', 0))
-            else:
-                price = str(data.get('tradePrice', 0))
-                change_value = str(data.get('change', 0))
-                change_rate = float(data.get('changeRate', 0))
-            
-            return {
-                "symbol": symbol,
-                "name": name,
-                "price": f"{float(price):,.2f}",
-                "change_value": f"{float(change_value):+,.2f}",
-                "change_rate": round(change_rate, 2),
-                "updated_at": datetime.now().isoformat()
-            }
-        else:
-            print(f"⚠️ API 응답 실패: {name} (HTTP {response.status_code})")
-            return None
-            
-    except Exception as e:
-        print(f"🚨 API 호출 에러 ({name}): {e}")
-        return None
+if not url or not key:
+    print("🚨 에러: SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다.")
+    exit(1)
 
-def get_market_indices_from_investing():
+supabase: Client = create_client(url, key)
+
+def get_market_indices_from_yahoo():
     """
-    Investing.com 방식 - 가장 안정적
+    Yahoo Finance API를 사용하여 시장 지수 및 환율 수집
+    - 코스피(^KS11), 코스닥(^KQ11), 달러/원(KRW=X)
     """
-    print("🚀 Investing.com 기반 지수 수집...")
+    print("🚀 Yahoo Finance 기반 시장 데이터 수집 중...")
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     }
     
-    # 한국투자증권 Open API나 Yahoo Finance 사용 가능
     targets = [
         {
             "url": "https://query1.finance.yahoo.com/v8/finance/chart/^KS11?interval=1d",
@@ -99,7 +55,12 @@ def get_market_indices_from_investing():
                 quote = result['indicators']['quote'][0]
                 meta = result['meta']
                 
-                current_price = quote['close'][-1]
+                # 최신 종가 데이터 가져오기 (마지막 유효값)
+                prices = [p for p in quote['close'] if p is not None]
+                if not prices:
+                    continue
+                    
+                current_price = prices[-1]
                 prev_close = meta.get('chartPreviousClose', meta.get('previousClose', current_price))
                 
                 change = current_price - prev_close
@@ -115,30 +76,33 @@ def get_market_indices_from_investing():
                 })
                 
                 print(f"✅ {target['name']}: {current_price:,.2f} ({change:+.2f}, {change_rate:.2f}%)")
+            else:
+                print(f"⚠️ {target['name']} 응답 실패 (HTTP {response.status_code})")
         except Exception as e:
-            print(f"🚨 {target['name']} 수집 실패: {e}")
+            print(f"🚨 {target['name']} 수집 중 에러 발생: {e}")
     
     return payload
 
-def get_market_indices():
-    """메인 함수 - Yahoo Finance 사용 (가장 안정적)"""
-    print("🚀 시장 지수 실시간 수집 시작...")
+def update_market_indices():
+    """메인 실행 함수"""
+    print("📊 시장 지수 업데이트 프로세스 시작...")
     
-    payload = get_market_indices_from_investing()
+    payload = get_market_indices_from_yahoo()
     
-    # DB 저장
     if payload:
         try:
+            # symbol을 기준으로 중복 시 업데이트(upsert)
             supabase.table("market_indices").upsert(payload, on_conflict="symbol").execute()
-            print(f"🎉 총 {len(payload)}개 지수 업데이트 완료")
+            print(f"🎉 성공: 총 {len(payload)}개 지수가 DB에 업데이트되었습니다.")
             return True
         except Exception as e:
             print(f"🚨 DB 저장 실패: {e}")
             return False
     else:
-        print("⚠️ 저장할 데이터가 없습니다.")
+        print("⚠️ 업데이트할 데이터가 수집되지 않았습니다.")
         return False
 
 if __name__ == "__main__":
-    success = get_market_indices()
+    success = update_market_indices()
+    # 정상 종료 시 0, 실패 시 1 반환 (자동화 스케줄러 대비)
     exit(0 if success else 1)
