@@ -12,7 +12,9 @@ GICS 기반 영문 섹터명을 sectors 테이블에 업데이트합니다.
 """
 
 import os
+from dotenv import load_dotenv 
 from supabase import create_client, Client
+load_dotenv('.env.local')
 
 # GICS 기반 섹터 한글 -> 영문 매핑
 SECTOR_MAPPING = {
@@ -21,6 +23,8 @@ SECTOR_MAPPING = {
     '디스플레이·전자부품': 'Semiconductors, IT & Displays',
     'IT·소프트웨어': 'Semiconductors, IT & Displays',
     '정보서비스': 'Semiconductors, IT & Displays',
+    '지주회사(반도체·ICT)': 'Semiconductors, IT & Displays',
+    '지주회사(전자·화학)': 'Semiconductors, IT & Displays',
 
     # Mobility 그룹
     '자동차': 'Automobiles, Aerospace & Logistics',
@@ -29,6 +33,7 @@ SECTOR_MAPPING = {
     '운송': 'Automobiles, Aerospace & Logistics',
     '창고·물류': 'Automobiles, Aerospace & Logistics',
     '창고·운송': 'Automobiles, Aerospace & Logistics',
+    '운송장비': 'Automobiles, Aerospace & Logistics',
 
     # Healthcare 그룹
     '바이오·제약': 'Healthcare & Biotech',
@@ -41,6 +46,7 @@ SECTOR_MAPPING = {
     '금융지원서비스': 'Financial Services',
     '보험·연금': 'Financial Services',
     '전문서비스': 'Financial Services',
+    '지주회사(금융)': 'Financial Services', 
 
     # Materials 그룹
     '화학': 'Materials & Chemicals',
@@ -51,6 +57,8 @@ SECTOR_MAPPING = {
     '1차금속': 'Materials & Chemicals',
     '석유·화학제품': 'Materials & Chemicals',
     '섬유': 'Materials & Chemicals',
+    '기타 제조': 'Materials & Chemicals',
+    '기타 제조': 'Materials & Chemicals', 
 
     # Media 그룹
     '출판·미디어': 'Media & Entertainment',
@@ -71,6 +79,8 @@ SECTOR_MAPPING = {
     '담배': 'Consumer Goods & Retail',
     '숙박': 'Consumer Goods & Retail',
     '음식점': 'Consumer Goods & Retail',
+    '가구': 'Consumer Goods & Retail',
+    '지주회사(유통·식품)': 'Consumer Goods & Retail',
 
     # Infrastructure 그룹
     '건설': 'Infrastructure & Energy',
@@ -82,6 +92,10 @@ SECTOR_MAPPING = {
     '전문건설': 'Infrastructure & Energy',
     '하수·폐기물': 'Infrastructure & Energy',
     '수도': 'Infrastructure & Energy',
+    '지주회사(방산·에너지)': 'Infrastructure & Energy',
+    '지주회사(기계·건설)': 'Infrastructure & Energy',
+    '지주회사(에너지·인프라)': 'Infrastructure & Energy',
+    '지주회사(건설·시멘트)': 'Infrastructure & Energy',
 
     # Industrial 그룹
     '기계·설비': 'Industrial Machinery',
@@ -91,6 +105,8 @@ SECTOR_MAPPING = {
     '사업지원서비스': 'Business & Services',
     '부동산': 'Business & Services',
     '사회복지': 'Business & Services',
+    '임대업': 'Business & Services',
+    '수리업': 'Business & Services',
 
     # Others 그룹
     '농업': 'Education & Agriculture',
@@ -98,6 +114,7 @@ SECTOR_MAPPING = {
     '임업': 'Education & Agriculture',
     '교육': 'Education & Agriculture',
     '도서관·박물관': 'Education & Agriculture',
+    '기타 개인서비스': 'Others',
 
     # Mining 그룹
     '석탄·광업': 'Mining & Resources',
@@ -123,78 +140,82 @@ def get_supabase_client() -> Client:
     return create_client(url, key)
 
 
-def update_sectors():
-    """sectors 테이블에 영문 섹터명 업데이트"""
+import os
+import time # 지연 시간을 주기 위해 추가
+from dotenv import load_dotenv 
+from supabase import create_client, Client
+
+load_dotenv('.env.local')
+
+# SECTOR_MAPPING (기존 내용 유지)
+
+def update_all_sectors_safe():
     print("🔄 Connecting to Supabase...")
     supabase = get_supabase_client()
 
-    print("📊 Fetching sectors from database...")
-    response = supabase.table('sectors').select('name, sector_en').execute()
-    sectors = response.data
+    # 1. 한 번에 가져올 데이터 양 조절 (Batch Size)
+    batch_size = 100
+    current_start = 0
+    total_updated = 0
+    total_skipped = 0
+    missing_stocks = []
 
-    print(f"✅ Found {len(sectors)} sectors")
+    print("🚀 Starting Batch Update...")
 
-    updated_count = 0
-    skipped_count = 0
+    while True:
+        print(f"📦 Fetching range {current_start} to {current_start + batch_size - 1}...")
+        
+        # 100개씩 끊어서 가져오기
+        try:
+            response = supabase.table('companies')\
+                .select('corp_name, sector, sector_en')\
+                .range(current_start, current_start + batch_size - 1)\
+                .execute()
+        except Exception as e:
+            print(f"❌ Network Error: {e}. Retrying in 3 seconds...")
+            time.sleep(3)
+            continue
 
-    for sector in sectors:
-        sector_name = sector['name']
-        current_en = sector.get('sector_en')
+        companies = response.data
 
-        # 매핑에서 영문명 찾기
-        if sector_name in SECTOR_MAPPING:
-            new_en = SECTOR_MAPPING[sector_name]
+        # 더 이상 가져올 데이터가 없으면 종료
+        if not companies:
+            break
 
-            # 이미 같은 값이면 스킵
-            if current_en == new_en:
-                skipped_count += 1
+        for company in companies:
+            name_val = company['corp_name']
+            kr_sector = company.get('sector')
+            current_en = company.get('sector_en')
+
+            if not kr_sector:
+                missing_stocks.append(f"{name_val} (섹터 정보 없음)")
                 continue
 
-            # 업데이트
-            print(f"  📝 {sector_name} -> {new_en}")
-            supabase.table('sectors').update({'sector_en': new_en}).eq('name', sector_name).execute()
-            updated_count += 1
-        else:
-            # 매핑에 없는 섹터는 'Others'로 설정 (이미 설정되어 있지 않은 경우)
-            if not current_en:
-                print(f"  ⚠️ {sector_name} -> Others (not in mapping)")
-                supabase.table('sectors').update({'sector_en': 'Others'}).eq('name', sector_name).execute()
-                updated_count += 1
+            if kr_sector in SECTOR_MAPPING:
+                new_en = SECTOR_MAPPING[kr_sector]
+                
+                if current_en == new_en:
+                    total_skipped += 1
+                    continue
+
+                # 개별 업데이트 실행
+                supabase.table('companies').update({'sector_en': new_en}).eq('corp_name', name_val).execute()
+                total_updated += 1
             else:
-                skipped_count += 1
+                missing_stocks.append(f"{name_val} ({kr_sector})")
 
-    print(f"\n✅ Update complete!")
-    print(f"   - Updated: {updated_count}")
-    print(f"   - Skipped: {skipped_count}")
+        print(f"   ✅ Done: {current_start + len(companies)} processed. (Updated: {total_updated})")
+        
+        current_start += batch_size
+        time.sleep(0.1) # 서버 과부하 방지용 짧은 휴식
 
+    # 📁 미매핑 목록 저장
+    if missing_stocks:
+        with open('missing_sectors_list.txt', 'w', encoding='utf-8') as f:
+            f.write("\n".join(missing_stocks))
+        print(f"\n⚠️  Found unmapped stocks. Saved to 'missing_sectors_list.txt'")
 
-def verify_mapping():
-    """매핑 결과 확인"""
-    print("\n🔍 Verifying sector mapping...")
-    supabase = get_supabase_client()
-
-    response = supabase.table('sectors').select('name, sector_en').order('sector_en').execute()
-    sectors = response.data
-
-    # 그룹별로 출력
-    groups = {}
-    for sector in sectors:
-        en = sector.get('sector_en') or 'NULL'
-        if en not in groups:
-            groups[en] = []
-        groups[en].append(sector['name'])
-
-    print("\n📋 Sector groups:")
-    for en_name, kr_names in sorted(groups.items()):
-        print(f"\n  [{en_name}]")
-        for kr in kr_names:
-            print(f"    - {kr}")
-
+    print(f"\n✨ All process finished! Total Updated: {total_updated}")
 
 if __name__ == '__main__':
-    try:
-        update_sectors()
-        verify_mapping()
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        raise
+    update_all_sectors_safe()
