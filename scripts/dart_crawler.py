@@ -78,15 +78,22 @@ def _clean_html_text(raw_html):
 def _fetch_from_viewer(rcept_no):
     """document.xml 014 시 DART 웹 뷰어에서 본문 직접 스크래핑 (폴백)"""
     try:
-        # 1단계: 메인 페이지에서 dcm_no 추출
-        main_url = f"https://dart.fss.or.kr/dsaf001/main.do?rcept_no={rcept_no}"
+        # 1단계: 메인 페이지 접근 (DART 뷰어 파라미터명은 rcpNo)
+        main_url = f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
         resp = session.get(main_url, timeout=15)
         if resp.status_code != 200:
+            logger.warning(f"{rcept_no} 뷰어 메인 접근 실패: HTTP {resp.status_code}")
             return None
 
-        dcm_match = re.search(r"dcmNo\s*[=:]\s*['\"]?(\d+)", resp.text)
+        # dcmNo 추출 (여러 패턴 시도)
+        dcm_match = (
+            re.search(r"dcmNo['\"]?\s*[=:]\s*['\"]?(\d+)", resp.text) or
+            re.search(r"dcm_no[=:](\d+)", resp.text, re.IGNORECASE) or
+            re.search(r"viewer\.do[^'\"]*dcm_no=(\d+)", resp.text, re.IGNORECASE)
+        )
+
         if not dcm_match:
-            # dcmNo 못 찾으면 메인 페이지 자체에서 텍스트 추출 시도
+            logger.warning(f"{rcept_no} dcmNo 추출 실패 - 메인 페이지 텍스트 시도")
             text = _clean_html_text(resp.text)
             if len(text) > 100:
                 return text[:2500]
@@ -103,6 +110,7 @@ def _fetch_from_viewer(rcept_no):
         )
         resp2 = session.get(viewer_url, timeout=15)
         if resp2.status_code != 200:
+            logger.warning(f"{rcept_no} 뷰어 본문 접근 실패: HTTP {resp2.status_code}")
             return None
 
         text = _clean_html_text(resp2.text)
@@ -159,7 +167,10 @@ def get_clean_content(rcept_no, max_retries=2):
                 if dart_status == "014":
                     logger.info(f"{rcept_no} document.xml 없음(014) -> 뷰어 폴백 시도")
                     fallback = _fetch_from_viewer(rcept_no)
-                    return fallback if fallback else "CONTENT_NOT_AVAILABLE"
+                    if fallback:
+                        return fallback
+                    logger.info(f"{rcept_no} 뷰어 폴백도 실패 -> 스킵 (표형식 공시 가능성)")
+                    return "CONTENT_NOT_AVAILABLE"
 
                 # 020: 요청 제한 초과 → 재시도
                 if dart_status == "020" and attempt < max_retries:
