@@ -1,5 +1,7 @@
 import os
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import time
 from datetime import datetime, timedelta
 from supabase import create_client, Client
@@ -18,16 +20,29 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# DART API 세션 (연결 재사용 + 헤더 설정)
+# DART API 세션 (연결 재사용 + 헤더 + HTTP 레벨 재시도)
 session = requests.Session()
 session.headers.update({
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "Accept": "application/json, application/xml, application/zip, */*",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/zip,*/*;q=0.8",
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
     "Accept-Encoding": "gzip, deflate, br",
     "Connection": "keep-alive",
+    "Referer": "https://opendart.fss.or.kr",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
 })
 session.verify = False
+
+# HTTP 레벨 자동 재시도 (503/502 등 서버 에러 시)
+retry_strategy = Retry(
+    total=2,
+    backoff_factor=2,
+    status_forcelist=[429, 500, 502, 503, 504],
+)
+adapter = HTTPAdapter(max_retries=retry_strategy)
+session.mount("https://", adapter)
+session.mount("http://", adapter)
 
 url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL") # URL 환경변수 사용 권장
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
