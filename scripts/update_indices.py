@@ -3,8 +3,9 @@ import requests
 from supabase import create_client, Client
 from datetime import datetime
 
-url = os.environ.get("SUPABASE_URL")
+url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
 supabase: Client = create_client(url, key)
 
 def get_daum_data(symbol_code, symbol, name):
