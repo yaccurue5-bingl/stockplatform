@@ -12,7 +12,7 @@ jobs:
   automation:
     runs-on: ubuntu-latest
     
-    # 모든 단계에서 공통으로 사용할 환경 변수 설정 (utils 경로 문제 해결)
+    # 1. 조치: 모든 단계에서 루트 폴더를 인식하도록 전역 PYTHONPATH 설정
     env:
       PYTHONPATH: ${{ github.workspace }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -44,11 +44,11 @@ jobs:
       - name: Run AI Disclosure Crawler
         run: python scripts/dart_crawler.py
   
-      # 3단계: AI 분석 실행 (auto_analyst.py)
+      # 3단계: AI 분석 실행
       - name: Run AI Analyst
         run: python scripts/auto_analyst.py
 
-      # Vercel 배포 트리거 (주석 처리 상태 유지 및 코드 복구)
+      # Vercel 배포 트리거 (기존 로직 유지 및 주석 처리 상태 복구)
       # - name: Trigger Vercel Deploy
       #   env:
       #     DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
