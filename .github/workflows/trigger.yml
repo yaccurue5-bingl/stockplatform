@@ -5,14 +5,13 @@ on:
     - cron: "30,45 22 * * 0-4"
     - cron: "*/15 23 * * 0-4"
     - cron: "*/15 0-9 * * 1-5"
-    
   workflow_dispatch:
 
 jobs:
   automation:
     runs-on: ubuntu-latest
     
-    # 1. 조치: 모든 단계에서 루트 폴더를 인식하도록 전역 PYTHONPATH 설정
+    # 🔍 전역 환경 변수 설정: 모든 step에서 utils를 찾을 수 있게 합니다.
     env:
       PYTHONPATH: ${{ github.workspace }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -36,27 +35,19 @@ jobs:
           pip install requests pandas supabase pykrx urllib3 groq
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 1단계: 지수 정보 업데이트
       - name: Run Market Indices Update
         run: python scripts/update_indices.py
 
-      # 2단계: AI 공시 인사이트 수집 (DART 크롤러)
       - name: Run AI Disclosure Crawler
         run: python scripts/dart_crawler.py
   
-      # 3단계: AI 분석 실행
       - name: Run AI Analyst
         run: python scripts/auto_analyst.py
 
-      # Vercel 배포 트리거 (기존 로직 유지 및 주석 처리 상태 복구)
+      # Vercel 배포 트리거 (요청하신 대로 주석 유지)
       # - name: Trigger Vercel Deploy
       #   env:
       #     DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
       #   run: |
-      #     # 응답 코드(http_code)를 확인하도록 수정된 기존 로직 유지
       #     response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DEPLOY_URL")
       #     echo "Vercel Response Code: $response"
-      #     if [ "$response" != "201" ] && [ "$response" != "200" ]; then
-      #       echo "❌ Deploy Hook failed with status $response"
-      #       exit 1
-      #     fi
