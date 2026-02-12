@@ -209,7 +209,7 @@ def run():
                 "event_type": result.get("event_type"),
                 "financial_impact": result.get("financial_impact"),
                 "short_term_impact_score": result.get("short_term_impact_score"),
-                "analysis": result.get("analysis"),
+                "ai_summary": result.get("analysis"),
                 "risk_factors": result.get("risk_factors"),
                 "analysis_status": "completed",
                 "updated_at": datetime.now().isoformat()
