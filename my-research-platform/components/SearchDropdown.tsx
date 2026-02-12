@@ -19,16 +19,17 @@ interface SearchResult {
 
 interface SearchDropdownProps {
   onSelectStock?: (stockCode: string) => void;
+  onSearch?: (query: string) => void;  // 검색어로 전체 검색 시 호출
   isSuperUser?: boolean;
   placeholder?: string;
 }
 
-export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder = "Search company..." }: SearchDropdownProps) {
+export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, placeholder = "Search company..." }: SearchDropdownProps) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(-1);  // -1 = 선택 없음 (입력창 포커스)
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -36,15 +37,15 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 외부 클릭 시 닫기
+  // 외부 클릭 시 닫기 - click 이벤트 사용 (mousedown은 드롭다운 항목 클릭 시 문제 발생)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   // 검색 실행 (디바운스 적용)
@@ -60,7 +61,7 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
       if (response.ok) {
         const data = await response.json();
         setResults(data.results || []);
-        setSelectedIndex(0);
+        setSelectedIndex(-1);  // 기본 선택 없음 - 입력창에 포커스 유지
       }
     } catch (error) {
       console.error('Search failed:', error);
@@ -91,9 +92,9 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
     };
   }, [query, search]);
 
-  // 선택된 항목으로 스크롤
+  // 선택된 항목으로 스크롤 (selectedIndex가 0 이상일 때만)
   useEffect(() => {
-    if (itemRefs.current[selectedIndex]) {
+    if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
       itemRefs.current[selectedIndex]?.scrollIntoView({
         block: 'nearest',
         behavior: 'smooth'
@@ -102,33 +103,104 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
   }, [selectedIndex]);
 
   // 결과 선택
-  const handleSelect = (result: SearchResult) => {
-    if (onSelectStock) {
-      onSelectStock(result.stock_code);
-    } else if (isSuperUser) {
-      router.push(`/stock/${result.stock_code}`);
-    }
+  const handleSelect = (e: React.MouseEvent, result: SearchResult) => {
+    // 이벤트 전파 중지 - document 레벨 click 핸들러가 드롭다운을 닫지 않도록
+    e.preventDefault();
+    e.stopPropagation();
+
+    console.log('[SearchDropdown] handleSelect called:', {
+      stockCode: result.stock_code,
+      hasOnSelectStock: !!onSelectStock,
+      isSuperUser
+    });
+
+    // 상태 업데이트 먼저 (드롭다운 닫기)
     setQuery('');
     setResults([]);
     setIsOpen(false);
+
+    // 콜백 호출은 상태 업데이트 후 (setTimeout으로 다음 틱에서 실행)
+    setTimeout(() => {
+      if (onSelectStock) {
+        console.log('[SearchDropdown] calling onSelectStock with:', result.stock_code);
+        onSelectStock(result.stock_code);
+      } else if (isSuperUser) {
+        console.log('[SearchDropdown] navigating to /stock/' + result.stock_code);
+        router.push(`/stock/${result.stock_code}`);
+      }
+    }, 0);
+  };
+
+  // 키보드로 선택
+  const handleKeyboardSelect = (result: SearchResult) => {
+    console.log('[SearchDropdown] handleKeyboardSelect called:', result.stock_code);
+
+    // 상태 업데이트 먼저 (드롭다운 닫기)
+    setQuery('');
+    setResults([]);
+    setIsOpen(false);
+
+    // 콜백 호출은 상태 업데이트 후
+    setTimeout(() => {
+      if (onSelectStock) {
+        console.log('[SearchDropdown] calling onSelectStock with:', result.stock_code);
+        onSelectStock(result.stock_code);
+      } else if (isSuperUser) {
+        console.log('[SearchDropdown] navigating to /stock/' + result.stock_code);
+        router.push(`/stock/${result.stock_code}`);
+      }
+    }, 0);
+  };
+
+  // 검색어로 전체 검색 실행 (엔터 또는 돋보기 클릭)
+  const handleFullSearch = () => {
+    if (!query.trim()) return;
+
+    const searchQuery = query.trim();
+    setQuery('');
+    setResults([]);
+    setIsOpen(false);
+
+    setTimeout(() => {
+      if (onSearch) {
+        onSearch(searchQuery);
+      } else if (isSuperUser) {
+        // 기본 동작: disclosures 페이지에서 검색
+        router.push(`/disclosures?search=${encodeURIComponent(searchQuery)}`);
+      }
+    }, 0);
   };
 
   // 키보드 네비게이션
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // 드롭다운이 열려있고 항목이 선택되어 있으면 (selectedIndex >= 0) 해당 항목으로 이동
+      if (isOpen && results.length > 0 && selectedIndex >= 0) {
+        handleKeyboardSelect(results[selectedIndex]);
+      } else {
+        // 선택 없음 (selectedIndex === -1) 또는 결과 없음 → 전체 검색
+        handleFullSearch();
+      }
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+      inputRef.current?.blur();
+      return;
+    }
+
     if (!isOpen || results.length === 0) return;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
+      // -1 → 0 → 1 → ... → results.length - 1
       setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => Math.max(prev - 1, 0));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSelect(results[selectedIndex]);
-    } else if (e.key === 'Escape') {
-      setIsOpen(false);
-      inputRef.current?.blur();
+      // results.length - 1 → ... → 1 → 0 → -1 (입력창으로 돌아감)
+      setSelectedIndex(prev => Math.max(prev - 1, -1));
     }
   };
 
@@ -136,9 +208,15 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
     <div ref={containerRef} className="relative">
       {/* 검색 입력 */}
       <div className="relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 512 512">
-          <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
-        </svg>
+        <button
+          onClick={handleFullSearch}
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 hover:text-white transition cursor-pointer"
+          type="button"
+        >
+          <svg fill="currentColor" viewBox="0 0 512 512">
+            <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
+          </svg>
+        </button>
         <input
           ref={inputRef}
           type="text"
@@ -170,7 +248,8 @@ export default function SearchDropdown({ onSelectStock, isSuperUser, placeholder
                 <div
                   key={result.stock_code}
                   ref={(el) => { itemRefs.current[index] = el; }}
-                  onClick={() => handleSelect(result)}
+                  onClick={(e) => handleSelect(e, result)}
+                  onMouseDown={(e) => e.preventDefault()}
                   className={`px-3 py-2 cursor-pointer transition-colors ${
                     index === selectedIndex ? 'bg-blue-600/20' : 'hover:bg-gray-800'
                   }`}

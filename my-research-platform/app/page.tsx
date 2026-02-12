@@ -21,7 +21,7 @@ export default function LandingPage() {
   // 검색 결과 선택 시 처리
   const handleSearchSelect = (stockCode: string) => {
     if (isSuper) {
-      router.push(`/stock/${stockCode}`);
+      router.push(`/disclosures?stock=${stockCode}`);
     } else {
       setIsWaitlistOpen(true);
     }
@@ -142,6 +142,13 @@ export default function LandingPage() {
             <div className="hidden sm:block w-32 sm:w-48 md:w-80">
               <SearchDropdown
                 onSelectStock={handleSearchSelect}
+                onSearch={(query) => {
+                  if (isSuper) {
+                    router.push(`/disclosures?search=${encodeURIComponent(query)}`);
+                  } else {
+                    setIsWaitlistOpen(true);
+                  }
+                }}
                 isSuperUser={isSuper}
                 placeholder="Search... ⌘K"
               />
@@ -217,6 +224,7 @@ export default function LandingPage() {
 
             <LatestDisclosures
               onCardClick={() => setIsWaitlistOpen(true)}
+              isSuperUser={isSuper}
             />
 
             {/* View More */}

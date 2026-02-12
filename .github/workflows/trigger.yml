@@ -1,6 +1,7 @@
 name: Market Data & AI Disclosure Automation
 
 on:
+  
   schedule:
     - cron: "30,45 22 * * 0-4"
     - cron: "*/15 23 * * 0-4"
@@ -12,6 +13,15 @@ jobs:
   automation:
     runs-on: ubuntu-latest
     
+    # 🔍 모든 실행 단계에서 공통으로 사용할 환경 변수 설정
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      DART_API_KEY: ${{ secrets.DART_API_KEY }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -23,47 +33,31 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests pandas supabase pykrx urllib3 groq
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests pandas supabase pykrx urllib3 groq
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      #- name: Run Initialize Companies
-       # run: python scripts/init_companies.py
-       # env:
-        #  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-         # SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      # 1단계: 지수 정보 업데이트 (기존 방식 유지)
+      # 1단계: 지수 정보 업데이트
       - name: Run Market Indices Update
         run: python scripts/update_indices.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      # 2단계: AI 공시 인사이트 수집 (신규 dart_crawler.py 실행)
+      # 2단계: AI 공시 인사이트 수집
       - name: Run AI Disclosure Crawler
         run: python scripts/dart_crawler.py
-        env:
-          DART_API_KEY: ${{ secrets.DART_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
   
+      # 3단계: AI 분석 실행
       - name: Run AI Analyst
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python scripts/auto_analyst.py
-        # trigger.yml 수정
-      # trigger.yml 수정
-     # - name: Trigger Vercel Deploy
-      #  env:
-       #   DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-       # run: |
-          # 응답 코드(http_code)를 확인하도록 수정
-        #  response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DEPLOY_URL")
-         # echo "Vercel Response Code: $response"
-          #if [ "$response" != "201" ] && [ "$response" != "200" ]; then
-           # echo "❌ Deploy Hook failed with status $response"
-            #exit 1
-          #fi
+
+      # Vercel 배포 트리거 (요청하신 대로 기존 로직 유지 및 주석 처리)
+      # - name: Trigger Vercel Deploy
+      #   env:
+      #     DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+      #   run: |
+      #     # 응답 코드(http_code)를 확인하도록 수정된 기존 로직 유지
+      #     response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DEPLOY_URL")
+      #     echo "Vercel Response Code: $response"
+      #     if [ "$response" != "201" ] && [ "$response" != "200" ]; then
+      #       echo "❌ Deploy Hook failed with status $response"
+      #       exit 1
+      #     fi
