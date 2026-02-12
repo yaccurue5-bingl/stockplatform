@@ -4,11 +4,10 @@ from supabase import create_client, Client
 from datetime import datetime
 from utils.env_loader import load_env
 
-# 환경 변수 로드 (.env.local 및 시스템 환경 변수)
-load_env()
-
 url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+supabase: Client = create_client(url, key)
 
 if not url or not key:
     print("🚨 에러: SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다.")
