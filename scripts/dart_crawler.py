@@ -66,8 +66,59 @@ def is_disclosure_processed(corp_code: str, rcept_no: str) -> bool:
         logger.warning(f"해시 확인 실패 (처리 진행): {e}")
         return False
 
-def get_clean_content(rcept_no, max_retries=3):
-    """ZIP 압축 해제, 상세 에러 로깅 및 정밀 정제 로직 통합 (014 에러 재시도 포함)"""
+def _clean_html_text(raw_html):
+    """HTML에서 텍스트만 추출하는 공통 정제 함수"""
+    clean = re.sub(r'<(style|script|head)[^>]*>.*?</\1>', '', raw_html, flags=re.DOTALL | re.IGNORECASE)
+    clean = re.sub(r'<[^>]*>', '', clean)
+    clean = clean.replace('\x00', '').replace('\u0000', '')
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    return clean
+
+
+def _fetch_from_viewer(rcept_no):
+    """document.xml 014 시 DART 웹 뷰어에서 본문 직접 스크래핑 (폴백)"""
+    try:
+        # 1단계: 메인 페이지에서 dcm_no 추출
+        main_url = f"https://dart.fss.or.kr/dsaf001/main.do?rcept_no={rcept_no}"
+        resp = session.get(main_url, timeout=15)
+        if resp.status_code != 200:
+            return None
+
+        dcm_match = re.search(r"dcmNo\s*[=:]\s*['\"]?(\d+)", resp.text)
+        if not dcm_match:
+            # dcmNo 못 찾으면 메인 페이지 자체에서 텍스트 추출 시도
+            text = _clean_html_text(resp.text)
+            if len(text) > 100:
+                return text[:2500]
+            return None
+
+        dcm_no = dcm_match.group(1)
+
+        # 2단계: 뷰어 페이지에서 본문 가져오기
+        time.sleep(1.5)
+        viewer_url = (
+            f"https://dart.fss.or.kr/report/viewer.do"
+            f"?rcept_no={rcept_no}&dcm_no={dcm_no}"
+            f"&eleId=0&offset=0&length=0&dtd=dart3.xsd"
+        )
+        resp2 = session.get(viewer_url, timeout=15)
+        if resp2.status_code != 200:
+            return None
+
+        text = _clean_html_text(resp2.text)
+        if len(text) > 100:
+            logger.info(f"{rcept_no} 뷰어 폴백 성공 ({len(text)}자)")
+            return text[:2500]
+
+        return None
+
+    except Exception as e:
+        logger.warning(f"{rcept_no} 뷰어 폴백 실패: {e}")
+        return None
+
+
+def get_clean_content(rcept_no, max_retries=2):
+    """본문 수집: document.xml 우선 → 014 시 뷰어 폴백"""
     dart_key = os.environ.get("DART_API_KEY")
     if not dart_key:
         logger.error("DART_API_KEY가 설정되지 않았습니다.")
@@ -82,70 +133,57 @@ def get_clean_content(rcept_no, max_retries=3):
             response = session.get(content_url, timeout=30)
 
             if response.status_code == 200:
-                # 1. 정상적인 ZIP 파일 응답인 경우 (PK로 시작)
+                # 정상 ZIP 응답
                 if response.content.startswith(b'PK'):
                     try:
                         with zipfile.ZipFile(io.BytesIO(response.content)) as z:
                             xml_name = z.namelist()[0]
                             with z.open(xml_name) as f:
                                 raw_text = f.read().decode('utf-8', errors='ignore')
-
-                        # 2. 정밀 정제 로직 (Style, Script 및 HTML 태그 제거)
-                        clean_text = re.sub(r'<(style|script)[^>]*>.*?</\1>', '', raw_text, flags=re.DOTALL | re.IGNORECASE)
-                        clean_text = re.sub(r'<[^>]*>', '', clean_text)
-
-                        # Null 바이트 및 특수 문자 제거
-                        clean_text = clean_text.replace('\x00', '').replace('\u0000', '')
-                        # 연속된 공백 하나로 통합
-                        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
-
-                        return clean_text[:2500]
-
+                        return _clean_html_text(raw_text)[:2500]
                     except Exception as zip_err:
                         logger.error(f"ZIP 처리 중 오류 ({rcept_no}): {zip_err}")
                         return "CONTENT_NOT_AVAILABLE"
 
-                # 3. ZIP이 아닌 경우 (DART 에러 XML 응답)
-                else:
-                    response_text = response.text
-                    dart_status = None
-                    dart_message = None
+                # DART 에러 XML 응답
+                dart_status, dart_message = None, None
+                if "<?xml" in response.text:
+                    try:
+                        root = ET.fromstring(response.text)
+                        dart_status = root.find('status').text if root.find('status') is not None else None
+                        dart_message = root.find('message').text if root.find('message') is not None else None
+                    except Exception:
+                        pass
 
-                    if "<?xml" in response_text:
-                        try:
-                            root = ET.fromstring(response_text)
-                            dart_status = root.find('status').text if root.find('status') is not None else None
-                            dart_message = root.find('message').text if root.find('message') is not None else None
-                        except Exception:
-                            pass
+                # 014: 파일 미존재 → 재시도 없이 즉시 뷰어 폴백
+                if dart_status == "014":
+                    logger.info(f"{rcept_no} document.xml 없음(014) -> 뷰어 폴백 시도")
+                    fallback = _fetch_from_viewer(rcept_no)
+                    return fallback if fallback else "CONTENT_NOT_AVAILABLE"
 
-                    # 014(파일 미존재) 또는 020(요청 제한 초과): 재시도 대상
-                    if dart_status in ("014", "020") and attempt < max_retries:
-                        wait_time = 3.0 * attempt
-                        logger.warning(f"[시도 {attempt}/{max_retries}] {rcept_no} 상태 {dart_status}: {dart_message} -> {wait_time}초 후 재시도")
-                        time.sleep(wait_time)
-                        continue
+                # 020: 요청 제한 초과 → 재시도
+                if dart_status == "020" and attempt < max_retries:
+                    wait_time = 5.0 * attempt
+                    logger.warning(f"[시도 {attempt}/{max_retries}] {rcept_no} 요청 제한(020) -> {wait_time}초 후 재시도")
+                    time.sleep(wait_time)
+                    continue
 
-                    if dart_status:
-                        logger.warning(f"{rcept_no} 수집 불가 - DART 응답 [상태: {dart_status}] [메시지: {dart_message}]")
-                    else:
-                        logger.warning(f"{rcept_no} 수집 불가 (알 수 없는 응답 형식)")
-
-                    return "CONTENT_NOT_AVAILABLE"
+                logger.warning(f"{rcept_no} 수집 불가 - DART [상태: {dart_status}] [메시지: {dart_message}]")
+                return "CONTENT_NOT_AVAILABLE"
 
         except requests.exceptions.ConnectionError as e:
             if attempt < max_retries:
-                wait_time = 3.0 * attempt
-                logger.warning(f"[시도 {attempt}/{max_retries}] {rcept_no} 연결 오류 -> {wait_time}초 후 재시도: {e}")
+                wait_time = 5.0 * attempt
+                logger.warning(f"[시도 {attempt}/{max_retries}] {rcept_no} 연결 오류 -> {wait_time}초 후 재시도")
                 time.sleep(wait_time)
                 continue
             logger.warning(f"본문 수집 중 연결 오류 ({rcept_no}): {e}")
             return "CONTENT_NOT_AVAILABLE"
         except Exception as e:
-            logger.warning(f"본문 수집 중 시스템 에러 발생 ({rcept_no}): {e}")
+            logger.warning(f"본문 수집 중 시스템 에러 ({rcept_no}): {e}")
             return "CONTENT_NOT_AVAILABLE"
 
-    return None
+    return "CONTENT_NOT_AVAILABLE"
 
 def run_crawler():
     today = datetime.now().strftime('%Y%m%d')
