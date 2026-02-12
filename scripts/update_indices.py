@@ -7,7 +7,7 @@ from utils.env_loader import load_env
 # 환경 변수 로드 (.env.local 및 시스템 환경 변수)
 load_env()
 
-url = os.environ.get("SUPABASE_URL")
+url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 if not url or not key:
