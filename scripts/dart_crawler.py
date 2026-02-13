@@ -166,10 +166,7 @@ def get_clean_content(rcept_no, max_retries=2):
                 # 014: 파일 미존재 → 재시도 없이 즉시 뷰어 폴백
                 if dart_status == "014":
                     logger.info(f"{rcept_no} document.xml 없음(014) -> 뷰어 폴백 시도")
-                    fallback = _fetch_from_viewer(rcept_no)
-                    if fallback:
-                        return fallback
-                    logger.info(f"{rcept_no} 뷰어 폴백도 실패 -> 스킵 (표형식 공시 가능성)")
+                    
                     return "CONTENT_NOT_AVAILABLE"
 
                 # 020: 요청 제한 초과 → 재시도
