@@ -31,10 +31,8 @@ def run_test():
     analyst = AIAnalyst()
     processed_count = 0
     
-    logger.info("[START] 삼성전자 단일 종목 테스트 시작")
-
+    
     while True:
-        # 🔍 테스트를 위해 '삼성전자'만 조회하도록 설정
         res = supabase.table("disclosure_insights") \
             .select("id, corp_name, report_nm, content") \
             .eq("analysis_status", "pending") \
