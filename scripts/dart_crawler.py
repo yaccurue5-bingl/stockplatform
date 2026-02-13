@@ -96,7 +96,7 @@ def _fetch_from_viewer(rcept_no):
             logger.warning(f"{rcept_no} dcmNo 추출 실패 - 메인 페이지 텍스트 시도")
             text = _clean_html_text(resp.text)
             if len(text) > 100:
-                return text[:2500]
+                return text[:8000]
             return None
 
         dcm_no = dcm_match.group(1)
@@ -148,7 +148,7 @@ def get_clean_content(rcept_no, max_retries=2):
                             xml_name = z.namelist()[0]
                             with z.open(xml_name) as f:
                                 raw_text = f.read().decode('utf-8', errors='ignore')
-                        return _clean_html_text(raw_text)[:2500]
+                        return _clean_html_text(raw_text)[:8000]
                     except Exception as zip_err:
                         logger.error(f"ZIP 처리 중 오류 ({rcept_no}): {zip_err}")
                         return "CONTENT_NOT_AVAILABLE"
@@ -165,9 +165,10 @@ def get_clean_content(rcept_no, max_retries=2):
 
                 # 014: 파일 미존재 → 재시도 없이 즉시 뷰어 폴백
                 if dart_status == "014":
-                    logger.info(f"{rcept_no} document.xml 없음(014) -> 뷰어 폴백 시도")
+                    logger.info(f"{rcept_no} document.xml 없음(014) -> 뷰어 스크래핑 폴백 시도")
+                    return _fetch_from_viewer(rcept_no) # ✅ 단순히 마킹하지 말고 바로 스크래핑 함수 호출
                     
-                    return "CONTENT_NOT_AVAILABLE"
+                    #return "CONTENT_NOT_AVAILABLE"
 
                 # 020: 요청 제한 초과 → 재시도
                 if dart_status == "020" and attempt < max_retries:
