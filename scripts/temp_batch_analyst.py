@@ -39,7 +39,7 @@ def run_test():
             .select("id, corp_name, report_nm, content") \
             .eq("analysis_status", "pending") \
             .not_.is_("content", "null") \
-            .limit(1) \
+            .limit(50) \
             .execute()
 
         if not res.data:
@@ -71,11 +71,11 @@ def run_test():
             
             # 1분 대기
             logger.info("😴 다음 분석을 위해 60초 대기 중...")
-            time.sleep(60)
+            time.sleep(0.5)
             
         else:
             logger.warning(f"⚠️ {item['corp_name']} 분석 실패, 10초 대기")
-            time.sleep(10)
+            time.sleep(1)
 
 if __name__ == "__main__":
     run_test()
