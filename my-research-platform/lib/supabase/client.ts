@@ -41,8 +41,14 @@ export function createClient() {
 // 세션 만료 체크 (30분 = 1800000ms)
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 let sessionTimer: ReturnType<typeof setTimeout> | null = null;
+let lastActivityTime: number = Date.now();
+
+export function getLastActivityTime() {
+  return lastActivityTime;
+}
 
 export function startSessionTimer(onExpire: () => void) {
+  lastActivityTime = Date.now();
   if (sessionTimer) clearTimeout(sessionTimer);
   sessionTimer = setTimeout(() => {
     const supabase = getSupabase();
@@ -53,6 +59,30 @@ export function startSessionTimer(onExpire: () => void) {
 
 export function resetSessionTimer(onExpire: () => void) {
   startSessionTimer(onExpire);
+}
+
+/**
+ * 모바일 백그라운드 복귀 시 실제 경과 시간 기반으로 만료 체크
+ * (모바일 브라우저는 백그라운드에서 setTimeout을 일시정지하므로
+ *  타이머만으로는 세션 만료가 작동하지 않음)
+ */
+export function checkSessionExpiry(onExpire: () => void): boolean {
+  const elapsed = Date.now() - lastActivityTime;
+  if (elapsed >= SESSION_TIMEOUT_MS) {
+    clearSessionTimer();
+    const supabase = getSupabase();
+    supabase.auth.signOut();
+    onExpire();
+    return true;
+  }
+  // 아직 만료되지 않았으면 남은 시간으로 타이머 재설정
+  if (sessionTimer) clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => {
+    const supabase = getSupabase();
+    supabase.auth.signOut();
+    onExpire();
+  }, SESSION_TIMEOUT_MS - elapsed);
+  return false;
 }
 
 export function clearSessionTimer() {
