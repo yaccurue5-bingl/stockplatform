@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Swal from 'sweetalert2';
-import { getSupabase, startSessionTimer, resetSessionTimer, clearSessionTimer } from "@/lib/supabase/client";
+import { getSupabase, startSessionTimer, resetSessionTimer, clearSessionTimer, checkSessionExpiry } from "@/lib/supabase/client";
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -68,16 +68,29 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       }
     };
 
-    // 활동 감지 이벤트
+    // 모바일 백그라운드 복귀 시 실제 경과 시간 기반으로 만료 체크
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isLoggedIn) {
+        checkSessionExpiry(handleSessionExpire);
+      }
+    };
+
+    // 활동 감지 이벤트 (데스크톱 + 모바일)
     window.addEventListener("mousemove", handleActivity);
     window.addEventListener("keydown", handleActivity);
     window.addEventListener("click", handleActivity);
+    window.addEventListener("touchstart", handleActivity);
+    window.addEventListener("scroll", handleActivity);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearSessionTimer();
       window.removeEventListener("mousemove", handleActivity);
       window.removeEventListener("keydown", handleActivity);
       window.removeEventListener("click", handleActivity);
+      window.removeEventListener("touchstart", handleActivity);
+      window.removeEventListener("scroll", handleActivity);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [router, isLoggedIn]);
 
