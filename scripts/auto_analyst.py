@@ -52,9 +52,26 @@ STRICT RULES:
    - 'ai_summary' must be within 500 characters in English. 
    - Strictly follow: [Context] -> [Key Figures] -> [Investment Opinion/Risk].
    - Eliminate filler phrases like "Content not available".
+5. **[report_nm] TRANSLATION GUIDE**:
+   - Translate the Korean 'report_nm' into a professional English financial title.
+   - Use the following standard terminology for common disclosure types:
+     * '주요사항보고서' -> 'Material Fact Report'
+     * '기재정정' -> '[Amendment]' (Place at the very beginning)
+     * '자기주식처분결정' -> 'Decision on Treasury Stock Disposal'
+     * '자기주식취득결정' -> 'Decision on Treasury Stock Acquisition'
+     * '유상증자결정' -> 'Decision on Paid-in Capital Increase'
+     * '전환사채권발행결정' -> 'Decision on Issuance of Convertible Bonds'
+     * '신주인수권부사채권발행결정' -> 'Decision on Issuance of Bonds with Warrants'
+     * '현금·현물배당결정' -> 'Decision on Cash and Property Dividend'
+     * '주식등의대량보유상황보고서' -> 'Large Shareholding Report'
+     * '임원ㆍ주요주주특정증권등소유상황보고서' -> 'Report on Shareholding Status of Executives and Major Shareholders'
+     * '사업보고서 / 분기보고서 / 반기보고서' -> 'Annual Report / Quarterly Report / Half-yearly Report'
+     * '결산실적공시' -> 'Earnings Release'
+   - For other titles, ensure professional financial phrasing (e.g., use 'Acquisition' instead of 'Buying', 'Disposal' instead of 'Selling').
 
 Return JSON format:
 {
+  "report_nm": "Translate the Korean report_nm into a professional English financial title",
   "headline": "Core summary in English (under 50 chars)",
   "key_numbers": [
     "• Key figure 1 (with unit)",
