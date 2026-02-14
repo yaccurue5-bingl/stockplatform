@@ -37,7 +37,7 @@ def run_test():
         .select("id, corp_name, report_nm, content") \
         .eq("analysis_status", "pending") \
         .not_.is_("content", "null") \
-        .limit(100) \
+        .limit(500) \
         .execute()
 
     if not res.data:
@@ -61,6 +61,7 @@ def run_test():
                 combined_summary = f"[Key Numbers]\n{key_numbers}\n\n[Investment Analysis]\n{analysis}"
 
                 update_data = {
+                    "report_nm": result.get("report_nm"),
                     "ai_summary": combined_summary,
                     "sentiment": result.get("financial_impact", "NEUTRAL").upper(),
                     "importance": "HIGH" if int(result.get("short_term_impact_score", 0)) >= 4 else "MEDIUM",
