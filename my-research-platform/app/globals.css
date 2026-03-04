@@ -13,6 +13,61 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* ────────────────────────────────────────────────────────────
+   콘텐츠 보호: 텍스트 선택/드래그 금지 (CSS 레벨)
+   - 로그인 후 전체 페이지에 적용
+   - 입력 필드(input, textarea)는 제외
+──────────────────────────────────────────────────────────── */
+body.protected-mode {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+
+  /* 이미지 드래그 방지 */
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+}
+
+/* 입력 필드는 선택 허용 */
+body.protected-mode input,
+body.protected-mode textarea,
+body.protected-mode [contenteditable="true"] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* 이미지 드래그 방지 */
+body.protected-mode img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+}
+
+/* 화면 캡처 방지: @media print로 인쇄 시 내용 숨기기 */
+@media print {
+  body {
+    display: none !important;
+  }
+}
+
+/* 화면 캡처 감지용 오버레이 (capture-detected 클래스 시 활성화) */
+body.capture-detected::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 99999;
+  pointer-events: none;
+}
+
 /* SweetAlert2 확인 버튼 항상 보이도록 */
 .swal2-confirm-visible,
 .swal2-confirm {
