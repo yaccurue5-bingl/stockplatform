@@ -32,83 +32,93 @@ class AIAnalyst:
 
         # ✅ Core Prompt (공통 규칙)
         self.core_prompt = """
-You are a professional Korean stock disclosure analyst.
+
+You are a professional Global financial analyst specializing in Korean DART disclosures. 
+Your task is to provide a numeric-heavy, objective analysis in English.
 
 STRICT RULES:
-1. Always extract specific numbers (amounts, percentages, dates).
-2. Distinguish between one-time events and structural changes.
-3. Do not use exaggerated language.
-4. If content lacks financial data, focus on business impact.
-5. Keep total output under 2000 Korean characters.
-6. Respond ONLY in valid JSON format.
+1. **LANGUAGE**: All output values must be in English. 
+   - Convert Korean units: (e.g., "원" -> "KRW", "주" -> "Shares", "억원" -> "100M KRW").
+   - Translation examples: "매출액" -> "Revenue", "영업이익" -> "Operating Profit".
+2. **UNIVERSAL DATA MINER**: 
+   - Scan the entire text to extract all available financial figures (KRW, %, Date, Shares).
+   - Priority keywords: [Acquisition/Disposal amount, Dividend(yield), Revenue/Profit variance, Issuance price, Funding size].
+   - If the text looks like a broken table, reconstruct the context to find the correct value-unit pair.
+3. **[key_numbers] SECTION**: 
+   - List at least 3-5 most critical financial figures found in the content.
+   - Format: "• [Item Name]: [Value][Unit] (Comparison/Date/Note)"
+   - Never leave this empty. If no numbers, use title information.
+4. **COMPACT SUMMARY**: 
+   - 'ai_summary' must be within 500 characters in English. 
+   - Strictly follow: [Context] -> [Key Figures] -> [Investment Opinion/Risk].
+   - Eliminate filler phrases like "Content not available".
+5. **[report_nm] TRANSLATION GUIDE**:
+   - Translate the Korean 'report_nm' into a professional English financial title.
+   - Use the following standard terminology for common disclosure types:
+     * '주요사항보고서' -> 'Material Fact Report'
+     * '기재정정' -> '[Amendment]' (Place at the very beginning)
+     * '자기주식처분결정' -> 'Decision on Treasury Stock Disposal'
+     * '자기주식취득결정' -> 'Decision on Treasury Stock Acquisition'
+     * '유상증자결정' -> 'Decision on Paid-in Capital Increase'
+     * '전환사채권발행결정' -> 'Decision on Issuance of Convertible Bonds'
+     * '신주인수권부사채권발행결정' -> 'Decision on Issuance of Bonds with Warrants'
+     * '현금·현물배당결정' -> 'Decision on Cash and Property Dividend'
+     * '주식등의대량보유상황보고서' -> 'Large Shareholding Report'
+     * '임원ㆍ주요주주특정증권등소유상황보고서' -> 'Report on Shareholding Status of Executives and Major Shareholders'
+     * '사업보고서 / 분기보고서 / 반기보고서' -> 'Annual Report / Quarterly Report / Half-yearly Report'
+     * '결산실적공시' -> 'Earnings Release'
+   - For other titles, ensure professional financial phrasing (e.g., use 'Acquisition' instead of 'Buying', 'Disposal' instead of 'Selling').
 
 Return JSON format:
-
 {
-  "headline": "One-sentence core summary (max 30 Korean characters)",
+  "report_nm": "Translate the Korean report_nm into a professional English financial title",
+  "headline": "Core summary in English (under 50 chars)",
   "key_numbers": [
-    "Bullet 1 including numbers",
-    "Bullet 2 including numbers",
-    "Bullet 3 including numbers"
+    "• Key figure 1 (with unit)",
+    "• Key figure 2 (with unit)",
+    "• Key figure 3 (with unit)"
   ],
   "event_type": "ONE_TIME or STRUCTURAL or NEUTRAL",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
-  "analysis": "Concise investment-focused analysis",
-  "risk_factors": "Main risk factors if any"
+  "ai_summary": "Numeric-centric investment analysis in English (for ai_summary column)",
+  "risk_factors": "Key risk factors in English"
 }
 """
 
-        # ✅ 유형별 추가 규칙
+        # ✅ 유형별 분석 규칙 (로직 보존을 위해 영문으로 기술 가이드)
         self.type_rules = {
             "EARNINGS": """
-Additional Rules for EARNINGS:
-- 반드시 YoY 및 QoQ 증감률 포함
-- 영업이익과 순이익을 분리 분석
-- 일회성 요인 여부 판단
-- 부채비율 또는 현금흐름 변화 강조
+- Must include YoY and QoQ growth rates.
+- Separate analysis for Operating Profit and Net Income.
+- Identify one-off factors and changes in cash flow or debt ratio.
 """,
             "CONTRACT": """
-Additional Rules for CONTRACT:
-- 계약 금액이 최근 매출 대비 몇 %인지 계산
-- 계약 기간 명시
-- 신규/반복 계약 구분
-- 실적 반영 시점 언급
+- Calculate the contract value as a % of recent annual revenue.
+- Specify the contract duration and recognition period.
+- Distinguish between new and recurring contracts.
 """,
             "DILUTION": """
-Additional Rules for DILUTION:
-- 발행 주식 수 및 전환가 포함
-- 최대 희석률 추정
-- 기존 주주 가치 희석 여부 분석
-- 자금 사용 목적 명확히 구분
+- Include number of shares and conversion price.
+- Estimate maximum dilution rate.
+- Analyze impact on existing shareholder value and purpose of funds.
 """,
             "BUYBACK": """
-Additional Rules for BUYBACK:
-- 취득 금액 및 기간 명시
-- 유통주식수 대비 비율 계산
-- 소각 여부 구분
-- 단기 수급 영향 분석
+- Specify acquisition amount and period.
+- Calculate the ratio against total outstanding shares.
+- Note whether shares will be cancelled (retired).
 """,
             "MNA": """
-Additional Rules for MNA:
-- 인수/합병 금액 명시
-- 자기자본 대비 비율 계산
-- 지배구조 변화 여부 분석
-- 재무 부담 여부 판단
+- Specify acquisition/merger amount and its ratio to equity.
+- Analyze changes in governance structure and potential financial burden.
 """,
             "LEGAL": """
-Additional Rules for LEGAL:
-- 소송/제재 금액 명시
-- 자본 대비 영향 분석
-- 충당금 설정 가능성 판단
-- 평판 리스크 언급
+- Specify litigation/penalty amounts and impact on capital.
+- Assess possibility of loss provisions and reputation risk.
 """,
             "CAPEX": """
-Additional Rules for CAPEX:
-- 투자 금액 명시
-- 최근 매출 대비 비율 계산
-- 회수 기간 가능성 언급
-- 단기 재무 부담 여부 분석
+- Specify investment amount and ratio to recent revenue.
+- Mention expected payback period and short-term liquidity impact.
 """
         }
 
@@ -209,7 +219,7 @@ def run():
                 "event_type": result.get("event_type"),
                 "financial_impact": result.get("financial_impact"),
                 "short_term_impact_score": result.get("short_term_impact_score"),
-                "ai_summary": result.get("analysis"),
+                "ai_summary": result.get("ai_summary"),
                 "risk_factors": result.get("risk_factors"),
                 "analysis_status": "completed",
                 "updated_at": datetime.now().isoformat()
