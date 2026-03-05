@@ -6,10 +6,15 @@ import { useRouter } from "next/navigation";
 import Swal from 'sweetalert2';
 import { getSupabase, startSessionTimer, resetSessionTimer, clearSessionTimer, checkSessionExpiry } from "@/lib/supabase/client";
 
+// 탭마다 고유한 세션 ID 생성 (페이지 로드 시 1회 고정)
+// → 같은 브라우저의 다른 탭도 서로 다른 ID를 가짐
+const TAB_SESSION_ID = crypto.randomUUID();
+
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const currentSessionIdRef = useRef<string | null>(null);
+  const registeredUserIdRef = useRef<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const realtimeChannelRef = useRef<any>(null);
 
@@ -19,23 +24,20 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     const supabase = getSupabase();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setIsLoggedIn(true);
-        registerSession(session.user.id, session.access_token);
-      }
-    });
-
+    // onAuthStateChange만 사용 (getSession 중복 호출 제거)
+    // INITIAL_SESSION: 이미 로그인된 상태로 탭 열기/새로고침
+    // SIGNED_IN: 로그인 버튼 클릭
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const loggedIn = !!session?.user;
       setIsLoggedIn(loggedIn);
 
-      if (event === 'SIGNED_IN' && session?.user) {
-        registerSession(session.user.id, session.access_token);
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+        registerSession(session.user.id);
       }
 
       if (event === 'SIGNED_OUT') {
         currentSessionIdRef.current = null;
+        registeredUserIdRef.current = null;
         cleanupRealtime();
       }
     });
@@ -47,17 +49,25 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }, []);
 
   // ────────────────────────────────────────────────────────────────
-  // 세션 등록: last_session_id를 현재 access_token으로 업데이트 후
-  //           Realtime으로 변경 감지 → 다른 기기 로그인 시 강제 로그아웃
+  // 세션 등록: last_session_id를 탭 고유 UUID로 업데이트 후
+  //           Realtime으로 변경 감지 → 다른 탭/기기 로그인 시 강제 로그아웃
+  //
+  // [핵심] access_token이 아닌 TAB_SESSION_ID(crypto.randomUUID) 사용
+  //        → 같은 브라우저 다른 탭도 서로 다른 ID → 감지 가능
   // ────────────────────────────────────────────────────────────────
-  async function registerSession(userId: string, accessToken: string) {
-    // access_token 앞 32자를 session fingerprint로 사용 (전체 JWT 저장 불필요)
-    const sessionId = accessToken.slice(0, 32);
+  async function registerSession(userId: string) {
+    // 이미 같은 유저로 등록된 경우 재등록 스킵 (INITIAL_SESSION 중복 방지)
+    if (registeredUserIdRef.current === userId && currentSessionIdRef.current !== null) {
+      return;
+    }
+
+    const sessionId = TAB_SESSION_ID;
     currentSessionIdRef.current = sessionId;
+    registeredUserIdRef.current = userId;
 
     const supabase = getSupabase();
 
-    // DB에 현재 세션 ID 기록
+    // DB에 이 탭의 고유 세션 ID 기록
     // @ts-expect-error - Supabase type inference: last_session_id newly added column
     await (supabase.from('users').update({ last_session_id: sessionId }).eq('id', userId));
 
