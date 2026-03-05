@@ -128,7 +128,6 @@ export async function updateUserStripeInfo(
 
   const { error } = await supabase
     .from('users')
-    // @ts-expect-error - Supabase type inference issue
     .update(data)
     .eq('id', userId);
 
