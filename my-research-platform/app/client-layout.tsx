@@ -17,22 +17,29 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const registeredUserIdRef = useRef<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const realtimeChannelRef = useRef<any>(null);
+  // React StrictMode 이중 실행 방지 (개발 모드에서 useEffect가 2번 실행됨)
+  const isMountedRef = useRef(false);
 
   // ────────────────────────────────────────────────────────────────
   // 1. 인증 상태 관리 + FIFO 세션 등록
   // ────────────────────────────────────────────────────────────────
   useEffect(() => {
+    // StrictMode 이중 실행 시 두 번째 실행만 유효하게 처리
+    isMountedRef.current = true;
     const supabase = getSupabase();
 
     // onAuthStateChange만 사용 (getSession 중복 호출 제거)
     // INITIAL_SESSION: 이미 로그인된 상태로 탭 열기/새로고침
     // SIGNED_IN: 로그인 버튼 클릭
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMountedRef.current) return;
+
       const loggedIn = !!session?.user;
       setIsLoggedIn(loggedIn);
 
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-        registerSession(session.user.id);
+        // async 함수이므로 void로 명시적 처리 (onAuthStateChange 콜백은 동기)
+        void registerSession(session.user.id);
       }
 
       if (event === 'SIGNED_OUT') {
@@ -43,6 +50,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     });
 
     return () => {
+      isMountedRef.current = false;
       subscription.unsubscribe();
       cleanupRealtime();
     };
@@ -56,13 +64,25 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   //        → 같은 브라우저 다른 탭도 서로 다른 ID → 감지 가능
   // ────────────────────────────────────────────────────────────────
   async function registerSession(userId: string) {
-    // 이미 이 탭에서 Realtime 구독 중이면 재등록 스킵
-    // (같은 탭에서 SIGNED_IN + INITIAL_SESSION 중복 호출 방지)
-    if (realtimeChannelRef.current !== null && registeredUserIdRef.current === userId) {
+    // 이미 이 탭에서 동일 유저로 Realtime 구독 중이면 재등록 스킵
+    // TAB_SESSION_ID가 이미 등록된 경우만 스킵 (중복 호출 방지)
+    if (
+      realtimeChannelRef.current !== null &&
+      registeredUserIdRef.current === userId &&
+      currentSessionIdRef.current === TAB_SESSION_ID
+    ) {
       return;
     }
 
+    // unmount된 경우 중단
+    if (!isMountedRef.current) return;
+
     const sessionId = TAB_SESSION_ID;
+
+    // 기존 채널 먼저 정리 (새 채널 등록 전)
+    cleanupRealtime();
+
+    // ref 업데이트
     currentSessionIdRef.current = sessionId;
     registeredUserIdRef.current = userId;
 
@@ -74,8 +94,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       .update({ last_session_id: sessionId } as never)
       .eq('id', userId);
 
-    // 기존 Realtime 채널 정리 후 재구독
-    cleanupRealtime();
+    // unmount 중에 await가 끝난 경우 중단
+    if (!isMountedRef.current) return;
 
     // Realtime으로 users 테이블의 last_session_id 변경 감지
     const channel = supabase

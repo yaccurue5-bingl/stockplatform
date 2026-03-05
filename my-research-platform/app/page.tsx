@@ -18,6 +18,18 @@ export default function LandingPage() {
   const isSuper = isSuperAdmin(userEmail);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // disclosures 페이지에서 plan 미충족으로 리다이렉트된 경우 waitlist 모달 자동 오픈
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('waitlist') === '1') {
+        setIsWaitlistOpen(true);
+        // URL에서 파라미터 제거 (뒤로가기 시 재오픈 방지)
+        router.replace('/');
+      }
+    }
+  }, [router]);
+
   // 검색 결과 선택 시 처리
   const handleSearchSelect = (stockCode: string) => {
     if (isSuper) {
