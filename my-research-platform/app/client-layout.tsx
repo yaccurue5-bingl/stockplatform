@@ -56,8 +56,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   //        → 같은 브라우저 다른 탭도 서로 다른 ID → 감지 가능
   // ────────────────────────────────────────────────────────────────
   async function registerSession(userId: string) {
-    // 이미 같은 유저로 등록된 경우 재등록 스킵 (INITIAL_SESSION 중복 방지)
-    if (registeredUserIdRef.current === userId && currentSessionIdRef.current !== null) {
+    // 이미 이 탭에서 Realtime 구독 중이면 재등록 스킵
+    // (같은 탭에서 SIGNED_IN + INITIAL_SESSION 중복 호출 방지)
+    if (realtimeChannelRef.current !== null && registeredUserIdRef.current === userId) {
       return;
     }
 
