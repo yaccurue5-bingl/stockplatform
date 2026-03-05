@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import SearchDropdown from '@/components/SearchDropdown';
+import { getSupabase } from '@/lib/supabase/client';
+import { isSuperAdmin } from '@/lib/constants';
 
 interface Disclosure {
   id: string;
@@ -49,6 +51,55 @@ function DisclosuresContent() {
   const [isSearching, setIsSearching] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  // 접근 제어: null = 아직 확인 중, false = 접근 불가, true = 접근 허용
+  const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
+
+  // ── 접근 제어: super admin 또는 유료 plan 유저만 허용 ──
+  useEffect(() => {
+    const supabase = getSupabase();
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user) {
+        // 비로그인 → 홈으로
+        router.replace('/');
+        return;
+      }
+
+      const email = session.user.email ?? '';
+
+      // super admin은 항상 허용
+      if (isSuperAdmin(email)) {
+        setAccessAllowed(true);
+        return;
+      }
+
+      // public.users 테이블에서 plan 확인
+      const { data } = await supabase
+        .from('users')
+        .select('plan, subscription_status')
+        .eq('id', session.user.id)
+        .single() as { data: { plan: string | null; subscription_status: string | null } | null };
+
+      // plan이 free이거나 없으면 홈으로 (waitlist 모달 오픈 파라미터 포함)
+      const isPaid =
+        data?.plan && data.plan !== 'free' && data?.subscription_status === 'active';
+
+      if (!isPaid) {
+        router.replace('/?waitlist=1');
+        return;
+      }
+
+      setAccessAllowed(true);
+    });
+  }, [router]);
+
+  // 접근 확인 중 로딩
+  if (accessAllowed === null) {
+    return (
+      <div className="bg-gray-950 text-white font-sans min-h-screen flex items-center justify-center">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    );
+  }
 
   // URL에서 파라미터 읽기
   const stockCodeParam = searchParams.get('stock');
