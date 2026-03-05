@@ -58,10 +58,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const supabase = getSupabase();
 
     // DB에 현재 세션 ID 기록
-    await supabase
-      .from('users')
-      .update({ last_session_id: sessionId } as any)
-      .eq('id', userId);
+    // @ts-expect-error - Supabase type inference: last_session_id newly added column
+    await (supabase.from('users').update({ last_session_id: sessionId }).eq('id', userId));
 
     // 기존 Realtime 채널 정리 후 재구독
     cleanupRealtime();
