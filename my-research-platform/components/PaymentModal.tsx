@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Paddle } from '@paddle/paddle-js';
 
 const PADDLE_CLIENT_TOKEN = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || 'test_bc7f362776f7ee51f3d70a12ef8';
@@ -17,9 +17,12 @@ export default function PaymentModal({ isOpen, onClose, userEmail }: PaymentModa
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const paddleInitialized = useRef(false);
 
+  // Paddle은 최초 1회만 초기화 (re-initialization 방지)
   useEffect(() => {
-    if (!isOpen) return;
+    if (paddleInitialized.current) return;
+    paddleInitialized.current = true;
 
     import('@paddle/paddle-js').then(({ initializePaddle }) => {
       initializePaddle({
@@ -36,7 +39,7 @@ export default function PaymentModal({ isOpen, onClose, userEmail }: PaymentModa
         }
       });
     });
-  }, [isOpen]);
+  }, []);
 
   const handleCheckout = async () => {
     if (!paddle) return;

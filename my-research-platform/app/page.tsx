@@ -326,18 +326,12 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="text-center mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="text-center mt-12">
               <button
                 onClick={() => setIsPaymentOpen(true)}
                 className="py-4 px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-lg text-center transition-colors shadow-lg"
               >
-                구독
-              </button>
-              <button
-                onClick={() => setIsPaymentOpen(true)}
-                className="py-4 px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-lg text-center transition-colors shadow-lg"
-              >
-                결제
+                Upgrade to Pro
               </button>
             </div>
           </div>
