@@ -92,16 +92,7 @@ function DisclosuresContent() {
     });
   }, [router]);
 
-  // 접근 확인 중 로딩
-  if (accessAllowed === null) {
-    return (
-      <div className="bg-gray-950 text-white font-sans min-h-screen flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    );
-  }
-
-  // URL에서 파라미터 읽기
+  // URL에서 파라미터 읽기 (hooks 전에 선언 필요)
   const stockCodeParam = searchParams.get('stock');
   const searchQueryParam = searchParams.get('search');  // 검색어 파라미터
 
@@ -207,6 +198,7 @@ function DisclosuresContent() {
       setSelectedDisclosure(null);
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockCodeParam]);
 
   // search 파라미터가 있으면 검색 실행
@@ -215,6 +207,7 @@ function DisclosuresContent() {
       setSearchQuery(searchQueryParam);
       searchFromServer(searchQueryParam);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQueryParam, groupedStocks.length]);
 
   // URL 기반 네비게이션 함수들
@@ -257,7 +250,16 @@ function DisclosuresContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const fetchDisclosures = async (stockCode?: string) => {
+  // 접근 확인 중 로딩 (모든 hooks 이후에 배치)
+  if (accessAllowed === null) {
+    return (
+      <div className="bg-gray-950 text-white font-sans min-h-screen flex items-center justify-center">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    );
+  }
+
+  async function fetchDisclosures(stockCode?: string) {
     try {
       // stock 파라미터가 있으면 해당 종목만, 없으면 전체
       const url = stockCode
@@ -318,7 +320,7 @@ function DisclosuresContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const getCompanyInitials = (name: string) => {
     if (!name) return '??';
