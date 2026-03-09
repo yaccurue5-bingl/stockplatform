@@ -7,6 +7,7 @@ import MarketIndices from '@/components/MarketIndices';
 import LatestDisclosures from '@/components/LatestDisclosures';
 import UserButton from '@/components/UserButton';
 import WaitlistModal from '@/components/WaitlistModal';
+import PaymentModal from '@/components/PaymentModal';
 import SearchDropdown from '@/components/SearchDropdown';
 import { isSuperAdmin } from '@/lib/constants';
 import { getSupabase, startSessionTimer, clearSessionTimer } from '@/lib/supabase/client';
@@ -14,6 +15,7 @@ import { getSupabase, startSessionTimer, clearSessionTimer } from '@/lib/supabas
 export default function LandingPage() {
   const router = useRouter();
   const [isWaitlistOpen, setIsWaitlistOpen] = useState(false);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const isSuper = isSuperAdmin(userEmail);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +96,7 @@ export default function LandingPage() {
     <div className="bg-gray-950 text-white font-sans min-h-screen">
       {/* Modals */}
       <WaitlistModal isOpen={isWaitlistOpen} onClose={() => setIsWaitlistOpen(false)} />
+      <PaymentModal isOpen={isPaymentOpen} onClose={() => setIsPaymentOpen(false)} userEmail={userEmail} />
 
       {/* Fixed Sidebar - Hidden on mobile */}
       <div className="hidden md:flex fixed left-0 top-0 h-full w-16 bg-black border-r border-gray-800 flex-col items-center py-6 z-50">
@@ -323,12 +326,18 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="text-center mt-12">
+            <div className="text-center mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
-                onClick={() => setIsWaitlistOpen(true)}
-                className="inline-block bg-blue-600 hover:bg-blue-700 rounded-lg px-8 py-3 font-medium transition"
+                onClick={() => setIsPaymentOpen(true)}
+                className="py-4 px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-lg text-center transition-colors shadow-lg"
               >
-                Join Waitlist for Early Access
+                구독
+              </button>
+              <button
+                onClick={() => setIsPaymentOpen(true)}
+                className="py-4 px-8 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-lg text-center transition-colors shadow-lg"
+              >
+                결제
               </button>
             </div>
           </div>
