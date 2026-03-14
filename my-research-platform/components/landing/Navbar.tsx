@@ -5,11 +5,10 @@ import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 
 const navItems = [
-  { label: 'Datasets',  href: '/datasets' },
-  { label: 'API Docs',  href: '/api-docs'  },
-  { label: 'Pricing',   href: '/#pricing'  },
-  { label: 'Blog',      href: '#'          },
-  { label: 'Company',   href: '#'          },
+  { label: 'Datasets', href: '/datasets' },
+  { label: 'API Docs', href: '/api-docs'  },
+  { label: 'Pricing',  href: '/#pricing'  },
+  { label: 'Company',  href: '#'          },
 ];
 
 export default function Navbar() {
