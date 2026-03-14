@@ -1,5 +1,6 @@
 import Section from './ui/Section';
 import Card from './ui/Card';
+import { Zap } from 'lucide-react';
 
 const events = [
   { company: 'Samsung Electronics', ticker: '005930', event: 'Earnings Beat',      impact: '+0.83', positive: true,  color: 'bg-[#00D4A6]/10 text-[#00D4A6] border-[#00D4A6]/30' },
@@ -11,11 +12,12 @@ export default function LiveEvents() {
   return (
     <Section className="bg-[#0D1117]" id="events">
       <div className="flex items-center gap-2 mb-3">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="#00D4A6"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <Zap size={16} className="text-[#00D4A6]" />
         <span className="text-xs text-[#00D4A6] font-semibold uppercase tracking-widest">Real-time</span>
       </div>
       <h2 className="text-3xl font-bold text-white mb-2">Live Corporate Events</h2>
       <p className="text-gray-400 mb-10">AI-classified signals from DART disclosures, updated in real-time.</p>
+
       <div className="flex flex-col gap-3">
         {events.map((e) => (
           <Card key={e.company} hover className="flex items-center justify-between px-6 py-5">
