@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, Key, BarChart2, Database, BookOpen, LogOut } from 'lucide-react';
+import { signOut, getSupabase } from '@/lib/supabase/client';
+import { useState, useEffect } from 'react';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -23,6 +25,30 @@ interface AppShellProps {
 
 export default function AppShell({ children, title, subtitle }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [userInitial, setUserInitial] = useState<string>('?');
+
+  // 현재 로그인 유저 정보 불러오기
+  useEffect(() => {
+    const supabase = getSupabase();
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email || '';
+      setUserEmail(email);
+      setUserInitial(email ? email[0].toUpperCase() : '?');
+    });
+  }, []);
+
+  // 기존 signOut 알고리즘 사용 (lib/supabase/client.ts)
+  const handleLogout = async () => {
+    try {
+      await signOut();
+    } catch {
+      // signOut 실패해도 로그인 페이지로 이동
+    } finally {
+      router.push('/login');
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-[#0B0F14]">
@@ -71,17 +97,24 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
           ))}
         </div>
 
-        {/* User */}
+        {/* User + Logout */}
         <div className="mt-auto">
           <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-gray-900/60 border border-gray-800">
-            <div className="w-7 h-7 rounded-full bg-[#00D4A6]/20 flex items-center justify-center text-xs font-bold text-[#00D4A6]">S</div>
+            <div className="w-7 h-7 rounded-full bg-[#00D4A6]/20 flex items-center justify-center text-xs font-bold text-[#00D4A6]">
+              {userInitial}
+            </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-white truncate">smile</p>
+              <p className="text-xs font-medium text-white truncate">{userEmail || '...'}</p>
               <p className="text-[10px] text-gray-500">Developer Plan</p>
             </div>
-            <Link href="/login" className="text-gray-600 hover:text-gray-400 transition">
+            {/* 기존 signOut 알고리즘 호출 */}
+            <button
+              onClick={handleLogout}
+              className="text-gray-600 hover:text-red-400 transition"
+              title="Log out"
+            >
               <LogOut size={13} />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
