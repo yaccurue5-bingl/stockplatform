@@ -114,7 +114,7 @@ export default function Hero() {
                     fontSize: '11px',
                   }}
                   itemStyle={{ color: '#00D4A6' }}
-                  formatter={(v: number) => [`₩${(v / 10).toFixed(1)}T`, 'Flow']}
+                  formatter={(v) => [`₩${(Number(v ?? 0) / 10).toFixed(1)}T`, 'Flow']}
                   labelFormatter={() => ''}
                 />
               </LineChart>
