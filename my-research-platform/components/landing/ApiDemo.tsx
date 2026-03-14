@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import Section from './ui/Section';
 import CodeBlock from './ui/CodeBlock';
 
@@ -85,8 +86,16 @@ export default function ApiDemo() {
           ))}
         </div>
 
-        {/* Code block */}
-        <CodeBlock code={endpoints[active].response} language="json" />
+        {/* Code block + CTA */}
+        <div className="flex flex-col gap-4">
+          <CodeBlock code={endpoints[active].response} language="json" />
+          <Link
+            href="/api-docs"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#00D4A6] hover:text-[#00bfa0] transition"
+          >
+            View Full API Docs →
+          </Link>
+        </div>
       </div>
     </Section>
   );

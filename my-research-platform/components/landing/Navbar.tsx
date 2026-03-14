@@ -4,7 +4,13 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
 
-const navItems = ['Datasets', 'API Docs', 'Pricing', 'Blog', 'Company'];
+const navItems = [
+  { label: 'Datasets',  href: '/datasets' },
+  { label: 'API Docs',  href: '/api-docs'  },
+  { label: 'Pricing',   href: '/#pricing'  },
+  { label: 'Blog',      href: '#'          },
+  { label: 'Company',   href: '#'          },
+];
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -24,11 +30,11 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-6">
           {navItems.map((item) => (
             <Link
-              key={item}
-              href="#"
+              key={item.label}
+              href={item.href}
               className="text-sm text-gray-400 hover:text-white transition"
             >
-              {item}
+              {item.label}
             </Link>
           ))}
         </div>
@@ -63,12 +69,12 @@ export default function Navbar() {
         <div className="md:hidden border-t border-gray-800 bg-[#0B0F14] px-4 py-4 flex flex-col gap-3">
           {navItems.map((item) => (
             <Link
-              key={item}
-              href="#"
+              key={item.label}
+              href={item.href}
               className="text-sm text-gray-400 hover:text-white transition py-1"
               onClick={() => setMobileOpen(false)}
             >
-              {item}
+              {item.label}
             </Link>
           ))}
           <div className="flex gap-3 pt-2">
