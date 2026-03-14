@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import Section from './ui/Section';
 import Card from './ui/Card';
 import { FileText, TrendingUp, Globe, Building2 } from 'lucide-react';
@@ -9,6 +10,7 @@ const products = [
     desc: 'AI-classified DART disclosures',
     tags: ['Earnings', 'M&A', 'Capital Raise', 'Share Buybacks'],
     accent: '#00D4A6',
+    href: '/datasets#corporate-events',
   },
   {
     Icon: TrendingUp,
@@ -16,6 +18,7 @@ const products = [
     desc: 'Momentum & flow indicators',
     tags: ['18 Sectors', 'Daily Signals', 'Momentum', 'Flow Data'],
     accent: '#4EA3FF',
+    href: '/datasets#sector-signals',
   },
   {
     Icon: Globe,
@@ -23,6 +26,7 @@ const products = [
     desc: 'Macro + foreign flow indicators',
     tags: ['KOSPI', 'KOSDAQ', 'Daily Updates', 'Foreign Flow'],
     accent: '#a78bfa',
+    href: '/datasets#market-radar',
   },
   {
     Icon: Building2,
@@ -30,6 +34,7 @@ const products = [
     desc: 'Event history & sentiment',
     tags: ['Event Timeline', 'Sentiment Signals', 'Full Coverage', 'API Access'],
     accent: '#fb923c',
+    href: '/datasets#company-intelligence',
   },
 ];
 
@@ -54,7 +59,7 @@ export default function DataProducts() {
               <h3 className="font-semibold text-white mb-1">{p.title}</h3>
               <p className="text-xs text-gray-400">{p.desc}</p>
             </div>
-            <ul className="flex flex-col gap-1.5 mt-auto">
+            <ul className="flex flex-col gap-1.5">
               {p.tags.map((tag) => (
                 <li key={tag} className="flex items-center gap-2 text-xs text-gray-400">
                   <span className="w-1 h-1 rounded-full" style={{ background: p.accent }} />
@@ -62,6 +67,13 @@ export default function DataProducts() {
                 </li>
               ))}
             </ul>
+            <Link
+              href={p.href}
+              className="mt-auto text-xs font-semibold hover:underline transition"
+              style={{ color: p.accent }}
+            >
+              View Dataset →
+            </Link>
           </Card>
         ))}
       </div>
