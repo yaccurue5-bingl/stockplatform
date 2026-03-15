@@ -1,6 +1,12 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Section from './ui/Section';
 import { Check } from 'lucide-react';
+import Section from './ui/Section';
+import PaymentModal from '@/components/PaymentModal';
+import { getSupabase } from '@/lib/supabase/client';
 
 const plans = [
   {
@@ -11,6 +17,7 @@ const plans = [
     highlight: false,
     cta: 'START',
     ctaStyle: 'border border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white',
+    isPaid: false,
     features: [
       '100 requests / day',
       'Market Radar endpoint',
@@ -26,6 +33,7 @@ const plans = [
     highlight: true,
     cta: 'UPGRADE',
     ctaStyle: 'bg-[#00D4A6] text-[#0B0F14] font-bold hover:bg-[#00bfa0]',
+    isPaid: true,
     features: [
       '10,000 requests / month',
       'All endpoints',
@@ -42,6 +50,7 @@ const plans = [
     highlight: false,
     cta: 'PRO PLAN',
     ctaStyle: 'border border-[#4EA3FF]/40 text-[#4EA3FF] hover:border-[#4EA3FF] hover:bg-[#4EA3FF]/5',
+    isPaid: true,
     features: [
       '100,000 requests / month',
       'All endpoints',
@@ -54,6 +63,29 @@ const plans = [
 ];
 
 export default function Pricing() {
+  const router = useRouter();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const supabase = getSupabase();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setIsLoggedIn(true);
+        setUserEmail(data.user.email ?? null);
+      }
+    });
+  }, []);
+
+  const handlePaidPlanClick = () => {
+    if (isLoggedIn) {
+      setIsModalOpen(true);
+    } else {
+      router.push('/login');
+    }
+  };
+
   return (
     <Section className="bg-[#0B0F14]" id="pricing">
       <div className="text-center mb-14">
@@ -98,18 +130,37 @@ export default function Pricing() {
               ))}
             </ul>
 
-            <Link
-              href="/login"
-              className={`
-                block text-center text-sm py-3 rounded-xl transition
-                ${p.ctaStyle}
-              `}
-            >
-              {p.cta}
-            </Link>
+            {p.isPaid ? (
+              <button
+                onClick={handlePaidPlanClick}
+                className={`
+                  block w-full text-center text-sm py-3 rounded-xl transition cursor-pointer
+                  ${p.ctaStyle}
+                `}
+              >
+                {p.cta}
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className={`
+                  block text-center text-sm py-3 rounded-xl transition
+                  ${p.ctaStyle}
+                `}
+              >
+                {p.cta}
+              </Link>
+            )}
           </div>
         ))}
       </div>
+
+      {/* Paddle 결제 모달 */}
+      <PaymentModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        userEmail={userEmail}
+      />
     </Section>
   );
 }
