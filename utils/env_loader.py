@@ -36,9 +36,10 @@ def load_env(env_file: str = ".env.local") -> None:
 
         # .env.local 파일 경로 (여러 위치 시도)
         possible_paths = [
-            project_root / env_file,  # 프로젝트 루트
-            Path("C:/stockplatform") / env_file,  # Windows 절대 경로
-            Path("/home/user/stockplatform") / env_file,  # Linux 절대 경로
+            project_root / env_file,                              # 프로젝트 루트 (자동 탐지)
+            Path("C:/Users/user/stockplatform") / env_file,       # 현재 Windows 경로
+            Path("C:/stockplatform") / env_file,                  # 구 Windows 경로 (하위 호환)
+            Path("/home/user/stockplatform") / env_file,          # Linux 경로
         ]
 
         loaded = False

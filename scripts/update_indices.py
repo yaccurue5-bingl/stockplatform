@@ -1,13 +1,20 @@
 import os
+import sys
 import requests
 from supabase import create_client, Client
 from datetime import datetime
+from pathlib import Path
+
+# 프로젝트 루트를 Python path 에 추가 (단독 실행 시에도 utils 임포트 가능)
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 from utils.env_loader import load_env
+load_env()  # .env.local 환경변수 로드 (단독 실행 및 subprocess 실행 모두 대응)
 
 url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-
-supabase: Client = create_client(url, key)
 
 if not url or not key:
     print("🚨 에러: SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다.")
