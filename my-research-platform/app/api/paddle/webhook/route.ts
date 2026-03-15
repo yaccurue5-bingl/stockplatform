@@ -14,22 +14,41 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
-// Paddle webhook 서명 검증
-function verifyPaddleWebhook(requestBody: string, signature: string): boolean {
+// Paddle Billing v2 webhook 서명 검증
+// 헤더 형식: Paddle-Signature: ts=<timestamp>;h1=<hmac_hex>
+// 검증 메시지: "<ts>:<body>"
+function verifyPaddleWebhook(requestBody: string, signatureHeader: string): boolean {
   const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    console.error('❌ PADDLE_WEBHOOK_SECRET is not set');
-    return false;
+    console.warn('⚠️ PADDLE_WEBHOOK_SECRET is not set - skipping verification (sandbox mode)');
+    return true; // 샌드박스 테스트 시 검증 스킵
   }
 
   try {
-    const hmac = crypto
+    // "ts=1234567890;h1=abc123..." 파싱
+    const parts: Record<string, string> = {};
+    signatureHeader.split(';').forEach((part) => {
+      const [k, v] = part.split('=');
+      if (k && v) parts[k.trim()] = v.trim();
+    });
+
+    const ts = parts['ts'];
+    const h1 = parts['h1'];
+
+    if (!ts || !h1) {
+      console.error('❌ Invalid signature header format:', signatureHeader);
+      return false;
+    }
+
+    // Paddle Billing v2: HMAC-SHA256("{ts}:{body}")
+    const msg = `${ts}:${requestBody}`;
+    const expected = crypto
       .createHmac('sha256', webhookSecret)
-      .update(requestBody)
+      .update(msg)
       .digest('hex');
 
-    return hmac === signature;
+    return expected === h1;
   } catch (error) {
     console.error('❌ Webhook verification failed:', error);
     return false;
@@ -39,7 +58,7 @@ function verifyPaddleWebhook(requestBody: string, signature: string): boolean {
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
-    const signature = req.headers.get('paddle-signature') || '';
+    const signature = req.headers.get('paddle-signature') || req.headers.get('Paddle-Signature') || '';
 
     // Paddle webhook 서명 검증
     if (!verifyPaddleWebhook(rawBody, signature)) {

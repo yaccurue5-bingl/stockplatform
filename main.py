@@ -48,10 +48,12 @@ app = FastAPI(
 from backend.routers.health import router as health_router
 from backend.routers.dart   import router as dart_router
 from backend.routers.market import router as market_router
+from backend.routers.paddle import router as paddle_router
 
 app.include_router(health_router)
 app.include_router(dart_router)
 app.include_router(market_router)
+app.include_router(paddle_router)  # POST /paddle-webhook
 
 logger.info("✅ Stock Platform API 초기화 완료")
 
