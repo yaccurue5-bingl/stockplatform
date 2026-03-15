@@ -70,12 +70,20 @@ export default function Pricing() {
 
   useEffect(() => {
     const supabase = getSupabase();
+
+    // 초기 세션 확인
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        setIsLoggedIn(true);
-        setUserEmail(data.user.email ?? null);
-      }
+      setIsLoggedIn(!!data.user);
+      setUserEmail(data.user?.email ?? null);
     });
+
+    // ✅ 로그인/로그아웃 변화 실시간 감지 (logout 후에도 isLoggedIn 동기화)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user);
+      setUserEmail(session?.user?.email ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handlePaidPlanClick = () => {

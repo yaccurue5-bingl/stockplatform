@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Paddle } from '@paddle/paddle-js';
 
 const PADDLE_CLIENT_TOKEN = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || 'test_bc7f362776f7ee51f3d70a12ef8';
@@ -13,6 +14,7 @@ interface PaymentModalProps {
 }
 
 export default function PaymentModal({ isOpen, onClose, userEmail }: PaymentModalProps) {
+  const router = useRouter();
   const [paddle, setPaddle] = useState<Paddle | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -30,6 +32,8 @@ export default function PaymentModal({ isOpen, onClose, userEmail }: PaymentModa
         token: PADDLE_CLIENT_TOKEN,
         eventCallback: (event) => {
           if (event.name === 'checkout.completed') {
+            // ✅ successUrl 제거: 하드 리로드 방지 → 세션 유지
+            // eventCallback으로 처리하여 SPA 내에서 상태 전환
             setStatus('success');
           }
         },
@@ -50,11 +54,8 @@ export default function PaymentModal({ isOpen, onClose, userEmail }: PaymentModa
       await paddle.Checkout.open({
         items: [{ priceId: PADDLE_PRICE_ID, quantity: 1 }],
         customer: userEmail ? { email: userEmail } : undefined,
-        settings: {
-          successUrl: typeof window !== 'undefined'
-            ? `${window.location.origin}/?payment=success`
-            : undefined,
-        },
+        // ✅ successUrl 제거: window.location.href 이동 시 TAB_SESSION_ID가 재생성되어
+        //    Realtime 중복 감지가 오작동 → 세션 아웃 발생. eventCallback으로 대체.
       });
     } catch {
       setStatus('error');
@@ -95,10 +96,14 @@ export default function PaymentModal({ isOpen, onClose, userEmail }: PaymentModa
             <h2 className="text-2xl font-bold text-white mb-2">구독 완료!</h2>
             <p className="text-gray-400 mb-6">구독이 완료되었습니다. 잠시 후 서비스를 이용하실 수 있습니다.</p>
             <button
-              onClick={handleClose}
+              onClick={() => {
+                handleClose();
+                // ✅ 하드 리로드 없이 클라이언트 사이드 네비게이션 → 세션 유지
+                router.push('/dashboard');
+              }}
               className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
             >
-              확인
+              대시보드로 이동
             </button>
           </div>
         ) : (
