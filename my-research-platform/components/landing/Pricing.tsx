@@ -156,7 +156,8 @@ export default function Pricing() {
               >
                 {p.cta}
               </button>
-            ) : (
+            ) : !isLoggedIn ? (
+              // 비로그인 상태에서만 START FREE 버튼 표시
               <Link
                 href="/login"
                 className={`
@@ -166,7 +167,7 @@ export default function Pricing() {
               >
                 {p.cta}
               </Link>
-            )}
+            ) : null}
           </div>
         ))}
       </div>
