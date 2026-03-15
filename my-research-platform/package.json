@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "backend": "cd .. && venv/Scripts/python -m uvicorn main:app --reload",
+    "backend": "cd .. && call .\\venv\\Scripts\\python -m uvicorn main:app --reload",
     "both": "concurrently \"npm run dev\" \"npm run backend\"",
     "build": "next build",
     "start": "next start",
@@ -15,9 +15,11 @@
     "@paddle/paddle-js": "^1.6.2",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.89.0",
+    "lucide-react": "^0.400.0",
     "next": "^16.1.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "recharts": "^2.12.0",
     "resend": "^6.9.1",
     "stripe": "^17.6.0",
     "sweetalert2": "^11.26.18"
