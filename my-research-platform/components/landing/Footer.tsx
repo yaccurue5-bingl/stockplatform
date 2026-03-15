@@ -32,7 +32,7 @@ export default function Footer() {
               <span className="font-semibold text-white text-sm">K-Market Insight</span>
             </div>
             <p className="text-xs text-gray-500 leading-relaxed">
-              Korean Market Intelligence API for quant funds, fintechs, and research platforms.
+              Structured Korean market data API for quant funds, fintech platforms, and researchers.
             </p>
           </div>
 

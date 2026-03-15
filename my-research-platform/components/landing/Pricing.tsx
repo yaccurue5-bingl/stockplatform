@@ -8,56 +8,62 @@ import Section from './ui/Section';
 import PaymentModal from '@/components/PaymentModal';
 import { getSupabase } from '@/lib/supabase/client';
 
+type PlanKey = 'developer' | 'pro';
+
 const plans = [
   {
     name: 'Free',
     price: '$0',
     period: '/month',
-    desc: 'For individual developers',
+    desc: 'For individual developers and testing',
     highlight: false,
-    cta: 'START',
+    cta: 'START FREE',
     ctaStyle: 'border border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white',
     isPaid: false,
+    planKey: null as PlanKey | null,
     features: [
-      '100 requests / day',
+      '100 API requests / day',
       'Market Radar endpoint',
+      'Basic JSON responses',
       'Community support',
-      'JSON responses',
     ],
   },
   {
     name: 'Developer',
-    price: '$19.99',
+    price: '$49',
     period: '/month',
-    desc: 'For startups & fintechs',
+    desc: 'For startups, fintech apps, and independent researchers',
     highlight: true,
     cta: 'UPGRADE',
     ctaStyle: 'bg-[#00D4A6] text-[#0B0F14] font-bold hover:bg-[#00bfa0]',
     isPaid: true,
+    planKey: 'developer' as PlanKey,
     features: [
-      '10,000 requests / month',
-      'All endpoints',
-      'Sector Signals',
-      'Corporate Events',
+      '10,000 API requests / month',
+      'Access to all core endpoints',
+      'Corporate Events API',
+      'Sector Signals API',
+      'Market Radar API',
       'Email support',
     ],
   },
   {
     name: 'Pro',
-    price: '$19.99',
+    price: '$199',
     period: '/month',
-    desc: 'For hedge funds & institutions',
+    desc: 'For funds, trading platforms, and data teams',
     highlight: false,
     cta: 'PRO PLAN',
     ctaStyle: 'border border-[#4EA3FF]/40 text-[#4EA3FF] hover:border-[#4EA3FF] hover:bg-[#4EA3FF]/5',
     isPaid: true,
+    planKey: 'pro' as PlanKey,
     features: [
-      '100,000 requests / month',
-      'All endpoints',
-      'Company Intelligence',
+      '100,000 API requests / month',
+      'Full API access',
+      'Company Intelligence API',
       'Historical data access',
-      'Priority SLA',
-      'Dedicated support',
+      'Priority support',
+      'Dedicated support channel',
     ],
   },
 ];
@@ -65,6 +71,7 @@ const plans = [
 export default function Pricing() {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanKey>('developer');
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -86,8 +93,9 @@ export default function Pricing() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handlePaidPlanClick = () => {
+  const handlePaidPlanClick = (planKey: PlanKey) => {
     if (isLoggedIn) {
+      setSelectedPlan(planKey);
       setIsModalOpen(true);
     } else {
       router.push('/login');
@@ -98,7 +106,7 @@ export default function Pricing() {
     <Section className="bg-[#0B0F14]" id="pricing">
       <div className="text-center mb-14">
         <h2 className="text-3xl font-bold text-white mb-3">Simple Pricing</h2>
-        <p className="text-gray-400">Start free, scale as you grow. No hidden fees.</p>
+        <p className="text-gray-400">Start free, scale as your usage grows. No hidden fees.</p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 items-stretch">
@@ -138,9 +146,9 @@ export default function Pricing() {
               ))}
             </ul>
 
-            {p.isPaid ? (
+            {p.isPaid && p.planKey ? (
               <button
-                onClick={handlePaidPlanClick}
+                onClick={() => handlePaidPlanClick(p.planKey!)}
                 className={`
                   block w-full text-center text-sm py-3 rounded-xl transition cursor-pointer
                   ${p.ctaStyle}
@@ -168,6 +176,7 @@ export default function Pricing() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         userEmail={userEmail}
+        planType={selectedPlan}
       />
     </Section>
   );
