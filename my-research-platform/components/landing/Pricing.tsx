@@ -27,7 +27,7 @@ const plans = [
   },
   {
     name: 'Developer',
-    price: '$49',
+    price: '$19.99',
     period: '/month',
     desc: 'For startups & fintechs',
     highlight: true,
@@ -44,7 +44,7 @@ const plans = [
   },
   {
     name: 'Pro',
-    price: '$199',
+    price: '$19.99',
     period: '/month',
     desc: 'For hedge funds & institutions',
     highlight: false,
