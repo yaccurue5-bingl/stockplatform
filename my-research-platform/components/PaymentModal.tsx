@@ -76,15 +76,17 @@ export default function PaymentModal({ isOpen, onClose, userEmail }: PaymentModa
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl max-w-lg w-full relative overflow-y-auto max-h-[90vh]">
-        {/* 닫기 버튼 */}
-        <button
-          onClick={handleClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white transition z-10"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {/* 결제 완료 화면: X 버튼 숨김 (확인 버튼으로만 닫기) */}
+        {status !== 'success' && (
+          <button
+            onClick={handleClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white transition z-10"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
 
         {status === 'success' ? (
           <div className="p-10 text-center">
@@ -93,17 +95,17 @@ export default function PaymentModal({ isOpen, onClose, userEmail }: PaymentModa
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">구독 완료!</h2>
-            <p className="text-gray-400 mb-6">구독이 완료되었습니다. 잠시 후 서비스를 이용하실 수 있습니다.</p>
+            <h2 className="text-2xl font-bold text-white mb-2">결제가 성공적으로 진행되었습니다.</h2>
+            <p className="text-gray-400 mb-8">주문에 대한 세부 정보는 이메일로 보내드립니다.</p>
+            {/* ✅ 확인 버튼: 하드 리로드 없이 dashboard로 이동 → 세션 유지 */}
             <button
               onClick={() => {
                 handleClose();
-                // ✅ 하드 리로드 없이 클라이언트 사이드 네비게이션 → 세션 유지
                 router.push('/dashboard');
               }}
               className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
             >
-              대시보드로 이동
+              확인
             </button>
           </div>
         ) : (
