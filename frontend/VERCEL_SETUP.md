@@ -5,7 +5,7 @@
 1. [Vercel Dashboard](https://vercel.com/dashboard)에 로그인
 2. "Add New" → "Project" 클릭
 3. GitHub 저장소 `yaccurue5-bingl/stockplatform` 선택
-4. Root Directory: `my-research-platform` 설정
+4. Root Directory: `frontend` 설정
 5. Framework Preset: **Next.js** 자동 감지
 
 ## 2. 도메인 설정
@@ -102,7 +102,7 @@ Framework: Next.js
 Build Command: npm run build
 Output Directory: .next
 Install Command: npm install
-Root Directory: my-research-platform
+Root Directory: frontend
 ```
 
 ### Node.js Version

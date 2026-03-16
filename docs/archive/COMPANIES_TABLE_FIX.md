@@ -21,7 +21,7 @@ Error: Failed to run sql query: ERROR: 42710: policy "Public read access for com
 4. 아래 파일의 내용을 복사하여 붙여넣기:
 
 ```
-my-research-platform/supabase/fix_companies_table.sql
+frontend/supabase/fix_companies_table.sql
 ```
 
 5. **Run** 버튼 클릭
@@ -128,7 +128,7 @@ python scripts/fetch_krx_from_datagokr.py
 ```
 
 **해결:**
-`my-research-platform/.env.local` 파일에 추가:
+`frontend/.env.local` 파일에 추가:
 ```bash
 PUBLIC_DATA_API_KEY=your_api_key_here
 ```
@@ -200,4 +200,4 @@ crontab -e
 
 - 스크립트 상세 가이드: `scripts/README.md`
 - data.go.kr API 가이드: `DATA_GO_KR_API.md`
-- Companies 테이블 수정 SQL: `my-research-platform/supabase/fix_companies_table.sql`
+- Companies 테이블 수정 SQL: `frontend/supabase/fix_companies_table.sql`

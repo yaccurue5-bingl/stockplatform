@@ -31,7 +31,7 @@ Vercel Response Code: 404
 **현재 프로젝트의 메인 브랜치 이름 확인:**
 
 ```bash
-cd /home/user/stockplatform/my-research-platform
+cd /home/user/stockplatform/frontend
 git branch --show-current
 ```
 

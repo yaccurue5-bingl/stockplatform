@@ -50,7 +50,7 @@ pip install requests python-dotenv supabase
 
 ### 2. 환경 변수 설정
 
-`my-research-platform/.env.local` 파일에 다음을 추가:
+`frontend/.env.local` 파일에 다음을 추가:
 
 ```bash
 # Supabase (이미 설정되어 있음)
@@ -84,7 +84,7 @@ python scripts/fetch_krx_from_datagokr.py
 ============================================================
 🚀 KRX 종목 정보 수집 시작 (data.go.kr API)
 ============================================================
-✅ 환경 변수 로드 완료: /home/user/stockplatform/my-research-platform/.env.local
+✅ 환경 변수 로드 완료: /home/user/stockplatform/frontend/.env.local
 📅 기준일자: 20240122
 
 📊 data.go.kr API를 통해 KRX 종목 정보 수집 중 (기준일: 20240122)...
