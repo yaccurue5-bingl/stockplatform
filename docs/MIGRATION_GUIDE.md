@@ -29,7 +29,7 @@ null value in column 'code' violates not-null constraint
 4. 다음 파일 내용 복사 & 실행:
 
 ```
-my-research-platform/supabase/migrate_companies_to_stock_code_pk.sql
+frontend/supabase/migrate_companies_to_stock_code_pk.sql
 ```
 
 #### 마이그레이션이 수행하는 작업
@@ -277,7 +277,7 @@ ORDER BY column_name;
 1. API 키 확인:
 ```bash
 # .env.local 파일 확인
-cat my-research-platform/.env.local | grep PUBLIC_DATA_API_KEY
+cat frontend/.env.local | grep PUBLIC_DATA_API_KEY
 ```
 
 2. API 키 발급: https://www.data.go.kr/data/15094775/openapi.do
@@ -300,7 +300,7 @@ batch_size = 50  # 기본값 100에서 50으로 감소
 
 ## 참고 문서
 
-- SQL 마이그레이션: `my-research-platform/supabase/migrate_companies_to_stock_code_pk.sql`
+- SQL 마이그레이션: `frontend/supabase/migrate_companies_to_stock_code_pk.sql`
 - Python 스크립트: `scripts/fetch_krx_from_datagokr.py`
 - data.go.kr API 가이드: `DATA_GO_KR_API.md`
 - 기존 가이드: `COMPANIES_TABLE_FIX.md`

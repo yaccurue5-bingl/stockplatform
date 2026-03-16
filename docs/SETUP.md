@@ -3,7 +3,7 @@
 ## 1단계: 패키지 설치
 
 ```bash
-cd my-research-platform
+cd frontend
 npm install
 ```
 

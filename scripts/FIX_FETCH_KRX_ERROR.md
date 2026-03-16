@@ -52,8 +52,8 @@ git stash pop
 If the script is up-to-date but still failing, your database schema might be missing the `code` column:
 
 1. Go to your Supabase SQL Editor
-2. Run this diagnostic script: `my-research-platform/supabase/diagnose_companies_table.sql`
-3. If it shows missing columns, run: `my-research-platform/supabase/fix_companies_table_v2.sql`
+2. Run this diagnostic script: `frontend/supabase/diagnose_companies_table.sql`
+3. If it shows missing columns, run: `frontend/supabase/fix_companies_table_v2.sql`
 
 ## How to Verify the Fix
 
@@ -108,8 +108,8 @@ python3 scripts/fetch_krx_from_datagokr.py
 ## Related Files
 
 - Script: `scripts/fetch_krx_from_datagokr.py`
-- Schema Fix: `my-research-platform/supabase/fix_companies_table_v2.sql`
-- Diagnostics: `my-research-platform/supabase/diagnose_companies_table.sql`
+- Schema Fix: `frontend/supabase/fix_companies_table_v2.sql`
+- Diagnostics: `frontend/supabase/diagnose_companies_table.sql`
 - Initial Schema: `supabase/migrations/001_initial_schema.sql`
 
 ## Questions?

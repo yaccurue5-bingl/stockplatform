@@ -31,7 +31,7 @@
 **즉시 크롤링을 실행하고 결과 확인:**
 
 ```bash
-cd /home/user/stockplatform/my-research-platform
+cd /home/user/stockplatform/frontend
 ./scripts/trigger-cron.sh
 ```
 
