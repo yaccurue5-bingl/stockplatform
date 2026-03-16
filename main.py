@@ -50,12 +50,24 @@ from backend.routers.dart   import router as dart_router
 from backend.routers.market import router as market_router
 from backend.routers.paddle import router as paddle_router
 
+# ── B2B /v1/ 라우터 ───────────────────────────────────────────────────────
+from backend.routers.v1.market_radar    import router as v1_market_radar_router
+from backend.routers.v1.sector_signals  import router as v1_sector_signals_router
+from backend.routers.v1.disclosures     import router as v1_disclosures_router
+from backend.routers.v1.events          import router as v1_events_router
+
 app.include_router(health_router)
 app.include_router(dart_router)
 app.include_router(market_router)
 app.include_router(paddle_router)  # POST /paddle-webhook
 
-logger.info("✅ Stock Platform API 초기화 완료")
+# B2B API (API 키 인증 필요)
+app.include_router(v1_market_radar_router)
+app.include_router(v1_sector_signals_router)
+app.include_router(v1_disclosures_router)
+app.include_router(v1_events_router)
+
+logger.info("[OK] Stock Platform API 초기화 완료 (v1 B2B 라우터 포함)")
 
 # ── 개발 서버 직접 실행 ───────────────────────────────────────────────────
 if __name__ == "__main__":
