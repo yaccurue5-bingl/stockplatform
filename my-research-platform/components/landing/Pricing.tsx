@@ -74,20 +74,20 @@ export default function Pricing() {
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>('developer');
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // ✅ authReady: onAuthStateChange의 INITIAL_SESSION이 완료되기 전까지 false
+  //    → 버튼이 auth 상태 확인 전에 눌리는 race condition 방지
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     const supabase = getSupabase();
 
-    // 초기 세션 확인
-    supabase.auth.getUser().then(({ data }) => {
-      setIsLoggedIn(!!data.user);
-      setUserEmail(data.user?.email ?? null);
-    });
-
-    // ✅ 로그인/로그아웃 변화 실시간 감지 (logout 후에도 isLoggedIn 동기화)
+    // onAuthStateChange는 구독 즉시 INITIAL_SESSION 이벤트를 발생시킴
+    // → getUser() 별도 호출 불필요, INITIAL_SESSION으로 초기 상태 처리
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session?.user);
       setUserEmail(session?.user?.email ?? null);
+      // 첫 이벤트(INITIAL_SESSION 포함) 수신 시점부터 auth 상태 확정
+      setAuthReady(true);
     });
 
     return () => subscription.unsubscribe();
@@ -98,7 +98,8 @@ export default function Pricing() {
       setSelectedPlan(planKey);
       setIsModalOpen(true);
     } else {
-      router.push('/login');
+      // ✅ redirectTo 전달: 구글 OAuth 포함 로그인 후 pricing 섹션으로 복귀
+      router.push('/login?redirectTo=%2F%23pricing');
     }
   };
 
@@ -147,14 +148,19 @@ export default function Pricing() {
             </ul>
 
             {p.isPaid && p.planKey ? (
+              // ✅ authReady 전: 버튼 비활성화로 race condition 방지
+              //    authReady 후: 로그인 여부에 따라 모달 오픈 or 로그인 이동
               <button
                 onClick={() => handlePaidPlanClick(p.planKey!)}
+                disabled={!authReady}
                 className={`
-                  block w-full text-center text-sm py-3 rounded-xl transition cursor-pointer
-                  ${p.ctaStyle}
+                  block w-full text-center text-sm py-3 rounded-xl transition
+                  ${authReady
+                    ? `cursor-pointer ${p.ctaStyle}`
+                    : 'cursor-not-allowed opacity-50 bg-gray-700 text-gray-500'}
                 `}
               >
-                {p.cta}
+                {authReady ? p.cta : '···'}
               </button>
             ) : !isLoggedIn ? (
               // 비로그인 상태에서만 START FREE 버튼 표시
