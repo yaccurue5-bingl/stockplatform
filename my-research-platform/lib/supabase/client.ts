@@ -179,6 +179,11 @@ export async function signInWithGoogle(redirectTo: string = '/') {
     provider: 'google',
     options: {
       redirectTo: callbackUrl,
+      // ✅ 로그아웃 후 재로그인 시 구글 계정 선택 화면 강제 표시
+      //    (없으면 구글 세션이 살아있을 때 자동 로그인됨)
+      queryParams: {
+        prompt: 'select_account',
+      },
     },
   });
 
