@@ -79,13 +79,16 @@ def get_supabase_client():
 
 async def handle_subscription_created(event: dict):
     data = event.get("data", event)
-    user_id = data.get("user_id") or data.get("custom_data", {}).get("user_id")
+    # custom_data 가 null 로 올 수 있으므로 `or {}` 로 None 방어
+    custom_data = data.get("custom_data") or {}
+    user_id = data.get("user_id") or custom_data.get("user_id")
     subscription_id = data.get("subscription_id") or data.get("id")
-    plan_id = data.get("subscription_plan_id") or data.get("items", [{}])[0].get("price", {}).get("id")
+    items = data.get("items") or [{}]
+    plan_id = data.get("subscription_plan_id") or (items[0].get("price") or {}).get("id")
     status = data.get("status", "active")
     next_bill_date = data.get("next_bill_date") or data.get("next_billed_at")
 
-    logger.info("✅ Subscription created: %s for user %s", subscription_id, user_id)
+    logger.info("[OK] Subscription created: %s for user %s", subscription_id, user_id)
 
     supabase = get_supabase_client()
     if supabase and user_id:
@@ -109,7 +112,7 @@ async def handle_subscription_updated(event: dict):
     status = data.get("status", "active")
     next_bill_date = data.get("next_bill_date") or data.get("next_billed_at")
 
-    logger.info("🔄 Subscription updated: %s → %s", subscription_id, status)
+    logger.info("[UPDATE] Subscription updated: %s -> %s", subscription_id, status)
 
     supabase = get_supabase_client()
     if supabase and subscription_id:
@@ -121,10 +124,11 @@ async def handle_subscription_updated(event: dict):
 
 async def handle_subscription_canceled(event: dict):
     data = event.get("data", event)
-    user_id = data.get("user_id") or data.get("custom_data", {}).get("user_id")
+    custom_data = data.get("custom_data") or {}
+    user_id = data.get("user_id") or custom_data.get("user_id")
     subscription_id = data.get("subscription_id") or data.get("id")
 
-    logger.info("❌ Subscription canceled: %s", subscription_id)
+    logger.info("[CANCEL] Subscription canceled: %s", subscription_id)
 
     supabase = get_supabase_client()
     if supabase:
@@ -145,7 +149,7 @@ async def handle_payment_succeeded(event: dict):
     amount = data.get("amount") or data.get("details", {}).get("totals", {}).get("total")
     currency = data.get("currency") or data.get("currency_code", "USD")
 
-    logger.info("💰 Payment succeeded: %s %s for %s", amount, currency, subscription_id)
+    logger.info("[PAID] Payment succeeded: %s %s for %s", amount, currency, subscription_id)
 
     supabase = get_supabase_client()
     if supabase and subscription_id:
@@ -161,7 +165,7 @@ async def handle_payment_failed(event: dict):
     data = event.get("data", event)
     subscription_id = data.get("subscription_id") or data.get("id")
 
-    logger.info("❌ Payment failed for %s", subscription_id)
+    logger.info("[FAIL] Payment failed for %s", subscription_id)
 
     supabase = get_supabase_client()
     if supabase and subscription_id:
@@ -182,7 +186,7 @@ async def paddle_webhook(request: Request):
     # 서명 검증
     signature_header = request.headers.get("Paddle-Signature", "")
     if not verify_paddle_signature(body_str, signature_header):
-        logger.error("❌ Invalid Paddle webhook signature")
+        logger.error("[ERROR] Invalid Paddle webhook signature")
         return Response(content='{"error":"Invalid signature"}', status_code=401, media_type="application/json")
 
     try:
@@ -192,7 +196,7 @@ async def paddle_webhook(request: Request):
         return Response(content='{"error":"Invalid JSON"}', status_code=400, media_type="application/json")
 
     event_type = event.get("event_type") or event.get("alert_name", "")
-    logger.info("📬 Paddle webhook received: %s", event_type)
+    logger.info("[WEBHOOK] Paddle webhook received: %s", event_type)
 
     handlers = {
         "subscription.created": handle_subscription_created,
@@ -211,6 +215,6 @@ async def paddle_webhook(request: Request):
     if handler:
         await handler(event)
     else:
-        logger.info("ℹ️ Unhandled event type: %s", event_type)
+        logger.info("[INFO] Unhandled event type: %s", event_type)
 
     return {"received": True}
