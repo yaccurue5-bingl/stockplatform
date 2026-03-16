@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git merge:*)",
+      "Bash(git push:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(find:*)",
+      "Bash(echo:*)",
+      "Bash(npx supabase gen types typescript:*)",
+      "Bash(node -e \"\nconst { execSync } = require\\(''child_process''\\);\n// Check what createBrowserClient expects\nconst result = execSync\\(''npx tsc --noEmit --listFiles 2>&1 | head -5'', { encoding: ''utf8'' }\\);\nconsole.log\\(result\\);\n\")",
+      "Bash(node -e:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}
