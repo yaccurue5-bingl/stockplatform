@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(xargs grep -l \"paddle\\\\|Paddle\\\\|subscription\\\\|checkout\")",
+      "Bash(npm install @paddle/paddle-js)",
+      "Bash(git add my-research-platform/app/page.tsx my-research-platform/components/PaymentModal.tsx my-research-platform/package.json my-research-platform/package-lock.json)",
+      "Bash(git commit:*)",
+      "Bash(git merge claude/goofy-dewdney --no-ff -m \"Merge: 구독/결제 버튼 + Paddle PaymentModal 추가\")",
+      "Bash(/c/stockplatform/my-research-platform/.env.local:*)",
+      "Bash(git add my-research-platform/app/disclosures/page.tsx my-research-platform/app/page.tsx my-research-platform/components/UserButton.tsx my-research-platform/components/PaymentModal.tsx)",
+      "Bash(git checkout claude/dev)",
+      "Bash(git merge claude/goofy-dewdney --no-edit)",
+      "Bash(git push origin claude/dev)",
+      "Bash(git log --all --oneline --grep=\"sonnet\\\\|claude\\\\|anthropic\" -i)",
+      "Bash(git log --all --oneline --grep=\"sonnet\\\\|anthropic\" -i --name-only)",
+      "Bash(xargs grep -l \"anthropic\\\\|claude\\\\|sonnet\\\\|ANTHROPIC\")"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}
