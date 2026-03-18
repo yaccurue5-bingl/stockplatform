@@ -24,6 +24,13 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from collections import defaultdict
 
+# ── supabase를 sys.path 수정 전에 먼저 import ─────────────────────────────────
+# stockplatform/supabase/ 폴더와의 충돌 방지
+try:
+    from supabase import create_client as _supabase_create_client
+except ImportError:
+    _supabase_create_client = None
+
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -50,7 +57,10 @@ def get_prev_business_day(ref: datetime = None) -> str:
 # ── Supabase 연결 ─────────────────────────────────────────────────────────────
 
 def get_supabase():
-    from supabase import create_client
+    create_client = _supabase_create_client
+    if create_client is None:
+        print("[ERROR] supabase 패키지가 설치되지 않았습니다. pip install supabase 를 실행하세요.")
+        sys.exit(1)
     url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if not url or not key:

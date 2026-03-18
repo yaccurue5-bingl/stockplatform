@@ -32,6 +32,14 @@ import requests
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# ── supabase를 sys.path 수정 전에 먼저 import ─────────────────────────────────
+# stockplatform/supabase/ 폴더가 설치된 supabase 패키지보다 먼저 검색되는
+# 충돌을 방지하기 위해 반드시 sys.path.insert 전에 import해야 합니다.
+try:
+    from supabase import create_client as _supabase_create_client
+except ImportError:
+    _supabase_create_client = None
+
 # 프로젝트 루트를 Python path에 추가
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
@@ -158,7 +166,11 @@ def transform(items: list[dict], bas_dt: str) -> list[dict]:
 
 def save_to_db(rows: list[dict]) -> tuple[int, int]:
     """배치 upsert. (성공수, 실패수) 반환"""
-    from supabase import create_client
+    create_client = _supabase_create_client
+    if create_client is None:
+        print("[ERROR] supabase 패키지가 설치되지 않았습니다.")
+        print("  pip install supabase 를 실행하세요.")
+        sys.exit(1)
 
     sb_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
     sb_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
