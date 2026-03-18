@@ -151,9 +151,7 @@ def transform(items: list[dict], bas_dt: str) -> list[dict]:
 
         rows.append({
             "stock_code":    stock_code,
-            "code":          stock_code,          # 두 컬럼 모두 동일값으로 유지
             "corp_name":     item.get("itmsNm", "").strip(),
-            "market":        mrkt,
             "market_type":   mrkt,
             "market_cap":    parse_int(item.get("mrktTotAmt")),
             "listed_shares": parse_int(item.get("lstgStckcnt")),
