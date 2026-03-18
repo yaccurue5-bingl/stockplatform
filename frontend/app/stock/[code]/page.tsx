@@ -46,7 +46,7 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(), // ✅ single() 대신 maybeSingle() 사용 (0개여도 에러 안남)
-    supabase.from('companies').select('*').eq('code', code).maybeSingle()
+    supabase.from('companies').select('stock_code, corp_name, sector, sector_en, market_type, market_cap, listed_shares, foreign_ratio').eq('stock_code', code).maybeSingle()
   ]);
 
   const insight = insightRes.data as ExtendedInsight | null;
