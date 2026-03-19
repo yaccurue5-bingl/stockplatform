@@ -81,9 +81,21 @@ Return JSON format:
   "event_type": "ONE_TIME or STRUCTURAL or NEUTRAL",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
+  "sentiment_score": <float -1.0 to +1.0>,
   "ai_summary": "Numeric-centric investment analysis in English (for ai_summary column)",
   "risk_factors": "Key risk factors in English"
 }
+
+SENTIMENT SCORE GUIDE (sentiment_score):
+- A continuous float between -1.0 (strongly bearish) and +1.0 (strongly bullish).
+- Reflects the overall investment sentiment of the disclosure, accounting for magnitude, context, and risk.
+- Examples:
+  • Strong earnings beat, major contract win → +0.7 ~ +1.0
+  • Moderate positive (small buyback, minor contract) → +0.2 ~ +0.5
+  • Neutral/ambiguous (routine report, restructuring) → -0.1 ~ +0.1
+  • Dilution (CB/BW issuance), legal issues → -0.4 ~ -0.7
+  • Severe scandal, massive loss, fraud → -0.8 ~ -1.0
+- Must be a JSON number (e.g., 0.65, -0.42), NOT a string.
 """
 
         # ✅ 유형별 분석 규칙 (로직 보존을 위해 영문으로 기술 가이드)
@@ -213,12 +225,22 @@ def run():
         )
 
         if result:
+            # sentiment_score: float -1.0~+1.0 파싱 (AI가 문자열로 줄 수도 있으므로 방어 처리)
+            raw_score = result.get("sentiment_score")
+            try:
+                sentiment_score = float(raw_score) if raw_score is not None else None
+                if sentiment_score is not None:
+                    sentiment_score = max(-1.0, min(1.0, sentiment_score))
+            except (TypeError, ValueError):
+                sentiment_score = None
+
             update_data = {
                 "headline": result.get("headline"),
                 "key_numbers": result.get("key_numbers"),
                 "event_type": result.get("event_type"),
                 "financial_impact": result.get("financial_impact"),
                 "short_term_impact_score": result.get("short_term_impact_score"),
+                "sentiment_score": sentiment_score,
                 "ai_summary": result.get("ai_summary"),
                 "risk_factors": result.get("risk_factors"),
                 "analysis_status": "completed",

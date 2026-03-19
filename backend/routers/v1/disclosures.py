@@ -39,12 +39,17 @@ class DisclosureItem(BaseModel):
     importance:      Optional[str] = None
     event_type:      Optional[str] = None
     ai_summary:      Optional[str] = None
-    # ENTERPRISE 전용
-    headline:               Optional[str] = None
-    financial_impact:       Optional[str] = None
-    short_term_impact_score: Optional[int] = None
-    analysis:               Optional[str] = None
-    risk_factors:           Optional[str] = None
+    # 스코어 (PRO+): BaseScore · FinalScore · 시그널 태그
+    base_score:      Optional[float] = None
+    final_score:     Optional[float] = None
+    signal_tag:      Optional[str]   = None
+    # ENTERPRISE 전용: 상세 분석
+    headline:               Optional[str]   = None
+    financial_impact:       Optional[str]   = None
+    short_term_impact_score: Optional[int]  = None
+    base_score_raw:         Optional[float] = None
+    analysis:               Optional[str]   = None
+    risk_factors:           Optional[str]   = None
 
 
 class DisclosuresResponse(BaseModel):
@@ -65,14 +70,16 @@ def _get_supabase():
 
 # ── 엔드포인트 ────────────────────────────────────────────────────────────────
 
-# PRO: 기본 컬럼
+# PRO: 기본 컬럼 + 스코어
 _PRO_COLUMNS = (
     "id, rcept_no, corp_name, stock_code, report_nm, rcept_dt, "
-    "sentiment, sentiment_score, importance, event_type, ai_summary"
+    "sentiment, sentiment_score, importance, event_type, ai_summary, "
+    "base_score, final_score, signal_tag"
 )
 # ENTERPRISE: 상세 분석 추가
 _ENT_COLUMNS = _PRO_COLUMNS + (
-    ", headline, financial_impact, short_term_impact_score, analysis, risk_factors"
+    ", headline, financial_impact, short_term_impact_score, "
+    "base_score_raw, analysis, risk_factors"
 )
 
 
@@ -92,6 +99,7 @@ async def get_disclosures(
     stock_code: Optional[str] = Query(None, description="종목코드 필터 (예: 005930)"),
     sentiment:  Optional[str] = Query(None, description="감성 필터: POSITIVE / NEGATIVE / NEUTRAL"),
     event_type: Optional[str] = Query(None, description="이벤트 유형 필터"),
+    sort_by:    Optional[str] = Query(None, description="정렬 기준: rcept_dt (기본) / final_score / base_score"),
     limit:      int            = Query(50, ge=1, le=200, description="최대 반환 건수"),
     user: dict = Depends(require_plan(["PRO", "ENTERPRISE"])),
 ):
@@ -132,13 +140,17 @@ async def get_disclosures(
         sb = _get_supabase()
         columns = _ENT_COLUMNS if is_enterprise else _PRO_COLUMNS
 
+        # 정렬 기준 결정
+        _SORT_WHITELIST = {"rcept_dt", "final_score", "base_score"}
+        sort_col = sort_by if sort_by in _SORT_WHITELIST else "rcept_dt"
+
         query = (
             sb.table("disclosure_insights")
             .select(columns)
             .gte("rcept_dt", dt_from_str)
             .lte("rcept_dt", dt_to_str)
             .eq("analysis_status", "completed")
-            .order("rcept_dt", desc=True)
+            .order(sort_col, desc=True, nulls_first=False)
         )
 
         # PRO: is_visible=true 항목만
