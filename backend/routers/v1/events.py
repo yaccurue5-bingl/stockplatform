@@ -81,7 +81,7 @@ async def get_events(
     stock_code: Optional[str] = Query(None, description="종목코드 필터"),
     event_type: Optional[str] = Query(None, description="이벤트 유형 필터"),
     limit:      int            = Query(50, ge=1, le=200, description="최근 이벤트 최대 건수"),
-    user: dict = Depends(require_plan(["PRO", "ENTERPRISE"])),
+    user: dict = Depends(require_plan(["developer", "pro"])),
 ):
     plan = user["plan"]
     history_days = PLAN_HISTORY_DAYS.get(plan, 7)

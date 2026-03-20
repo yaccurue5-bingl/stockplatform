@@ -197,20 +197,37 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             return None
 
 
-def run():
+def run(backfill: bool = False, limit: int = 50):
+    """
+    backfill=True  : 이미 completed 이지만 sentiment_score 가 없는 항목 재분석
+                     (기존 DB 백테스트용)
+    backfill=False : 기본 모드 - analysis_status='pending' 항목만 처리
+    """
     analyst = AIAnalyst()
 
-    res = supabase.table("disclosure_insights") \
-        .select("id, corp_name, report_nm, content, rcept_no, analysis_retry_count") \
-        .eq("analysis_status", "pending") \
-        .or_("analysis_retry_count.is.null,analysis_retry_count.lt.3") \
-        .order("created_at", desc=True) \
-        .limit(50) \
-        .execute()
+    if backfill:
+        # 백필 모드: completed 이지만 sentiment_score 가 null 인 항목
+        logger.info("🔁 [BACKFILL] sentiment_score 없는 completed 항목 재분석 시작")
+        res = supabase.table("disclosure_insights") \
+            .select("id, corp_name, report_nm, content, rcept_no, analysis_retry_count") \
+            .eq("analysis_status", "completed") \
+            .is_("sentiment_score", "null") \
+            .not_.is_("content", "null") \
+            .order("created_at", desc=True) \
+            .limit(limit) \
+            .execute()
+    else:
+        res = supabase.table("disclosure_insights") \
+            .select("id, corp_name, report_nm, content, rcept_no, analysis_retry_count") \
+            .eq("analysis_status", "pending") \
+            .or_("analysis_retry_count.is.null,analysis_retry_count.lt.3") \
+            .order("created_at", desc=True) \
+            .limit(limit) \
+            .execute()
 
     if not res.data:
         logger.info("✅ 분석할 데이터가 없습니다.")
-        return
+        return 0
 
     for item in res.data:
 
@@ -255,19 +272,30 @@ def run():
             logger.info(f"✅ 완료: {item['corp_name']}")
 
         else:
-            retry_count = (item.get('analysis_retry_count') or 0) + 1
-            new_status = "failed" if retry_count >= 3 else "pending"
+            if not backfill:
+                retry_count = (item.get('analysis_retry_count') or 0) + 1
+                new_status = "failed" if retry_count >= 3 else "pending"
+                supabase.table("disclosure_insights").update({
+                    "analysis_status": new_status,
+                    "analysis_retry_count": retry_count,
+                    "updated_at": datetime.now().isoformat()
+                }).eq("id", item['id']).execute()
 
-            supabase.table("disclosure_insights").update({
-                "analysis_status": new_status,
-                "analysis_retry_count": retry_count,
-                "updated_at": datetime.now().isoformat()
-            }).eq("id", item['id']).execute()
+            logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-            logger.warning(f"⚠️ 실패: {item['corp_name']} (재시도: {retry_count}/3)")
+        time.sleep(3.0)
 
-        time.sleep(3.0) 
+    processed = len(res.data)
+    logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")
+    return processed
 
 
 if __name__ == "__main__":
-    run()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--backfill", action="store_true",
+                        help="sentiment_score 없는 completed 항목 재분석 (백테스트용)")
+    parser.add_argument("--limit", type=int, default=50,
+                        help="최대 처리 건수 (기본 50)")
+    args = parser.parse_args()
+    run(backfill=args.backfill, limit=args.limit)

@@ -70,7 +70,7 @@ async def get_market_radar(
     date_from: Optional[str] = Query(None, description="조회 시작일 (YYYY-MM-DD)"),
     date_to:   Optional[str] = Query(None, description="조회 종료일 (YYYY-MM-DD). 기본값: 오늘"),
     limit:     int            = Query(30, ge=1, le=90, description="최대 반환 건수"),
-    user: dict = Depends(require_plan(["PRO", "ENTERPRISE"])),
+    user: dict = Depends(require_plan(["developer", "pro"])),
 ):
     plan = user["plan"]
     history_days = PLAN_HISTORY_DAYS.get(plan, 7)

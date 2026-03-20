@@ -73,7 +73,7 @@ async def get_sector_signals(
     sector:    Optional[str] = Query(None, description="특정 섹터 필터 (예: 반도체와 반도체장비)"),
     signal:    Optional[str] = Query(None, description="신호 필터: Bullish / Bearish / Neutral"),
     limit:     int            = Query(50, ge=1, le=200, description="최대 반환 건수"),
-    user: dict = Depends(require_plan(["PRO", "ENTERPRISE"])),
+    user: dict = Depends(require_plan(["developer", "pro"])),
 ):
     plan = user["plan"]
     history_days = PLAN_HISTORY_DAYS.get(plan, 7)

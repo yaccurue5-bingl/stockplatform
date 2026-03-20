@@ -101,11 +101,11 @@ async def get_disclosures(
     event_type: Optional[str] = Query(None, description="이벤트 유형 필터"),
     sort_by:    Optional[str] = Query(None, description="정렬 기준: rcept_dt (기본) / final_score / base_score"),
     limit:      int            = Query(50, ge=1, le=200, description="최대 반환 건수"),
-    user: dict = Depends(require_plan(["PRO", "ENTERPRISE"])),
+    user: dict = Depends(require_plan(["developer", "pro"])),
 ):
     plan = user["plan"]
     history_days = PLAN_HISTORY_DAYS.get(plan, 7)
-    is_enterprise = (plan == "ENTERPRISE")
+    is_enterprise = (plan == "pro")
 
     today = date.today()
 
