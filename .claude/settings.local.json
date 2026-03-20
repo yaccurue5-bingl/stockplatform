@@ -12,11 +12,21 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(find:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(python scripts/fetch_krx_from_datagokr.py --dry-run)",
+      "WebFetch(domain:www.data.go.kr)",
+      "WebFetch(domain:www.fsc.go.kr)",
+      "Bash(ls -la /c/Users/user/stockplatform/scripts/*.py)",
+      "Bash(ls -la /c/Users/user/stockplatform/frontend/*.json /c/Users/user/stockplatform/frontend/tsconfig.json)",
+      "mcp__supabase__apply_migration",
+      "Bash(git remote:*)",
+      "mcp__github__create_pull_request",
+      "Bash(git rm:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "supabase"
+    "supabase",
+    "github"
   ]
 }
