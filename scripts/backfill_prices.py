@@ -345,9 +345,9 @@ def main():
     logger.info("=" * 55)
 
     sb      = _get_supabase()
-    api_key = os.environ.get("DATA_GO_KR_API_KEY") or os.environ.get("DATA_GO_KR_KEY")
+    api_key = os.environ.get("PUBLIC_DATA_API_KEY")
     if not api_key and not args.stats_only:
-        logger.error("DATA_GO_KR_API_KEY 환경변수 누락")
+        logger.error("PUBLIC_DATA_API_KEY 환경변수 누락")
         sys.exit(1)
 
     # ── stats-only 모드: 가격 fetch 없이 집계만 ───────────────────────────────
