@@ -7,11 +7,13 @@ GET /v1/sector-signals
 sector_signals 테이블 데이터를 반환합니다.
 
 플랜 접근:
-    PRO, ENTERPRISE
+    developer, pro
+
+캐시:
+    TTL 600 초 (10 min)  —  compute_sector_signals 가 EOD 배치에서 1회 갱신
 """
 
 import logging
-import os
 from datetime import date, timedelta
 from typing import Optional
 
@@ -19,6 +21,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.routers.v1.auth import require_plan, PLAN_HISTORY_DAYS
+from backend.core.cache import make_cache_key, cache_get, cache_set, TTL_SECTOR_SIGNALS
+from backend.core.db import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["v1 - Sector Signals"])
@@ -46,15 +50,6 @@ class SectorSignalsResponse(BaseModel):
     date_to:    Optional[str] = None
 
 
-# ── Supabase ──────────────────────────────────────────────────────────────────
-
-def _get_supabase():
-    from supabase import create_client
-    url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-    return create_client(url, key)
-
-
 # ── 엔드포인트 ────────────────────────────────────────────────────────────────
 
 @router.get(
@@ -64,7 +59,7 @@ def _get_supabase():
     description=(
         "섹터별 공시 감성 집계(Bullish/Bearish/Neutral)와 confidence, "
         "주요 이벤트 드라이버를 반환합니다.\n\n"
-        "**플랜**: PRO (최근 7일), ENTERPRISE (전체 이력)"
+        "**플랜**: developer (최근 3일), pro (최근 30일)"
     ),
 )
 async def get_sector_signals(
@@ -76,10 +71,11 @@ async def get_sector_signals(
     user: dict = Depends(require_plan(["developer", "pro"])),
 ):
     plan = user["plan"]
-    history_days = PLAN_HISTORY_DAYS.get(plan, 7)
+    history_days = PLAN_HISTORY_DAYS.get(plan, 3)
 
     today = date.today()
 
+    # ── 날짜 범위 계산 ─────────────────────────────────────────────────────────
     if date_to:
         try:
             dt_to = date.fromisoformat(date_to)
@@ -99,12 +95,29 @@ async def get_sector_signals(
     if history_days > 0 and (today - dt_from).days > history_days:
         dt_from = today - timedelta(days=history_days)
 
-    # signal 유효성 검사
     if signal and signal not in ("Bullish", "Bearish", "Neutral"):
-        raise HTTPException(status_code=400, detail="signal은 Bullish, Bearish, Neutral 중 하나여야 합니다.")
+        raise HTTPException(
+            status_code=400,
+            detail="signal은 Bullish, Bearish, Neutral 중 하나여야 합니다.",
+        )
 
+    # ── 캐시 조회 ──────────────────────────────────────────────────────────────
+    cache_key = make_cache_key(
+        "v1:sector-signals",
+        plan=plan,
+        dt_from=dt_from.isoformat(),
+        dt_to=dt_to.isoformat(),
+        sector=sector or "",
+        signal=signal or "",
+        limit=limit,
+    )
+    cached = await cache_get(cache_key)
+    if cached:
+        return SectorSignalsResponse(**cached)
+
+    # ── Supabase 쿼리 ──────────────────────────────────────────────────────────
     try:
-        sb = _get_supabase()
+        sb = get_supabase()
         query = (
             sb.table("sector_signals")
             .select(
@@ -129,9 +142,14 @@ async def get_sector_signals(
         raise HTTPException(status_code=500, detail="데이터 조회 중 오류가 발생했습니다.")
 
     items = [SectorSignalItem(**row) for row in rows]
-    return SectorSignalsResponse(
+    result = SectorSignalsResponse(
         data=items,
         total=len(items),
         date_from=dt_from.isoformat(),
         date_to=dt_to.isoformat(),
     )
+
+    # ── 캐시 저장 ──────────────────────────────────────────────────────────────
+    await cache_set(cache_key, result.model_dump(), TTL_SECTOR_SIGNALS)
+
+    return result
