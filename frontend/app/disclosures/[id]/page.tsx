@@ -7,9 +7,9 @@
  * - Next.js revalidate 3600s (공시 데이터는 불변 — 1h 후 재검증)
  */
 
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 export const revalidate = 3600; // 1h — 불변 데이터
@@ -93,6 +93,15 @@ export default async function DisclosureDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // 로그인 상태이면 전체 공시 목록으로 이동 (블러 반복 방지)
+  const user = await getUser();
+  if (user) {
+    const disclosure = await fetchDisclosure(id);
+    const stock = disclosure?.stock_code;
+    redirect(stock ? `/disclosures?stock=${stock}` : '/disclosures');
+  }
+
   const disclosure = await fetchDisclosure(id);
   if (!disclosure) notFound();
 
