@@ -30,7 +30,7 @@ env:
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
   GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
   DART_API_KEY: ${{ secrets.DART_API_KEY }}
-  PUBLIC_DATA_API_KEY: ${{ secrets.PUBLIC_DATA_API_KEY }}
+  PUBLIC_DATA_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}
 
 jobs:
 
