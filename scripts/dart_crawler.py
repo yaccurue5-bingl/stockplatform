@@ -1,3 +1,4 @@
+import asyncio
 import os
 import requests
 from requests.adapters import HTTPAdapter
@@ -211,18 +212,21 @@ def run_crawler():
 
     if data.get("status") == "000":
         count = 0
+        saved_codes: set[str] = set()  # 저장 성공한 종목코드 수집
+
         for item in data.get("list", []):
             # ... (중복 체크 및 데이터 정리 생략) ...
             rcept_no = item.get("rcept_no")
             corp_code = item.get("corp_code", "").strip()
-            
+
             if not corp_code or is_disclosure_processed(corp_code, rcept_no):
                 continue
-            
+
             # 정제된 본문 추출 함수 호출 (내부에서 sleep + 재시도 처리)
             content = get_clean_content(rcept_no)
 
             payload = {
+                "is_visible": True,
                 "rcept_no": rcept_no,
                 "corp_code": corp_code,
                 "corp_name": item.get("corp_name"),
@@ -232,15 +236,32 @@ def run_crawler():
                 "content": content, # 정제된 텍스트 또는 마킹값
                 "analysis_status": "pending",
                 "created_at": datetime.now().isoformat()
+
             }
 
             try:
                 supabase.table("disclosure_insights").upsert(payload, on_conflict="rcept_no").execute()
                 # (해시 기록 로직 생략)
                 count += 1
+                stock_code = item.get("stock_code", "").strip()
+                if stock_code:
+                    saved_codes.add(stock_code)
                 logger.info(f"✅ [{count}] {item.get('corp_name')} 저장 완료")
             except Exception as e:
                 logger.error(f"❌ DB 저장 실패: {e}")
+
+        # 캐시 무효화 — 신규 공시가 저장된 경우 공시 목록 캐시 삭제
+        # (pending 상태라 API에 바로 노출되진 않지만, signal:{stock_code} 대비 및 upsert 케이스 처리)
+        if saved_codes:
+            try:
+                from pathlib import Path
+                import sys as _sys
+                _sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+                from backend.core.cache import cache_delete_pattern
+                deleted = asyncio.run(cache_delete_pattern("v1:disclosures:*"))
+                logger.info(f"[cache] 무효화 완료: v1:disclosures:* ({deleted}개 삭제, 종목 {len(saved_codes)}개)")
+            except Exception as e:
+                logger.warning(f"[cache] 무효화 실패 (무시): {e}")
 
 if __name__ == "__main__":
     run_crawler()
