@@ -90,9 +90,10 @@ function BlurredSection({ title }: { title: string }) {
 export default async function DisclosureDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const disclosure = await fetchDisclosure(params.id);
+  const { id } = await params;
+  const disclosure = await fetchDisclosure(id);
   if (!disclosure) notFound();
 
   const eventLabel = EVENT_LABELS[disclosure.event_type ?? ''] ?? EVENT_LABELS.OTHER;
@@ -172,7 +173,7 @@ export default async function DisclosureDetailPage({
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link
-              href={`/login?redirectTo=${encodeURIComponent(`/disclosures/${disclosure.id}`)}`}
+              href={`/login?redirectTo=${encodeURIComponent(`/disclosures/${id}`)}`}
               className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
             >
               Sign in
