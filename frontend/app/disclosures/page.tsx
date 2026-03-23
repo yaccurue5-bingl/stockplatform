@@ -59,8 +59,9 @@ function DisclosuresContent() {
     const supabase = getSupabase();
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) {
-        // 비로그인 → 홈으로
-        router.replace('/');
+        // 비로그인 → 로그인 페이지로 (완료 후 /disclosures 복귀)
+        const redirectTo = encodeURIComponent('/disclosures');
+        router.replace(`/login?redirectTo=${redirectTo}`);
         return;
       }
 

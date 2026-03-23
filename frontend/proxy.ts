@@ -78,12 +78,14 @@ export default async function proxy(req: NextRequest) {
   // -----------------------------------
   // 2. Public 경로 (인증 불필요)
   // -----------------------------------
-  const publicPaths = [
-    '/',
+  // '/' 는 정확히 일치, 나머지는 startsWith 사용
+  const exactPublicPaths = ['/'];
+  const prefixPublicPaths = [
     '/auth/callback',
     '/auth/confirm',
-    '/api/stripe/webhook', // Stripe Webhook은 서명 검증으로 보호됨
+    '/api/stripe/webhook',    // Stripe Webhook은 서명 검증으로 보호됨
     '/api/disclosures/latest', // 메인 페이지 공시 목록 API
+    '/disclosures/',           // 개별 공시 상세 페이지 (공개 미끼 상품)
   ];
 
   // 로그인한 사용자가 /login, /signup 접근 시 홈으로 리다이렉트
@@ -97,7 +99,11 @@ export default async function proxy(req: NextRequest) {
     return supabaseResponse;
   }
 
-  if (publicPaths.some((path) => pathname.startsWith(path))) {
+  const isPublic =
+    exactPublicPaths.includes(pathname) ||
+    prefixPublicPaths.some((path) => pathname.startsWith(path));
+
+  if (isPublic) {
     return supabaseResponse;
   }
 

@@ -37,7 +37,7 @@ async function fetchLatestEvents() {
     const sb = createServiceClient();
     const { data, error } = await sb
       .from('disclosure_insights')
-      .select('corp_name, stock_code, event_type, sentiment, sentiment_score')
+      .select('id, corp_name, stock_code, event_type, sentiment, sentiment_score')
       .eq('analysis_status', 'completed')
       .eq('is_visible', true)
       .order('rcept_dt', { ascending: false })
@@ -49,6 +49,7 @@ async function fetchLatestEvents() {
       const score  = row.sentiment_score ?? 0;
       const sentiment = (row.sentiment ?? 'NEUTRAL').toUpperCase();
       return {
+        id:       row.id ?? '',
         company:  row.corp_name ?? '',
         ticker:   row.stock_code ?? '',
         event:    EVENT_LABELS[row.event_type ?? ''] ?? EVENT_LABELS.OTHER,
@@ -80,7 +81,7 @@ export default async function LiveEvents() {
         {events.map((e) => (
           <Link
             key={`${e.company}-${e.ticker}`}
-            href={e.ticker ? `/disclosures?stock=${e.ticker}` : '/disclosures'}
+            href={e.id ? `/disclosures/${e.id}` : '/disclosures'}
             className="block"
           >
           <Card hover className="flex items-center justify-between px-6 py-5 cursor-pointer">
