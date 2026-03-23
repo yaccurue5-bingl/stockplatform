@@ -261,6 +261,7 @@ def run(backfill: bool = False, limit: int = 50):
                 "ai_summary": result.get("ai_summary"),
                 "risk_factors": result.get("risk_factors"),
                 "analysis_status": "completed",
+                "is_visible": True,
                 "updated_at": datetime.now().isoformat()
             }
 
