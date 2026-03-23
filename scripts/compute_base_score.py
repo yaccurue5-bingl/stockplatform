@@ -30,6 +30,7 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
   python scripts/compute_base_score.py --recompute # base_score 가 있어도 재계산
 """
 
+import asyncio
 import os
 import sys
 import math
@@ -394,6 +395,17 @@ def main():
     print(f"완료: disclosure_insights {ins_ok}건 저장 / {ins_fail}건 실패")
     print(f"      scores_log          {log_ok}건 저장 / {log_fail}건 실패")
     print("=" * 60)
+
+    # 6. 캐시 무효화 — 스코어가 갱신된 종목의 공시 목록 캐시 삭제
+    if not args.dry_run and ins_ok > 0:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+            from backend.core.cache import cache_delete_pattern
+            deleted = asyncio.run(cache_delete_pattern("v1:disclosures:*"))
+            print(f"[cache] 무효화 완료: v1:disclosures:* ({deleted}개 삭제)")
+        except Exception as e:
+            print(f"[cache] 무효화 실패 (무시): {e}")
+
     sys.exit(0 if (ins_fail + log_fail) == 0 else 1)
 
 

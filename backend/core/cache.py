@@ -44,12 +44,33 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
+# ── Hit/Miss 집계 ─────────────────────────────────────────────────────────────
+# 프로세스 재시작 시 초기화됨 (in-memory 통계)
+
+_STATS: dict[str, int] = {"hit": 0, "miss": 0}
+
+
+def get_cache_stats() -> dict:
+    """현재 hit/miss 통계 반환."""
+    total = _STATS["hit"] + _STATS["miss"]
+    ratio = (_STATS["hit"] / total * 100) if total else 0.0
+    return {"hit": _STATS["hit"], "miss": _STATS["miss"], "total": total, "hit_ratio": round(ratio, 1)}
+
+
 # ── TTL 상수 ──────────────────────────────────────────────────────────────────
 
 TTL_DISCLOSURES    = 300    # 5 min  — 장 중에도 신규 공시 유입 가능
 TTL_SECTOR_SIGNALS = 600    # 10 min — compute_sector_signals 가 EOD에 1회 갱신
 TTL_MARKET_RADAR   = 900    # 15 min — market_radar 는 EOD에 1회 갱신
 TTL_EVENTS         = 3600   # 60 min — event_stats 는 backfill_prices --stats-only 후 갱신
+
+
+def _log_ratio_if_needed() -> None:
+    """100회마다 hit ratio를 INFO 로그로 출력."""
+    total = _STATS["hit"] + _STATS["miss"]
+    if total > 0 and total % 100 == 0:
+        ratio = _STATS["hit"] / total * 100
+        logger.info(f"[cache] hit ratio: {ratio:.1f}%  ({_STATS['hit']} hit / {total} total)")
 
 
 # ── in-process TTL dict (Redis 없을 때 폴백) ──────────────────────────────────
@@ -157,6 +178,8 @@ async def cache_get(key: str) -> Optional[Any]:
         try:
             raw = await r.get(key)
             if raw:
+                _STATS["hit"] += 1
+                _log_ratio_if_needed()
                 logger.debug(f"[cache] HIT (redis) {key}")
                 return json.loads(raw)
         except Exception as e:
@@ -164,7 +187,13 @@ async def cache_get(key: str) -> Optional[Any]:
 
     val = _local_get(key)
     if val is not None:
+        _STATS["hit"] += 1
+        _log_ratio_if_needed()
         logger.debug(f"[cache] HIT (local) {key}")
+        return val
+
+    _STATS["miss"] += 1
+    _log_ratio_if_needed()
     return val
 
 
