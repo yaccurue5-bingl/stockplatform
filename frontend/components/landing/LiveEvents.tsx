@@ -39,7 +39,6 @@ async function fetchLatestEvents() {
       .select('corp_name, stock_code, event_type, sentiment, sentiment_score')
       .eq('analysis_status', 'completed')
       .eq('is_visible', true)
-      .not('sentiment_score', 'is', null)
       .order('rcept_dt', { ascending: false })
       .limit(5);
 
