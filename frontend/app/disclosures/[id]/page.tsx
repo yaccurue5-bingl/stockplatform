@@ -7,7 +7,7 @@
  * - Next.js revalidate 3600s (공시 데이터는 불변 — 1h 후 재검증)
  */
 
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect, RedirectType } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -94,15 +94,17 @@ export default async function DisclosureDetailPage({
 }) {
   const { id } = await params;
 
-  // 로그인 상태이면 전체 공시 목록으로 이동 (블러 반복 방지)
+  const disclosure = await fetchDisclosure(id);
+
+  // 로그인 상태이면 공시 상세 페이지로 바로 이동 (히스토리 replace — 뒤로가기 트랩 방지)
   const user = await getUser();
   if (user) {
-    const disclosure = await fetchDisclosure(id);
     const stock = disclosure?.stock_code;
-    redirect(stock ? `/disclosures?stock=${stock}` : '/disclosures');
+    const target = stock
+      ? `/disclosures?stock=${stock}&disclosure=${id}`
+      : '/disclosures';
+    redirect(target, RedirectType.replace);
   }
-
-  const disclosure = await fetchDisclosure(id);
   if (!disclosure) notFound();
 
   const eventLabel = EVENT_LABELS[disclosure.event_type ?? ''] ?? EVENT_LABELS.OTHER;
@@ -182,7 +184,11 @@ export default async function DisclosureDetailPage({
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <Link
-              href={`/login?redirectTo=${encodeURIComponent(`/disclosures/${id}`)}`}
+              href={`/login?redirectTo=${encodeURIComponent(
+                disclosure.stock_code
+                  ? `/disclosures?stock=${disclosure.stock_code}&disclosure=${id}`
+                  : '/disclosures'
+              )}`}
               className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
             >
               Sign in

@@ -51,6 +51,8 @@ function DisclosuresContent() {
   const [isSearching, setIsSearching] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  // popstate 핸들러에서 stale closure 방지용 ref
+  const selectedStockRef = useRef<GroupedStock | null>(null);
   // 접근 제어: null = 아직 확인 중, false = 접근 불가, true = 접근 허용
   const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
 
@@ -94,8 +96,9 @@ function DisclosuresContent() {
   }, [router]);
 
   // URL에서 파라미터 읽기 (hooks 전에 선언 필요)
-  const stockCodeParam = searchParams.get('stock');
-  const searchQueryParam = searchParams.get('search');  // 검색어 파라미터
+  const stockCodeParam    = searchParams.get('stock');
+  const disclosureParam   = searchParams.get('disclosure'); // 개별 공시 ID
+  const searchQueryParam  = searchParams.get('search');     // 검색어 파라미터
 
   // 서버 사이드 검색 함수
   const searchFromServer = useCallback(async (query: string) => {
@@ -185,6 +188,11 @@ function DisclosuresContent() {
     };
   }, [searchQuery, searchFromServer, groupedStocks]);
 
+  // selectedStock ref 동기화 (popstate stale closure 방지)
+  useEffect(() => {
+    selectedStockRef.current = selectedStock;
+  }, [selectedStock]);
+
   // stock 파라미터에 따라 데이터 로드
   useEffect(() => {
     if (stockCodeParam) {
@@ -225,25 +233,47 @@ function DisclosuresContent() {
   }, [router]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
-    // URL을 변경하지 않고 상태만 변경
     setSelectedDisclosure(disclosure);
-  }, []);
+    // URL에 disclosure param 추가 (push → 뒤로가기 시 종목 뷰로 복귀 가능)
+    const stock = selectedStockRef.current?.stock_code;
+    if (stock) {
+      router.push(`/disclosures?stock=${stock}&disclosure=${disclosure.id}`, { scroll: false });
+    }
+  }, [router]);
 
   const navigateBack = useCallback(() => {
     // 브라우저 히스토리 뒤로가기 - 이전 페이지로 바로 이동
     router.back();
   }, [router]);
 
-  // 브라우저 뒤로가기 처리 - 상태만 초기화 (데이터는 유지)
+  // 브라우저 뒤로가기 처리 — URL 파라미터에 따라 뷰 상태 동기화
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const stockCode = params.get('stock');
+      const stockCode    = params.get('stock');
+      const disclosureId = params.get('disclosure');
 
       if (!stockCode) {
-        // 선택 상태만 초기화 (데이터는 이미 있으므로 유지)
+        // ?stock 없음 → 전체 목록 뷰
         setSelectedStock(null);
         setSelectedDisclosure(null);
+        return;
+      }
+
+      if (!disclosureId) {
+        // ?stock만 있음 → 종목 선택 뷰 (첫 번째 공시로 리셋)
+        const stock = selectedStockRef.current;
+        if (stock) {
+          setSelectedDisclosure(stock.disclosures[0] || null);
+        }
+        return;
+      }
+
+      // ?stock + ?disclosure 둘 다 있음 → 해당 공시 선택
+      const stock = selectedStockRef.current;
+      if (stock) {
+        const target = stock.disclosures.find(d => d.id === disclosureId);
+        if (target) setSelectedDisclosure(target);
       }
     };
 
@@ -307,9 +337,11 @@ function DisclosuresContent() {
           if (targetStock) {
             console.log(`🎯 [Disclosures] Auto-selecting stock: ${stockCode}`);
             setSelectedStock(targetStock);
-            if (targetStock.disclosures.length > 0) {
-              setSelectedDisclosure(targetStock.disclosures[0]);
-            }
+            // disclosure 파라미터가 있으면 해당 공시 선택, 없으면 첫 번째
+            const targetDisclosure = disclosureParam
+              ? targetStock.disclosures.find(d => d.id === disclosureParam)
+              : null;
+            setSelectedDisclosure(targetDisclosure ?? targetStock.disclosures[0] ?? null);
           }
         }
 
