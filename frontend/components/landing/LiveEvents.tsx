@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import Section from './ui/Section';
 import Card from './ui/Card';
 import { Zap } from 'lucide-react';
@@ -77,7 +78,12 @@ export default async function LiveEvents() {
 
       <div className="flex flex-col gap-3">
         {events.map((e) => (
-          <Card key={`${e.company}-${e.ticker}`} hover className="flex items-center justify-between px-6 py-5">
+          <Link
+            key={`${e.company}-${e.ticker}`}
+            href={e.ticker ? `/disclosures?stock=${e.ticker}` : '/disclosures'}
+            className="block"
+          >
+          <Card hover className="flex items-center justify-between px-6 py-5 cursor-pointer">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
                 <span className="text-xs font-bold text-gray-300">
@@ -97,6 +103,7 @@ export default async function LiveEvents() {
               <p className="text-xs text-gray-500">Impact Score</p>
             </div>
           </Card>
+          </Link>
         ))}
       </div>
     </Section>

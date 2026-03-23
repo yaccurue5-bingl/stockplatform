@@ -78,13 +78,23 @@ Return JSON format:
     "• Key figure 2 (with unit)",
     "• Key figure 3 (with unit)"
   ],
-  "event_type": "ONE_TIME or STRUCTURAL or NEUTRAL",
+  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | MNA | LEGAL | CAPEX | OTHER",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
   "sentiment_score": <float -1.0 to +1.0>,
   "ai_summary": "Numeric-centric investment analysis in English (for ai_summary column)",
   "risk_factors": "Key risk factors in English"
 }
+
+EVENT TYPE GUIDE (event_type) — pick exactly one:
+- EARNINGS : 실적 발표, 사업/분기/반기 보고서, 결산 공시
+- CONTRACT : 수주, 대규모 계약, MOU, 공급계약
+- DILUTION : 유상증자, CB(전환사채), BW(신주인수권부사채) 발행
+- BUYBACK  : 자기주식 취득 또는 소각 결정
+- MNA      : 합병, 인수, 분할, 지분 취득
+- LEGAL    : 소송, 규제 조치, 과징금, 수사
+- CAPEX    : 설비투자, 공장 신증설, R&D 투자
+- OTHER    : 위 어느 항목에도 해당하지 않는 공시
 
 SENTIMENT SCORE GUIDE (sentiment_score):
 - A continuous float between -1.0 (strongly bearish) and +1.0 (strongly bullish).
