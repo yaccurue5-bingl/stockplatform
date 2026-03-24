@@ -35,7 +35,7 @@ async function fetchDisclosure(id: string) {
     .from('disclosure_insights')
     .select(
       'id, corp_name, stock_code, rcept_dt, report_nm, ' +
-      'headline, event_type, sentiment, sentiment_score, ' +
+      'headline, event_type, sentiment_score, ' +
       'ai_summary, key_numbers, risk_factors, financial_impact, ' +
       'analysis_status, is_visible'
     )
@@ -107,6 +107,9 @@ export default async function DisclosureDetailPage({
   }
   if (!disclosure) notFound();
 
+  const score = disclosure.sentiment_score ?? 0;
+  const sentiment = score >= 0.3 ? 'POSITIVE' : score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
+
   const eventLabel = EVENT_LABELS[disclosure.event_type ?? ''] ?? EVENT_LABELS.OTHER;
   const dateStr = disclosure.rcept_dt
     ? `${disclosure.rcept_dt.slice(0, 4)}-${disclosure.rcept_dt.slice(4, 6)}-${disclosure.rcept_dt.slice(6, 8)}`
@@ -155,7 +158,7 @@ export default async function DisclosureDetailPage({
               </div>
             </div>
             <SentimentBadge
-              sentiment={disclosure.sentiment ?? 'NEUTRAL'}
+              sentiment={sentiment}
               score={disclosure.sentiment_score}
             />
           </div>
