@@ -121,7 +121,7 @@ export async function GET(request: Request) {
         sentiment_score: firstItem.sentiment_score ?? 'N/A',
         short_term_impact_score: firstItem.short_term_impact_score ?? 'N/A',
         has_ai_summary: !!firstItem.ai_summary,
-        has_sonnet_summary: !!firstItem.sonnet_summary,
+        has_ai_summary: !!firstItem.ai_summary,
         updated_at: firstItem.updated_at || 'N/A',
       });
     } else {
@@ -145,8 +145,7 @@ export async function GET(request: Request) {
       const impactScore = typeof item.short_term_impact_score === 'number' ? item.short_term_impact_score : 3;
       const importance = impactScore >= 4 ? 'HIGH' : impactScore >= 2 ? 'MEDIUM' : 'LOW';
 
-      // Sonnet 분석이 있으면 Sonnet summary 사용, 없으면 Groq summary 사용
-      const summary = safeString(item.sonnet_summary || item.ai_summary);
+      const summary = safeString(item.ai_summary);
 
       // 영문 기업명 조회
       const corpNameEn = corpNameEnMap[item.stock_code] || null;
@@ -173,11 +172,8 @@ export async function GET(request: Request) {
         sector_en: sectorEn,
 
         // 추가 정보 (상세 페이지용)
-        sonnet_analyzed: Boolean(item.sonnet_analyzed),
-        detailed_analysis: safeString(item.sonnet_detailed_analysis || item.ai_summary),
-        investment_implications: safeString(item.sonnet_investment_implications),
-        risk_factors: item.sonnet_risk_factors || [],
-        key_metrics: item.sonnet_key_metrics || [],
+        detailed_analysis: safeString(item.financial_impact || item.ai_summary),
+        risk_factors: item.risk_factors ? [item.risk_factors] : [],
       };
 
       return transformed;

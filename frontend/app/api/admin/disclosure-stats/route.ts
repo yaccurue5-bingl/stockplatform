@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     // 2. ai_summary가 null인 공시 수
     const { count: nullSummaryCount, data: nullSummaryItems } = await supabase
       .from('disclosure_insights')
-      .select('id, corp_name, stock_code, report_nm, analysis_status, created_at, analyzed_at')
+      .select('id, corp_name, stock_code, report_nm, analysis_status, created_at, updated_at')
       .is('ai_summary', null)
       .order('created_at', { ascending: false })
       .limit(20);
@@ -38,34 +38,20 @@ export async function GET(req: NextRequest) {
       statusCounts[status] = (statusCounts[status] || 0) + 1;
     });
 
-    // 4. sentiment가 null인 공시 수
-    const { count: nullSentimentCount } = await supabase
-      .from('disclosure_insights')
-      .select('*', { count: 'exact', head: true })
-      .is('sentiment', null);
-
-    // 5. Sonnet 분석 완료된 공시 수
-    const { count: sonnetAnalyzedCount } = await supabase
-      .from('disclosure_insights')
-      .select('*', { count: 'exact', head: true })
-      .eq('sonnet_analyzed', true);
-
-    // 6. 최근 24시간 분석된 공시 수
+    // 4. 최근 24시간 분석된 공시 수 (updated_at 기준)
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
 
     const { count: recentAnalyzedCount } = await supabase
       .from('disclosure_insights')
       .select('*', { count: 'exact', head: true })
-      .gte('analyzed_at', yesterday.toISOString());
+      .gte('updated_at', yesterday.toISOString());
 
     return NextResponse.json({
       success: true,
       stats: {
         total_disclosures: totalCount || 0,
         null_summary_count: nullSummaryCount || 0,
-        null_sentiment_count: nullSentimentCount || 0,
-        sonnet_analyzed_count: sonnetAnalyzedCount || 0,
         recent_24h_analyzed: recentAnalyzedCount || 0,
         status_breakdown: statusCounts,
       },
