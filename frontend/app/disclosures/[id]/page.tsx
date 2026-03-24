@@ -7,10 +7,11 @@
  * - Next.js revalidate 3600s (공시 데이터는 불변 — 1h 후 재검증)
  */
 
-import { notFound, redirect, RedirectType } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import HistoryInject from './HistoryInject';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -111,18 +112,10 @@ export default async function DisclosureDetailPage({
 }) {
   const { id } = await params;
 
-  const disclosure = await fetchDisclosure(id);
-
-  // 로그인 상태이면 공시 상세 페이지로 바로 이동 (히스토리 replace — 뒤로가기 트랩 방지)
-  const user = await getUser();
-  if (user) {
-    const stock = disclosure?.stock_code;
-    const target = stock
-      ? `/disclosures?stock=${stock}&disclosure=${id}`
-      : '/disclosures';
-    redirect(target, RedirectType.replace);
-  }
+  const [disclosure, user] = await Promise.all([fetchDisclosure(id), getUser()]);
   if (!disclosure) notFound();
+
+  const isLoggedIn = !!user;
 
   const score = disclosure.sentiment_score ?? 0;
   const sentiment = score >= 0.3 ? 'POSITIVE' : score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
@@ -132,17 +125,31 @@ export default async function DisclosureDetailPage({
     ? `${disclosure.rcept_dt.slice(0, 4)}-${disclosure.rcept_dt.slice(4, 6)}-${disclosure.rcept_dt.slice(6, 8)}`
     : '';
 
+  // key_numbers JSON 파싱
+  const keyNums = (() => {
+    try {
+      const raw = disclosure.key_numbers;
+      if (!raw) return null;
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (typeof parsed === 'object' && parsed !== null) return parsed as Record<string, string>;
+      return null;
+    } catch { return null; }
+  })();
+
   return (
     <main className="min-h-screen bg-[#0D1117] text-white">
+      {/* 로그인 유저: history에 /disclosures 주입 (뒤로가기 시 all list로 이동) */}
+      {isLoggedIn && <HistoryInject />}
+
       {/* 상단 네비 */}
       <div className="border-b border-gray-800 px-4 py-3">
         <div className="max-w-3xl mx-auto">
           <Link
-            href="/"
+            href="/disclosures"
             className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
           >
             <ArrowLeft size={15} />
-            K-Market Insight
+            All Disclosures
           </Link>
         </div>
       </div>
@@ -174,14 +181,11 @@ export default async function DisclosureDetailPage({
                 <p className="text-xs text-gray-500">{disclosure.stock_code}</p>
               </div>
             </div>
-            <SentimentBadge
-              sentiment={sentiment}
-              score={disclosure.sentiment_score}
-            />
+            <SentimentBadge sentiment={sentiment} score={disclosure.sentiment_score} />
           </div>
         </div>
 
-        {/* 공개 섹션: financial_impact 요약 한 줄 */}
+        {/* Financial Impact (항상 공개) */}
         {disclosure.financial_impact && (
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-2">
@@ -191,44 +195,77 @@ export default async function DisclosureDetailPage({
           </div>
         )}
 
-        {/* 블러 섹션 (로그인/플랜 필요) */}
-        <BlurredSection title="AI Summary" />
-        <BlurredSection title="Key Numbers" />
-        <BlurredSection title="Risk Factors" />
+        {/* ── 로그인 유저: 전체 공개 ── */}
+        {isLoggedIn ? (
+          <>
+            {disclosure.ai_summary && (
+              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">AI Summary</p>
+                <p className="text-sm text-gray-300 leading-relaxed">{disclosure.ai_summary}</p>
+              </div>
+            )}
 
-        {/* CTA */}
-        <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
-          <p className="text-lg font-bold">Get full AI analysis</p>
-          <p className="text-sm text-gray-400">
-            Access AI summaries, key financial figures, and risk assessments for every DART disclosure.
-          </p>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <Link
-              href={`/login?redirectTo=${encodeURIComponent(
-                disclosure.stock_code
-                  ? `/disclosures?stock=${disclosure.stock_code}&disclosure=${id}`
-                  : '/disclosures'
-              )}`}
-              className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="px-6 py-2.5 rounded-full border border-gray-700 text-sm font-medium hover:border-gray-500 transition"
-            >
-              Create account
-            </Link>
-          </div>
-        </div>
+            {keyNums && Object.keys(keyNums).length > 0 && (
+              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">Key Numbers</p>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {Object.entries(keyNums).map(([k, v]) => (
+                    <div key={k} className="bg-gray-800/50 rounded-lg px-4 py-3">
+                      <dt className="text-xs text-gray-500 mb-1">{k}</dt>
+                      <dd className="text-sm font-semibold text-white">{String(v)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
 
-        {/* 하단 링크 */}
-        <p className="text-center text-xs text-gray-600">
-          Already have access?{' '}
-          <Link href="/disclosures" className="text-[#00D4A6] hover:underline">
-            View all disclosures →
-          </Link>
-        </p>
+            {disclosure.risk_factors && (
+              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">Risk Factors</p>
+                <p className="text-sm text-gray-300 leading-relaxed">{disclosure.risk_factors}</p>
+              </div>
+            )}
+          </>
+        ) : (
+          /* ── 비로그인: 블러 + CTA ── */
+          <>
+            <BlurredSection title="AI Summary" />
+            <BlurredSection title="Key Numbers" />
+            <BlurredSection title="Risk Factors" />
+
+            <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
+              <p className="text-lg font-bold">Get full AI analysis</p>
+              <p className="text-sm text-gray-400">
+                Access AI summaries, key financial figures, and risk assessments for every DART disclosure.
+              </p>
+              <div className="flex items-center justify-center gap-3 flex-wrap">
+                <Link
+                  href={`/login?redirectTo=${encodeURIComponent(
+                    disclosure.stock_code
+                      ? `/disclosures?stock=${disclosure.stock_code}&disclosure=${id}`
+                      : '/disclosures'
+                  )}`}
+                  className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="px-6 py-2.5 rounded-full border border-gray-700 text-sm font-medium hover:border-gray-500 transition"
+                >
+                  Create account
+                </Link>
+              </div>
+            </div>
+
+            <p className="text-center text-xs text-gray-600">
+              Already have access?{' '}
+              <Link href="/disclosures" className="text-[#00D4A6] hover:underline">
+                View all disclosures →
+              </Link>
+            </p>
+          </>
+        )}
       </div>
     </main>
   );
