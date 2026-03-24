@@ -4,14 +4,17 @@ backend/routers/v1/events.py
 GET /v1/events
 
 기업 이벤트 통계 (유상증자, 자사주, 배당 등 이벤트별 주가 반응 통계).
-event_statistics + disclosure_events 테이블 데이터를 반환합니다.
+event_stats + disclosure_insights 테이블 데이터를 반환합니다.
+
+이전: event_statistics + disclosure_events (구 파이프라인, 더 이상 갱신 안 됨)
+현재: event_stats (backfill_prices --stats-only 로 갱신)
+      disclosure_insights (dart_crawler + auto_analyst 로 갱신)
 
 플랜 접근:
     developer, pro
 
 캐시:
     TTL 3600 초 (60 min)  —  event_stats 는 backfill_prices --stats-only 후 갱신됨
-    두 번째 쿼리(disclosure_events)는 날짜 범위 포함이므로 캐시 키에 포함.
 """
 
 import logging
@@ -32,24 +35,33 @@ router = APIRouter(prefix="/v1", tags=["v1 - Corporate Events"])
 # ── 응답 스키마 ───────────────────────────────────────────────────────────────
 
 class EventStatItem(BaseModel):
-    event_type:  str
-    avg_1d:      Optional[float] = None
-    avg_3d:      Optional[float] = None
-    avg_5d:      Optional[float] = None
-    std_1d:      Optional[float] = None
-    std_3d:      Optional[float] = None
-    std_5d:      Optional[float] = None
-    sample_size: Optional[int]   = None
-    last_updated_at: Optional[str] = None
+    """
+    이벤트 유형별 주가 반응 통계.
+    event_stats 테이블 기반 (backfill_prices --stats-only 로 갱신).
+    avg_5d_return: 공시 후 5거래일 평균 수익률 (%)
+    std_5d:        표준편차
+    sample_size:   통계 샘플 수
+    """
+    event_type:      str
+    avg_5d_return:   Optional[float] = None
+    avg_20d_return:  Optional[float] = None
+    std_5d:          Optional[float] = None
+    sample_size:     Optional[int]   = None
 
 
 class RecentEventItem(BaseModel):
+    """
+    최근 공시 이벤트 목록.
+    disclosure_insights 테이블 기반 (실시간 파이프라인 갱신).
+    final_score: AI + LPS 반영 종합 스코어 (0~100)
+    signal_tag:  매매 시그널 (BUY / HOLD / SELL 등)
+    """
     stock_code:      str
+    corp_name:       Optional[str]   = None
     event_type:      str
-    disclosure_date: str
-    return_1d:       Optional[float] = None
-    return_3d:       Optional[float] = None
-    return_5d:       Optional[float] = None
+    disclosure_date: str             # rcept_dt (YYYYMMDD)
+    final_score:     Optional[float] = None
+    signal_tag:      Optional[str]   = None
 
 
 class EventsResponse(BaseModel):
@@ -66,7 +78,8 @@ class EventsResponse(BaseModel):
     response_model=EventsResponse,
     summary="기업 이벤트 통계 조회",
     description=(
-        "이벤트 유형별 평균 주가 반응(1/3/5일 수익률)과 최근 이벤트 목록을 반환합니다.\n\n"
+        "이벤트 유형별 평균 주가 반응(5일/20일 수익률)과 최근 공시 이벤트 목록을 반환합니다.\n\n"
+        "**통계**: 공시 후 5거래일 평균 수익률, 표준편차, 샘플 수\n\n"
         "**developer**: 이벤트 통계 + 최근 3일 이벤트\n"
         "**pro**: 이벤트 통계 + 최근 30일 이벤트"
     ),
@@ -122,34 +135,49 @@ async def get_events(
     try:
         sb = get_supabase()
 
-        # ① 이벤트 통계 (event_statistics 전체)
-        stat_query = sb.table("event_statistics").select(
-            "event_type, avg_1d, avg_3d, avg_5d, std_1d, std_3d, std_5d, "
-            "sample_size, last_updated_at"
-        ).order("sample_size", desc=True)
-
+        # ① 이벤트 통계 — event_stats (backfill_prices --stats-only 로 갱신)
+        stat_query = (
+            sb.table("event_stats")
+            .select("event_type, avg_5d_return, avg_20d_return, std_5d, sample_size")
+            .order("sample_size", desc=True)
+        )
         if event_type:
             stat_query = stat_query.eq("event_type", event_type)
 
         stat_resp = stat_query.execute()
         statistics = [EventStatItem(**row) for row in (stat_resp.data or [])]
 
-        # ② 최근 이벤트 목록 (disclosure_events)
-        ev_query = (
-            sb.table("disclosure_events")
-            .select("stock_code, event_type, disclosure_date, return_1d, return_3d, return_5d")
-            .gte("disclosure_date", dt_from.isoformat())
-            .lte("disclosure_date", dt_to.isoformat())
-            .order("disclosure_date", desc=True)
-        )
+        # ② 최근 이벤트 목록 — disclosure_insights (실시간 파이프라인)
+        # rcept_dt 는 YYYYMMDD TEXT → 문자열 대소비교로 날짜 필터
+        dt_from_str = dt_from.strftime("%Y%m%d")
+        dt_to_str   = dt_to.strftime("%Y%m%d")
 
+        ev_query = (
+            sb.table("disclosure_insights")
+            .select("stock_code, corp_name, event_type, rcept_dt, final_score, signal_tag")
+            .gte("rcept_dt", dt_from_str)
+            .lte("rcept_dt", dt_to_str)
+            .not_.is_("event_type", "null")
+            .eq("is_visible", True)
+            .order("rcept_dt", desc=True)
+        )
         if stock_code:
             ev_query = ev_query.eq("stock_code", stock_code)
         if event_type:
             ev_query = ev_query.eq("event_type", event_type)
 
         ev_resp = ev_query.limit(limit).execute()
-        recent_events = [RecentEventItem(**row) for row in (ev_resp.data or [])]
+        recent_events = [
+            RecentEventItem(
+                stock_code=row["stock_code"],
+                corp_name=row.get("corp_name"),
+                event_type=row["event_type"],
+                disclosure_date=row["rcept_dt"],
+                final_score=row.get("final_score"),
+                signal_tag=row.get("signal_tag"),
+            )
+            for row in (ev_resp.data or [])
+        ]
 
     except Exception as e:
         logger.error(f"[events] DB 조회 오류: {e}")

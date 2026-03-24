@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__list_tables",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__list_tables",
+      "Bash(find /c/Users/user/stockplatform/scripts -name *.py)",
+      "Bash(grep -rn \"employee_count\\\\|established_at\\\\|representative\\\\|corp_reg_no\\\\|homepage_url\\\\|foreign_hold_shares\" /c/Users/user/stockplatform/frontend /c/Users/user/stockplatform/scripts --include=*.ts --include=*.tsx --include=*.py)",
+      "Bash(cat /c/Users/user/stockplatform/frontend/app/disclosures/[id]/page.tsx)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase",
+    "github"
+  ]
+}
