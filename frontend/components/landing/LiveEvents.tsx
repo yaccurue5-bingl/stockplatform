@@ -80,7 +80,7 @@ export default async function LiveEvents() {
       <div className="flex flex-col gap-3">
         {events.map((e) => (
           <Link
-            key={`${e.company}-${e.ticker}`}
+            key={e.id || `${e.company}-${e.ticker}`}
             href={e.id ? `/disclosures/${e.id}` : '/disclosures'}
             className="block"
           >
