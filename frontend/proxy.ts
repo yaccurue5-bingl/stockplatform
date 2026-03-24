@@ -88,10 +88,14 @@ export default async function proxy(req: NextRequest) {
     '/disclosures/',           // 개별 공시 상세 페이지 (공개 미끼 상품)
   ];
 
-  // 로그인한 사용자가 /login, /signup 접근 시 홈으로 리다이렉트
+  // 로그인한 사용자가 /login, /signup 접근 시 redirectTo 혹은 홈으로 리다이렉트
+  // (뒤로가기로 /login에 다시 진입하는 히스토리 루프 방지)
   const authPaths = ['/login', '/signup'];
   if (session && authPaths.some((path) => pathname.startsWith(path))) {
-    return NextResponse.redirect(new URL('/', req.url));
+    const raw = req.nextUrl.searchParams.get('redirectTo') || '/';
+    // open-redirect 방어: 반드시 내부 상대 경로만 허용
+    const safe = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
+    return NextResponse.redirect(new URL(safe, req.url));
   }
 
   // /login, /signup은 로그인 안한 사용자만 접근 가능
