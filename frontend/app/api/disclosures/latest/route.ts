@@ -121,7 +121,6 @@ export async function GET(request: Request) {
         sentiment_score: firstItem.sentiment_score ?? 'N/A',
         short_term_impact_score: firstItem.short_term_impact_score ?? 'N/A',
         has_ai_summary: !!firstItem.ai_summary,
-        has_ai_summary: !!firstItem.ai_summary,
         updated_at: firstItem.updated_at || 'N/A',
       });
     } else {
