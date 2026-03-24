@@ -25,9 +25,9 @@ const SENTIMENT_STYLE: Record<string, string> = {
 
 // DB에 데이터가 없을 때 표시할 폴백 (초기 셋업 기간 대비)
 const FALLBACK_EVENTS = [
-  { company: 'Samsung Electronics', ticker: '005930', event: 'Earnings Beat',      impact: '+0.83', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
-  { company: 'SK Hynix',            ticker: '000660', event: 'Capital Investment',  impact: '+0.71', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
-  { company: 'Hyundai Motor',        ticker: '005380', event: 'Strategic Contract', impact: '+0.65', positive: true,  color: SENTIMENT_STYLE.NEUTRAL  },
+  { id: '', company: 'Samsung Electronics', ticker: '005930', event: 'Earnings Beat',      impact: '+0.83', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
+  { id: '', company: 'SK Hynix',            ticker: '000660', event: 'Capital Investment',  impact: '+0.71', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
+  { id: '', company: 'Hyundai Motor',        ticker: '005380', event: 'Strategic Contract', impact: '+0.65', positive: true,  color: SENTIMENT_STYLE.NEUTRAL  },
 ];
 
 // ── 데이터 페칭 ───────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ async function fetchLatestEvents() {
     const sb = createServiceClient();
     const { data, error } = await sb
       .from('disclosure_insights')
-      .select('id, corp_name, stock_code, event_type, sentiment, sentiment_score')
+      .select('id, corp_name, stock_code, event_type, sentiment_score')
       .eq('analysis_status', 'completed')
       .eq('is_visible', true)
       .order('rcept_dt', { ascending: false })
@@ -47,7 +47,7 @@ async function fetchLatestEvents() {
 
     return data.map((row) => {
       const score  = row.sentiment_score ?? 0;
-      const sentiment = (row.sentiment ?? 'NEUTRAL').toUpperCase();
+      const sentiment = score >= 0.3 ? 'POSITIVE' : score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
       return {
         id:       row.id ?? '',
         company:  row.corp_name ?? '',

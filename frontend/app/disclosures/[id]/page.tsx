@@ -29,7 +29,24 @@ const EVENT_LABELS: Record<string, string> = {
 
 // ── 데이터 페칭 ───────────────────────────────────────────────────────────────
 
-async function fetchDisclosure(id: string) {
+interface DisclosureRow {
+  id: string;
+  corp_name: string | null;
+  stock_code: string | null;
+  rcept_dt: string;
+  report_nm: string;
+  headline: string | null;
+  event_type: string | null;
+  sentiment_score: number | null;
+  ai_summary: string | null;
+  key_numbers: unknown;
+  risk_factors: string | null;
+  financial_impact: string | null;
+  analysis_status: string | null;
+  is_visible: boolean | null;
+}
+
+async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
   const sb = createServiceClient();
   const { data, error } = await sb
     .from('disclosure_insights')
@@ -45,7 +62,7 @@ async function fetchDisclosure(id: string) {
     .single();
 
   if (error || !data) return null;
-  return data;
+  return data as unknown as DisclosureRow;
 }
 
 // ── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
