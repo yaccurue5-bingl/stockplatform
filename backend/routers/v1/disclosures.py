@@ -38,9 +38,8 @@ class DisclosureItem(BaseModel):
     stock_code:      Optional[str] = None
     report_nm:       str
     rcept_dt:        str
-    sentiment:       Optional[str] = None
-    sentiment_score: Optional[float] = None
-    importance:      Optional[str] = None
+    sentiment_score:         Optional[float] = None
+    short_term_impact_score: Optional[int]   = None
     event_type:      Optional[str] = None
     ai_summary:      Optional[str] = None
     # 스코어 (developer+): BaseScore · FinalScore · 시그널 태그
@@ -48,12 +47,10 @@ class DisclosureItem(BaseModel):
     final_score:     Optional[float] = None
     signal_tag:      Optional[str]   = None
     # pro 전용: 상세 분석
-    headline:               Optional[str]   = None
-    financial_impact:       Optional[str]   = None
-    short_term_impact_score: Optional[int]  = None
-    base_score_raw:         Optional[float] = None
-    analysis:               Optional[str]   = None
-    risk_factors:           Optional[str]   = None
+    headline:        Optional[str]   = None
+    financial_impact: Optional[str]  = None
+    base_score_raw:  Optional[float] = None
+    risk_factors:    Optional[str]   = None
 
 
 class DisclosuresResponse(BaseModel):
@@ -68,13 +65,12 @@ class DisclosuresResponse(BaseModel):
 # developer: 기본 컬럼 + 스코어
 _DEV_COLUMNS = (
     "id, rcept_no, corp_name, stock_code, report_nm, rcept_dt, "
-    "sentiment, sentiment_score, importance, event_type, ai_summary, "
+    "sentiment_score, short_term_impact_score, event_type, ai_summary, "
     "base_score, final_score, signal_tag"
 )
 # pro: 상세 분석 추가
 _PRO_COLUMNS = _DEV_COLUMNS + (
-    ", headline, financial_impact, short_term_impact_score, "
-    "base_score_raw, analysis, risk_factors"
+    ", headline, financial_impact, base_score_raw, risk_factors"
 )
 
 
@@ -130,7 +126,7 @@ async def get_disclosures(
     if sentiment and sentiment.upper() not in ("POSITIVE", "NEGATIVE", "NEUTRAL"):
         raise HTTPException(
             status_code=400,
-            detail="sentiment는 POSITIVE, NEGATIVE, NEUTRAL 중 하나여야 합니다.",
+            detail="sentiment는 POSITIVE, NEGATIVE, NEUTRAL 중 하나여야 합니다. (sentiment_score 기준: ≥0.3 POSITIVE, ≤-0.3 NEGATIVE)",
         )
 
     # rcept_dt 는 YYYYMMDD TEXT
@@ -177,7 +173,13 @@ async def get_disclosures(
         if stock_code:
             query = query.eq("stock_code", stock_code)
         if sentiment:
-            query = query.eq("sentiment", sentiment.upper())
+            s = sentiment.upper()
+            if s == "POSITIVE":
+                query = query.gte("sentiment_score", 0.3)
+            elif s == "NEGATIVE":
+                query = query.lte("sentiment_score", -0.3)
+            else:  # NEUTRAL
+                query = query.gt("sentiment_score", -0.3).lt("sentiment_score", 0.3)
         if event_type:
             query = query.eq("event_type", event_type)
 

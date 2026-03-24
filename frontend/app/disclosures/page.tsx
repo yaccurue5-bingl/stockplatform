@@ -18,7 +18,7 @@ interface Disclosure {
   sentiment: string;
   sentiment_score: number;
   importance: string;
-  analyzed_at: string;
+  updated_at: string;
   sector?: string;
   sector_en?: string;
   detailed_analysis?: string;
@@ -137,13 +137,13 @@ function DisclosuresContent() {
               market: 'KOSPI',
               report_name: result.latest_disclosure.report_nm,
               summary: '',
-              sentiment: result.latest_disclosure.sentiment || 'NEUTRAL',
+              sentiment: 'NEUTRAL',
               sentiment_score: 0,
-              importance: result.latest_disclosure.importance || 'MEDIUM',
-              analyzed_at: result.latest_disclosure.analyzed_at,
+              importance: 'MEDIUM',
+              updated_at: result.latest_disclosure.updated_at || result.latest_disclosure.rcept_dt || '',
             }] : [],
-            latestImportance: result.latest_disclosure?.importance || 'MEDIUM',
-            hasHighImpact: result.latest_disclosure?.importance === 'HIGH',
+            latestImportance: 'MEDIUM',
+            hasHighImpact: false,
           };
         }).filter((stock: GroupedStock) => stock.disclosures.length > 0);
 
@@ -491,7 +491,7 @@ function DisclosuresContent() {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className={`text-sm font-medium truncate ${isSelected ? 'text-white' : 'text-gray-300'}`}>
-                          {formatDate(disclosure.analyzed_at)}: {disclosure.report_name?.substring(0, 20)}...
+                          {formatDate(disclosure.updated_at)}: {disclosure.report_name?.substring(0, 20)}...
                         </div>
                         {isCurrent && isSelected && (
                           <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded mt-1 inline-block">
@@ -553,7 +553,7 @@ function DisclosuresContent() {
                     <p><span className="text-gray-500">corp_name</span></p>
                     <p>{selectedStock.corp_name_en || selectedStock.corp_name}</p>
                     <p><span className="text-gray-500">sector</span> {selectedDisclosure.sector_en || selectedDisclosure.sector || 'Others'}</p>
-                    <p>{formatDateTime(selectedDisclosure.analyzed_at)}</p>
+                    <p>{formatDateTime(selectedDisclosure.updated_at)}</p>
                   </div>
                 </div>
               </div>
@@ -796,7 +796,7 @@ function DisclosuresContent() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-gray-500 mb-1">{getTimeAgo(latestDisclosure.analyzed_at)}</div>
+                      <div className="text-xs text-gray-500 mb-1">{getTimeAgo(latestDisclosure.updated_at)}</div>
                       <span className={`inline-block text-xs px-3 py-1 rounded-full font-medium ${getImpactColor(stock.latestImportance, stock.hasHighImpact)}`}>
                         {disclosureCount} disclosure{disclosureCount > 1 ? 's' : ''}
                       </span>

@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
     // 최신 공시 데이터 가져오기
     const { data: rawDisclosures, error } = await query
-      .order('analyzed_at', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(stockParam ? 50 : limit * 2);  // 특정 종목은 더 많이, 전체는 스팩 필터링용
 
     // 스팩/기업인수목적 종목 필터링 (특정 종목 필터가 없을 때만)
@@ -118,13 +118,11 @@ export async function GET(request: Request) {
         stock_code: firstItem.stock_code || 'N/A',
         report_nm: safeReportNm.substring(0, Math.min(50, safeReportNm.length)),
         analysis_status: firstItem.analysis_status,
-        sentiment: firstItem.sentiment || 'N/A',
-        importance: firstItem.importance || 'N/A',
+        sentiment_score: firstItem.sentiment_score ?? 'N/A',
+        short_term_impact_score: firstItem.short_term_impact_score ?? 'N/A',
         has_ai_summary: !!firstItem.ai_summary,
         has_sonnet_summary: !!firstItem.sonnet_summary,
-        sonnet_analyzed: firstItem.sonnet_analyzed,
-        is_sample: firstItem.is_sample_disclosure,
-        analyzed_at: firstItem.analyzed_at || 'N/A',
+        updated_at: firstItem.updated_at || 'N/A',
       });
     } else {
       console.warn('⚠️ [API] No disclosures found with analysis_status=completed');
@@ -138,6 +136,14 @@ export async function GET(request: Request) {
       const safeString = (value: any, defaultValue: string = ''): string => {
         return value != null ? String(value) : defaultValue;
       };
+
+      // sentiment_score → sentiment 문자열 파생
+      const sentimentScore = typeof item.sentiment_score === 'number' ? item.sentiment_score : 0;
+      const sentiment = sentimentScore >= 0.3 ? 'POSITIVE' : sentimentScore <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
+
+      // short_term_impact_score → importance 문자열 파생
+      const impactScore = typeof item.short_term_impact_score === 'number' ? item.short_term_impact_score : 3;
+      const importance = impactScore >= 4 ? 'HIGH' : impactScore >= 2 ? 'MEDIUM' : 'LOW';
 
       // Sonnet 분석이 있으면 Sonnet summary 사용, 없으면 Groq summary 사용
       const summary = safeString(item.sonnet_summary || item.ai_summary);
@@ -157,10 +163,10 @@ export async function GET(request: Request) {
         market: safeString(item.market, 'KOSPI'),
         report_name: safeString(item.report_nm, 'Disclosure Report'),
         summary: summary,
-        sentiment: safeString(item.sentiment, 'NEUTRAL'),
-        sentiment_score: typeof item.sentiment_score === 'number' ? item.sentiment_score : 0,
-        importance: safeString(item.importance, 'MEDIUM'),
-        analyzed_at: safeString(item.analyzed_at, new Date().toISOString()),
+        sentiment,
+        sentiment_score: sentimentScore,
+        importance,
+        updated_at: safeString(item.updated_at, new Date().toISOString()),
 
         // 섹터 정보
         sector: sectorKr,
@@ -168,7 +174,6 @@ export async function GET(request: Request) {
 
         // 추가 정보 (상세 페이지용)
         sonnet_analyzed: Boolean(item.sonnet_analyzed),
-        is_sample: Boolean(item.is_sample_disclosure),
         detailed_analysis: safeString(item.sonnet_detailed_analysis || item.ai_summary),
         investment_implications: safeString(item.sonnet_investment_implications),
         risk_factors: item.sonnet_risk_factors || [],
@@ -187,6 +192,7 @@ export async function GET(request: Request) {
         summary_length: (transformedDisclosures[0].summary || '').length,
         summary_preview: (transformedDisclosures[0].summary || '').substring(0, 100),
         sentiment: transformedDisclosures[0].sentiment,
+        sentiment_score: transformedDisclosures[0].sentiment_score,
         importance: transformedDisclosures[0].importance,
       } : null,
     });
