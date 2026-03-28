@@ -72,7 +72,7 @@ Return JSON format:
   "report_nm": "professional English title",
   "headline": "Core summary (under 50 chars)",
   "key_numbers": ["• Figure 1", "• Figure 2", "• Figure 3"],
-  "event_type": "ONE_TIME or STRUCTURAL or NEUTRAL",
+  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | MNA | LEGAL | CAPEX | OTHER",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
   "sentiment_score": <float -1.0 to +1.0>,
@@ -256,7 +256,10 @@ def main():
     logger.info("\n" + "=" * 55)
     logger.info(f"  완료: 성공 {success}건 / 실패 {failure}건")
     logger.info("=" * 55)
-    sys.exit(0 if failure == 0 else 1)
+    # 개별 항목 실패(Groq rate-limit 등)는 배치 전체 실패로 보지 않음.
+    # Supabase/Groq 초기화 실패는 _get_supabase()/_get_groq() 에서 sys.exit(1) 처리.
+    fail_rate = failure / len(targets) if targets else 0
+    sys.exit(1 if fail_rate >= 0.5 else 0)
 
 
 if __name__ == "__main__":
