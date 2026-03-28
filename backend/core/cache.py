@@ -124,6 +124,15 @@ async def _get_redis():
         logger.info("[cache] REDIS_URL 미설정 → in-process 캐시 사용")
         return None
 
+    # Upstash REST URL(https://)은 Redis 프로토콜(rediss://)로 자동 변환
+    token = os.getenv("REDIS_TOKEN")
+    if url.startswith("https://") and token:
+        host = url.replace("https://", "").rstrip("/")
+        url = f"rediss://default:{token}@{host}:6379"
+    elif url.startswith("https://"):
+        logger.warning("[cache] Upstash REST URL이지만 REDIS_TOKEN 없음 → 로컬 캐시 사용")
+        return None
+
     try:
         import redis.asyncio as aioredis  # type: ignore[import]
 

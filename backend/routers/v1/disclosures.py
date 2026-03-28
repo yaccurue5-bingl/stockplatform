@@ -163,7 +163,7 @@ async def get_disclosures(
             .gte("rcept_dt", dt_from_str)
             .lte("rcept_dt", dt_to_str)
             .eq("analysis_status", "completed")
-            .order(sort_col, desc=True, nulls_first=False)
+            .order(sort_col, desc=True, nullsfirst=False)
         )
 
         # developer 플랜: is_visible=true 항목만
