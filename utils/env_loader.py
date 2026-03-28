@@ -42,11 +42,15 @@ def load_env(env_file: str = ".env.local") -> None:
             Path("/home/user/stockplatform") / env_file,          # Linux 경로
         ]
 
+        # CI(GitHub Actions)에서는 이미 환경변수가 주입되어 있으므로 override=False
+        is_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
+        override = not is_ci
+
         loaded = False
         for env_path in possible_paths:
             if env_path.exists():
-                load_dotenv(dotenv_path=env_path, override=True)
-                print(f"✅ 환경변수 로드 완료: {env_path}")
+                load_dotenv(dotenv_path=env_path, override=override)
+                print(f"✅ 환경변수 로드 완료: {env_path} (override={override})")
                 loaded = True
                 break
 

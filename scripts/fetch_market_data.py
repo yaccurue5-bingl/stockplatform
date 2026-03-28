@@ -299,7 +299,8 @@ def main():
     service_key = os.environ.get("PUBLIC_DATA_API_KEY")
     if not service_key:
         print("[ERROR] PUBLIC_DATA_API_KEY 환경변수가 설정되지 않았습니다.")
-        print("  frontend/.env.local 또는 .env.local 에 추가하세요.")
+        print("  로컬: .env.local 에 PUBLIC_DATA_API_KEY=<키값> 추가")
+        print("  GitHub Actions: 레포 Settings → Secrets → PUBLIC_DATA_API_KEY 등록 확인")
         sys.exit(1)
 
     bas_dt = args.date or get_target_business_day()
