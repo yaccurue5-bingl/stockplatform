@@ -63,7 +63,14 @@
       "Bash(grep -rn \"event_statistics\\\\|test_dilution_events\\\\|disclosure_events\" /c/Users/user/stockplatform/scripts/ /c/Users/user/stockplatform/backend/ /c/Users/user/stockplatform/frontend/ --include=*.py --include=*.ts --include=*.tsx)",
       "Bash(grep -rn \"event_statistics\\\\|disclosure_events\" /c/Users/user/stockplatform/scripts/ --include=*.py)",
       "Bash(ls /c/Users/user/stockplatform/scripts/*.py)",
-      "Bash(xargs -I{} basename {})"
+      "Bash(xargs -I{} basename {})",
+      "Bash(grep -rn \"disclosure_insights\\\\|\\\\.select\\\\|\\\\.update\\\\|\\\\.upsert\\\\|\\\\.insert\" /c/Users/user/stockplatform/scripts/ /c/Users/user/stockplatform/backend/ --include=*.py)",
+      "Bash(grep -rn [a-z_]* /c/Users/user/stockplatform/scripts/dart_crawler.py /c/Users/user/stockplatform/scripts/auto_analyst.py /c/Users/user/stockplatform/scripts/compute_base_score.py /c/Users/user/stockplatform/scripts/backfill_prices.py /c/Users/user/stockplatform/scripts/compute_sector_signals.py /c/Users/user/stockplatform/backend/routers/v1/disclosures.py /c/Users/user/stockplatform/backend/routers/v1/events.py)",
+      "Bash(cmd //c \"where node\")",
+      "Bash(cmd //c \"where npm\")",
+      "Bash(cmd //c \"for %I in \\(\"\"C:\\\\Program Files\\\\nodejs\\\\npm.cmd\"\"\\) do echo %~sI\")",
+      "Bash(cmd //c \"dir /x \"\"C:\\\\Program Files\"\" | grep -i node\")",
+      "Bash(cmd //c \"dir /x \"\"C:\\\\Program Files\"\"\")"
     ]
   },
   "enableAllProjectMcpServers": true,
