@@ -53,10 +53,11 @@ interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   userEmail?: string | null;
+  userId?: string | null;
   planType?: PlanType;
 }
 
-export default function PaymentModal({ isOpen, onClose, userEmail, planType = 'developer' }: PaymentModalProps) {
+export default function PaymentModal({ isOpen, onClose, userEmail, userId, planType = 'developer' }: PaymentModalProps) {
   const router = useRouter();
   const [paddle, setPaddle] = useState<Paddle | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
@@ -99,6 +100,8 @@ export default function PaymentModal({ isOpen, onClose, userEmail, planType = 'd
       await paddle.Checkout.open({
         items: [{ priceId: plan.priceId, quantity: 1 }],
         customer: userEmail ? { email: userEmail } : undefined,
+        // webhook에서 user_id 추출에 사용됨 (resolveUserId 참조)
+        customData: userId ? { user_id: userId } : undefined,
         // ✅ successUrl 제거: window.location.href 이동 시 TAB_SESSION_ID가 재생성되어
         //    Realtime 중복 감지가 오작동 → 세션 아웃 발생. eventCallback으로 대체.
       });
