@@ -84,10 +84,10 @@ async def _resolve_api_key(
             sb.table("users")
             .select("id, email, plan")
             .eq("api_key", api_key)
-            .single()
+            .maybe_single()
             .execute()
         )
-        user = resp.data
+        user = resp.data if resp else None
     except HTTPException:
         raise
     except Exception as e:
