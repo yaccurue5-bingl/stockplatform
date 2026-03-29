@@ -57,9 +57,18 @@ _NOISE_KEYWORDS = [
     "주주명부폐쇄기준일", "배당기준일", "명의개서정지",
 ]
 
+# 종목명 필터 — 스팩/펀드/부동산리츠 등 투자 시그널 무의미 종목 제외
+_NOISE_CORP_KEYWORDS = [
+    "전문유한회사", "부동산투자회사", "스팩", "자산운용", "펀드", "기업인수목적",
+]
+
 def is_noise_disclosure(report_nm: str) -> bool:
     t = (report_nm or "").lower()
     return any(kw.lower() in t for kw in _NOISE_KEYWORDS)
+
+def is_noise_corp(corp_name: str) -> bool:
+    t = (corp_name or "").lower()
+    return any(kw.lower() in t for kw in _NOISE_CORP_KEYWORDS)
 
 def generate_hash_key(corp_code: str, rcept_no: str) -> str:
     """공시 hash key 생성"""
@@ -236,8 +245,12 @@ def run_crawler():
 
             # 노이즈 공시 스킵 (투자 시그널 가치 낮음 — Groq 토큰 낭비 방지)
             report_nm = item.get("report_nm", "")
+            corp_name_val = item.get("corp_name", "")
             if is_noise_disclosure(report_nm):
                 logger.info(f"⏭ 노이즈 공시 스킵: {report_nm}")
+                continue
+            if is_noise_corp(corp_name_val):
+                logger.info(f"⏭ 노이즈 종목 스킵: {corp_name_val}")
                 continue
 
             # 정제된 본문 추출 함수 호출 (내부에서 sleep + 재시도 처리)

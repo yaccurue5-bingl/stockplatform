@@ -53,6 +53,11 @@ NOISE_KEYWORDS = [
     "주주명부폐쇄기준일", "배당기준일", "명의개서정지",
 ]
 
+# 종목명 필터 — 스팩/펀드/부동산리츠 등 투자 시그널 무의미 종목 제외
+NOISE_CORP_KEYWORDS = [
+    "전문유한회사", "부동산투자회사", "스팩", "자산운용", "펀드", "기업인수목적",
+]
+
 # 구분류 event_type 값 (재분석 대상)
 OLD_EVENT_TYPES = ["ONE_TIME", "STRUCTURAL", "NEUTRAL"]
 
@@ -101,15 +106,21 @@ def show_counts(sb: Client):
 
     # 노이즈 건수 (각 키워드별 OR) — Supabase postgrest ilike OR 체인
     noise_query = sb.table("disclosure_insights").select("id", count="exact")
-    # 첫 번째 키워드로 시작하고 나머지를 OR로 연결
+    # 공시명 OR 종목명 노이즈
     or_filter = ",".join(f"report_nm.ilike.%{kw}%" for kw in NOISE_KEYWORDS)
-    noise_r = sb.table("disclosure_insights").select("id", count="exact").or_(or_filter).execute()
-    noise = noise_r.count or 0
+    corp_or_filter = ",".join(f"corp_name.ilike.%{kw}%" for kw in NOISE_CORP_KEYWORDS)
+    noise_q = sb.table("disclosure_insights").select("id", count="exact").or_(or_filter)
+    noise_corp_q = sb.table("disclosure_insights").select("id", count="exact").or_(corp_or_filter)
+    noise_r = noise_q.execute()
+    noise_corp_r = noise_corp_q.execute()
+    noise = (noise_r.count or 0) + (noise_corp_r.count or 0)
 
     # pending (비노이즈)
     pend_q = sb.table("disclosure_insights").select("id", count="exact").eq("analysis_status", "pending")
     for kw in NOISE_KEYWORDS:
         pend_q = pend_q.not_.ilike("report_nm", f"%{kw}%")
+    for kw in NOISE_CORP_KEYWORDS:
+        pend_q = pend_q.not_.ilike("corp_name", f"%{kw}%")
     pend_r = pend_q.execute()
     pending = pend_r.count or 0
 
@@ -117,6 +128,8 @@ def show_counts(sb: Client):
     fail_q = sb.table("disclosure_insights").select("id", count="exact").eq("analysis_status", "failed")
     for kw in NOISE_KEYWORDS:
         fail_q = fail_q.not_.ilike("report_nm", f"%{kw}%")
+    for kw in NOISE_CORP_KEYWORDS:
+        fail_q = fail_q.not_.ilike("corp_name", f"%{kw}%")
     fail_r = fail_q.execute()
     failed = fail_r.count or 0
 
@@ -130,6 +143,8 @@ def show_counts(sb: Client):
     )
     for kw in NOISE_KEYWORDS:
         reana_q = reana_q.not_.ilike("report_nm", f"%{kw}%")
+    for kw in NOISE_CORP_KEYWORDS:
+        reana_q = reana_q.not_.ilike("corp_name", f"%{kw}%")
     reana_r = reana_q.execute()
     reanalyze = reana_r.count or 0
 
@@ -153,7 +168,10 @@ def show_counts(sb: Client):
 def step_noise(sb: Client, dry_run: bool):
     logger.info("▶ Step 1: 노이즈 공시 → 'skipped' 마킹")
 
-    or_filter = ",".join(f"report_nm.ilike.%{kw}%" for kw in NOISE_KEYWORDS)
+    or_filter = ",".join(
+        [f"report_nm.ilike.%{kw}%" for kw in NOISE_KEYWORDS] +
+        [f"corp_name.ilike.%{kw}%" for kw in NOISE_CORP_KEYWORDS]
+    )
     targets = (
         sb.table("disclosure_insights")
         .select("id")
@@ -274,6 +292,8 @@ def step_pending(sb: Client, groq_client, batch_size: int, dry_run: bool):
         )
         for kw in NOISE_KEYWORDS:
             query = query.not_.ilike("report_nm", f"%{kw}%")
+        for kw in NOISE_CORP_KEYWORDS:
+            query = query.not_.ilike("corp_name", f"%{kw}%")
         query = query.order("rcept_dt", desc=True).limit(batch_size)
         rows = (query.execute()).data or []
 
@@ -316,6 +336,8 @@ def step_reanalyze(sb: Client, groq_client, batch_size: int, dry_run: bool):
         )
         for kw in NOISE_KEYWORDS:
             query = query.not_.ilike("report_nm", f"%{kw}%")
+        for kw in NOISE_CORP_KEYWORDS:
+            query = query.not_.ilike("corp_name", f"%{kw}%")
         query = query.order("rcept_dt", desc=True).limit(batch_size)
         rows = (query.execute()).data or []
 
