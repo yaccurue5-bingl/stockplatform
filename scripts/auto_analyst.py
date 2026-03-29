@@ -2,10 +2,22 @@ import os
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from groq import Groq
 from supabase import create_client, Client
 from dotenv import load_dotenv
+
+# ── compute_base_score 수식 함수 임포트 (같은 scripts/ 디렉터리) ──────────────
+try:
+    from compute_base_score import (
+        compute_s, compute_i, compute_e,
+        compute_base_score as _compute_base_score,
+        compute_final_score, compute_signal_tag,
+        load_event_stats,
+    )
+    _SCORE_AVAILABLE = True
+except ImportError:
+    _SCORE_AVAILABLE = False
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,6 +36,94 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 groq_client = Groq(api_key=GROQ_API_KEY)
+
+# ── 스코어 인라인 계산 헬퍼 ───────────────────────────────────────────────────
+
+_event_stats_cache: dict | None = None   # 프로세스당 1회 로드
+
+
+def _get_event_stats() -> dict:
+    """event_stats 테이블을 프로세스 내 1회만 조회해 캐시."""
+    global _event_stats_cache
+    if _event_stats_cache is None:
+        if _SCORE_AVAILABLE:
+            _event_stats_cache = load_event_stats(supabase)
+            logging.getLogger(__name__).info(
+                f"[score] event_stats 로드: {len(_event_stats_cache)}개 이벤트 유형"
+            )
+        else:
+            _event_stats_cache = {}
+    return _event_stats_cache
+
+
+def _fetch_lps(stock_code: str, rcept_dt: str) -> float | None:
+    """
+    loan_stats 에서 해당 종목·날짜의 LPS 단건 조회.
+    당일 데이터가 없으면 최근 5일 이내 최신값 사용.
+    """
+    try:
+        iso = datetime.strptime(str(rcept_dt), "%Y%m%d").date()
+    except ValueError:
+        return None
+    dt_min = str(iso - timedelta(days=5))
+    dt_max = str(iso)
+    resp = (
+        supabase.table("loan_stats")
+        .select("lps")
+        .eq("stock_code", stock_code)
+        .gte("date", dt_min)
+        .lte("date", dt_max)
+        .not_.is_("lps", "null")
+        .order("date", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if resp.data:
+        return float(resp.data[0]["lps"])
+    return None
+
+
+def _compute_scores_inline(
+    item: dict,
+    ai_result: dict,
+    sentiment_score: float | None,
+) -> dict:
+    """
+    AI 분석 완료 직후 base_score / final_score / signal_tag 를 계산.
+    실패 시 빈 dict 반환 → compute_base_score.py Step 6 이 안전망 역할.
+    """
+    if not _SCORE_AVAILABLE:
+        return {}
+    try:
+        event_type = str(ai_result.get("event_type") or "").upper()
+        ev_info    = _get_event_stats().get(event_type, {})
+
+        s   = compute_s(sentiment_score)
+        i_  = compute_i(ai_result.get("short_term_impact_score"))
+        e   = compute_e(ev_info.get("avg_5d_return"), ev_info.get("sample_size"))
+        raw, bs = _compute_base_score(s, i_, e)
+
+        lps = _fetch_lps(
+            item.get("stock_code") or "",
+            item.get("rcept_dt") or "",
+        )
+        fs  = compute_final_score(bs, lps)
+        tag = compute_signal_tag(bs, lps)
+
+        logging.getLogger(__name__).info(
+            f"  [score] bs={bs:.1f} fs={fs:.1f} lps={lps} tag={tag or '-'}"
+        )
+        return {
+            "base_score_raw": raw,
+            "base_score":     bs,
+            "final_score":    fs,
+            "signal_tag":     tag,
+        }
+    except Exception as err:
+        logging.getLogger(__name__).warning(
+            f"[score] 인라인 계산 실패 ({err}) — compute_base_score.py 안전망이 처리합니다"
+        )
+        return {}
 
 
 class AIAnalyst:
@@ -78,13 +178,23 @@ Return JSON format:
     "• Key figure 2 (with unit)",
     "• Key figure 3 (with unit)"
   ],
-  "event_type": "ONE_TIME or STRUCTURAL or NEUTRAL",
+  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | MNA | LEGAL | CAPEX | OTHER",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
   "sentiment_score": <float -1.0 to +1.0>,
   "ai_summary": "Numeric-centric investment analysis in English (for ai_summary column)",
   "risk_factors": "Key risk factors in English"
 }
+
+EVENT TYPE GUIDE (event_type) — pick exactly one:
+- EARNINGS : 실적 발표, 사업/분기/반기 보고서, 결산 공시
+- CONTRACT : 수주, 대규모 계약, MOU, 공급계약
+- DILUTION : 유상증자, CB(전환사채), BW(신주인수권부사채) 발행
+- BUYBACK  : 자기주식 취득 또는 소각 결정
+- MNA      : 합병, 인수, 분할, 지분 취득
+- LEGAL    : 소송, 규제 조치, 과징금, 수사
+- CAPEX    : 설비투자, 공장 신증설, R&D 투자
+- OTHER    : 위 어느 항목에도 해당하지 않는 공시
 
 SENTIMENT SCORE GUIDE (sentiment_score):
 - A continuous float between -1.0 (strongly bearish) and +1.0 (strongly bullish).
@@ -197,20 +307,37 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             return None
 
 
-def run():
+def run(backfill: bool = False, limit: int = 50):
+    """
+    backfill=True  : 이미 completed 이지만 sentiment_score 가 없는 항목 재분석
+                     (기존 DB 백테스트용)
+    backfill=False : 기본 모드 - analysis_status='pending' 항목만 처리
+    """
     analyst = AIAnalyst()
 
-    res = supabase.table("disclosure_insights") \
-        .select("id, corp_name, report_nm, content, rcept_no, analysis_retry_count") \
-        .eq("analysis_status", "pending") \
-        .or_("analysis_retry_count.is.null,analysis_retry_count.lt.3") \
-        .order("created_at", desc=True) \
-        .limit(50) \
-        .execute()
+    if backfill:
+        # 백필 모드: completed 이지만 sentiment_score 가 null 인 항목
+        logger.info("🔁 [BACKFILL] sentiment_score 없는 completed 항목 재분석 시작")
+        res = supabase.table("disclosure_insights") \
+            .select("id, corp_name, stock_code, rcept_dt, report_nm, content, rcept_no, analysis_retry_count") \
+            .eq("analysis_status", "completed") \
+            .is_("sentiment_score", "null") \
+            .not_.is_("content", "null") \
+            .order("created_at", desc=True) \
+            .limit(limit) \
+            .execute()
+    else:
+        res = supabase.table("disclosure_insights") \
+            .select("id, corp_name, stock_code, rcept_dt, report_nm, content, rcept_no, analysis_retry_count") \
+            .eq("analysis_status", "pending") \
+            .or_("analysis_retry_count.is.null,analysis_retry_count.lt.3") \
+            .order("created_at", desc=True) \
+            .limit(limit) \
+            .execute()
 
     if not res.data:
         logger.info("✅ 분석할 데이터가 없습니다.")
-        return
+        return 0
 
     for item in res.data:
 
@@ -234,6 +361,9 @@ def run():
             except (TypeError, ValueError):
                 sentiment_score = None
 
+            # AI 분석 완료 직후 스코어 인라인 계산
+            scores = _compute_scores_inline(item, result, sentiment_score)
+
             update_data = {
                 "headline": result.get("headline"),
                 "key_numbers": result.get("key_numbers"),
@@ -244,7 +374,9 @@ def run():
                 "ai_summary": result.get("ai_summary"),
                 "risk_factors": result.get("risk_factors"),
                 "analysis_status": "completed",
-                "updated_at": datetime.now().isoformat()
+                "is_visible": True,
+                "updated_at": datetime.now().isoformat(),
+                **scores,   # base_score_raw, base_score, final_score, signal_tag
             }
 
             supabase.table("disclosure_insights") \
@@ -255,19 +387,30 @@ def run():
             logger.info(f"✅ 완료: {item['corp_name']}")
 
         else:
-            retry_count = (item.get('analysis_retry_count') or 0) + 1
-            new_status = "failed" if retry_count >= 3 else "pending"
+            if not backfill:
+                retry_count = (item.get('analysis_retry_count') or 0) + 1
+                new_status = "failed" if retry_count >= 3 else "pending"
+                supabase.table("disclosure_insights").update({
+                    "analysis_status": new_status,
+                    "analysis_retry_count": retry_count,
+                    "updated_at": datetime.now().isoformat()
+                }).eq("id", item['id']).execute()
 
-            supabase.table("disclosure_insights").update({
-                "analysis_status": new_status,
-                "analysis_retry_count": retry_count,
-                "updated_at": datetime.now().isoformat()
-            }).eq("id", item['id']).execute()
+            logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-            logger.warning(f"⚠️ 실패: {item['corp_name']} (재시도: {retry_count}/3)")
+        time.sleep(3.0)
 
-        time.sleep(3.0) 
+    processed = len(res.data)
+    logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")
+    return processed
 
 
 if __name__ == "__main__":
-    run()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--backfill", action="store_true",
+                        help="sentiment_score 없는 completed 항목 재분석 (백테스트용)")
+    parser.add_argument("--limit", type=int, default=50,
+                        help="최대 처리 건수 (기본 50)")
+    args = parser.parse_args()
+    run(backfill=args.backfill, limit=args.limit)

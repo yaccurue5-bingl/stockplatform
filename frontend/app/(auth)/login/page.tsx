@@ -41,7 +41,7 @@ function LoginForm() {
 
     try {
       await signIn(email, password);
-      router.push(redirectTo);
+      router.replace(redirectTo);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Login failed');
     } finally {

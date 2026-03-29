@@ -244,10 +244,8 @@ export type Database = {
       disclosure_insights: {
         Row: {
           ai_summary: string | null
-          analysis: string | null
           analysis_retry_count: number | null
           analysis_status: string | null
-          analyzed_at: string | null
           content: string | null
           corp_code: string
           corp_name: string
@@ -256,19 +254,13 @@ export type Database = {
           financial_impact: string | null
           headline: string | null
           id: string
-          importance: string | null
-          industry_avg_comparison: Json | null
-          industry_comparison_data: Json | null
-          is_sample_disclosure: boolean | null
           is_visible: boolean | null
           key_numbers: Json | null
-          market_reaction_history: Json | null
           rcept_dt: string
           rcept_no: string
           report_nm: string
           risk_factors: string | null
           sector: string | null
-          sentiment: string | null
           sentiment_score: number | null
           short_term_impact_score: number | null
           sonnet_analyzed: boolean | null
@@ -280,15 +272,12 @@ export type Database = {
           sonnet_summary: string | null
           sonnet_tokens_used: number | null
           stock_code: string | null
-          system_score: number | null
           updated_at: string | null
         }
         Insert: {
           ai_summary?: string | null
-          analysis?: string | null
           analysis_retry_count?: number | null
           analysis_status?: string | null
-          analyzed_at?: string | null
           content?: string | null
           corp_code: string
           corp_name: string
@@ -297,19 +286,13 @@ export type Database = {
           financial_impact?: string | null
           headline?: string | null
           id?: string
-          importance?: string | null
-          industry_avg_comparison?: Json | null
-          industry_comparison_data?: Json | null
-          is_sample_disclosure?: boolean | null
           is_visible?: boolean | null
           key_numbers?: Json | null
-          market_reaction_history?: Json | null
           rcept_dt: string
           rcept_no: string
           report_nm: string
           risk_factors?: string | null
           sector?: string | null
-          sentiment?: string | null
           sentiment_score?: number | null
           short_term_impact_score?: number | null
           sonnet_analyzed?: boolean | null
@@ -321,15 +304,12 @@ export type Database = {
           sonnet_summary?: string | null
           sonnet_tokens_used?: number | null
           stock_code?: string | null
-          system_score?: number | null
           updated_at?: string | null
         }
         Update: {
           ai_summary?: string | null
-          analysis?: string | null
           analysis_retry_count?: number | null
           analysis_status?: string | null
-          analyzed_at?: string | null
           content?: string | null
           corp_code?: string
           corp_name?: string
@@ -338,19 +318,13 @@ export type Database = {
           financial_impact?: string | null
           headline?: string | null
           id?: string
-          importance?: string | null
-          industry_avg_comparison?: Json | null
-          industry_comparison_data?: Json | null
-          is_sample_disclosure?: boolean | null
           is_visible?: boolean | null
           key_numbers?: Json | null
-          market_reaction_history?: Json | null
           rcept_dt?: string
           rcept_no?: string
           report_nm?: string
           risk_factors?: string | null
           sector?: string | null
-          sentiment?: string | null
           sentiment_score?: number | null
           short_term_impact_score?: number | null
           sonnet_analyzed?: boolean | null
@@ -362,7 +336,6 @@ export type Database = {
           sonnet_summary?: string | null
           sonnet_tokens_used?: number | null
           stock_code?: string | null
-          system_score?: number | null
           updated_at?: string | null
         }
         Relationships: []

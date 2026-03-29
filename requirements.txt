@@ -1,7 +1,6 @@
 requests
 pandas
 supabase
-pykrx
 urllib3
 groq
 opendartreader
@@ -11,3 +10,4 @@ openpyxl
 fastapi
 uvicorn[standard]
 pydantic
+redis

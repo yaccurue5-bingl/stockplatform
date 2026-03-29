@@ -114,37 +114,85 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Paddle v2 이벤트에서 user_id 추출 헬퍼
+// Paddle checkout 시 custom_data에 { user_id } 를 넣어야 함
+// 없으면 customer.email → users 테이블 이메일 조회 폴백
+async function resolveUserId(event: any): Promise<string | null> {
+  const data = event.data || event;
+
+  // 1순위: custom_data.user_id (Paddle checkout passthrough)
+  const fromCustom = data.custom_data?.user_id || data.passthrough?.user_id;
+  if (fromCustom) return fromCustom;
+
+  // 2순위: customer 이메일로 users 테이블 조회
+  const email = data.customer?.email || data.email;
+  if (email) {
+    const supabase = getSupabaseClient();
+    const { data: user } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+    if (user?.id) return user.id;
+  }
+
+  return null;
+}
+
+// 구독 플랜 ID → plan 문자열 매핑
+function resolvePlan(planId: string): string {
+  const id = (planId || '').toLowerCase();
+  if (id.includes('pro')) return 'pro';
+  if (id.includes('developer') || id.includes('dev')) return 'developer';
+  return 'developer'; // 기본값
+}
+
 // 구독 생성 처리
 async function handleSubscriptionCreated(event: any) {
-  const { user_id, subscription_id, subscription_plan_id, status, next_bill_date } = event.data || event;
+  const data = event.data || event;
+  const subscriptionId = data.id || data.subscription_id;
+  const planId = data.items?.[0]?.price?.id || data.subscription_plan_id || '';
+  const status = data.status || 'active';
+  const nextBillDate = data.next_billed_at || data.next_bill_date || null;
 
-  console.log(`✅ Subscription created: ${subscription_id} for user ${user_id}`);
+  const userId = await resolveUserId(event);
+  if (!userId) {
+    console.error('❌ [subscription.created] user_id 추출 실패. custom_data.user_id를 Paddle checkout에 설정하세요.');
+    return;
+  }
 
-  // Supabase에 구독 정보 저장
+  const plan = resolvePlan(planId);
+  console.log(`✅ Subscription created: ${subscriptionId} → user=${userId} plan=${plan}`);
+
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from('subscriptions').upsert({
-    user_id,
-    paddle_subscription_id: subscription_id,
-    paddle_plan_id: subscription_plan_id,
-    status: status || 'active',
-    next_billing_date: next_bill_date,
+
+  // 1. subscriptions 테이블 upsert
+  const { error: subError } = await supabase.from('subscriptions').upsert({
+    user_id: userId,
+    paddle_subscription_id: subscriptionId,
+    paddle_plan_id: planId,
+    plan_type: plan,
+    status,
+    next_billing_date: nextBillDate,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
+  if (subError) console.error('❌ subscriptions upsert 실패:', subError);
 
-  if (error) {
-    console.error('❌ Failed to save subscription:', error);
-  }
-
-  // 사용자 프로필 업데이트 (premium 상태로 변경)
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ subscription_status: 'active', updated_at: new Date().toISOString() })
-    .eq('id', user_id);
-
-  if (profileError) {
-    console.error('❌ Failed to update profile:', profileError);
-  }
+  // 2. users 테이블: plan + subscription_status + api_key 생성
+  const apiKey = crypto.randomBytes(32).toString('hex');
+  const { error: userError } = await supabase
+    .from('users')
+    .update({
+      plan,
+      subscription_status: 'active',
+      api_key: apiKey,
+      api_key_created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+  if (userError) console.error('❌ users 업데이트 실패:', userError);
+  else console.log(`🔑 API Key 생성 완료: user=${userId}`);
 }
 
 // 구독 업데이트 처리
@@ -170,33 +218,38 @@ async function handleSubscriptionUpdated(event: any) {
 
 // 구독 취소 처리
 async function handleSubscriptionCanceled(event: any) {
-  const { user_id, subscription_id } = event.data || event;
+  const data = event.data || event;
+  const subscriptionId = data.id || data.subscription_id;
 
-  console.log(`❌ Subscription canceled: ${subscription_id}`);
+  console.log(`🚫 Subscription canceled: ${subscriptionId}`);
 
   const supabase = getSupabaseClient();
-  // 구독 상태를 canceled로 변경
-  const { error } = await supabase
+
+  // 1. subscriptions 상태 → canceled
+  const { error: subError } = await supabase
     .from('subscriptions')
     .update({
       status: 'canceled',
       canceled_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq('paddle_subscription_id', subscription_id);
+    .eq('paddle_subscription_id', subscriptionId);
+  if (subError) console.error('❌ subscriptions 취소 실패:', subError);
 
-  if (error) {
-    console.error('❌ Failed to cancel subscription:', error);
-  }
-
-  // 사용자 프로필 업데이트
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ subscription_status: 'canceled', updated_at: new Date().toISOString() })
-    .eq('id', user_id);
-
-  if (profileError) {
-    console.error('❌ Failed to update profile:', profileError);
+  // 2. users: plan → free, subscription_status → canceled, api_key 삭제
+  const userId = await resolveUserId(event);
+  if (userId) {
+    const { error: userError } = await supabase
+      .from('users')
+      .update({
+        plan: 'free',
+        subscription_status: 'canceled',
+        api_key: null,
+        api_key_created_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+    if (userError) console.error('❌ users 취소 업데이트 실패:', userError);
   }
 }
 

@@ -1,63 +1,101 @@
 name: Market Data & AI Disclosure Automation
 
 on:
-  
   schedule:
+    # ── 장 전 예열 (KST 07:30, 07:45  =  UTC 전날 22:30, 22:45) ───────────────
     - cron: "30,45 22 * * 0-4"
+    # ── 장 전 예열 (KST 08:00-08:45   =  UTC 전날 23:00-23:45) ───────────────
     - cron: "*/15 23 * * 0-4"
-    - cron: "*/15 0-9 * * 1-5"
-    
+    # ── 장 중 (KST 09:00-15:45        =  UTC 00:00-06:45) ─────────────────────
+    - cron: "*/15 0-6 * * 1-5"
+    # ── EOD 장 마감 후 1회 (KST 16:35  =  UTC 07:35) ──────────────────────────
+    - cron: "35 7 * * 1-5"
+
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "실행 모드 선택"
+        required: false
+        default: "prod"
+        type: choice
+        options:
+          - prod   # 장 중 배치 (DART 수집 → AI 분석 → 스코어)
+          - eod    # 장 마감 후 배치 (시세·대차 확정 → LPS → 스코어 갱신)
+
+# ── 공통 환경변수 ─────────────────────────────────────────────────────────────
+env:
+  PYTHONPATH: ${{ github.workspace }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  DART_API_KEY: ${{ secrets.DART_API_KEY }}
+  PUBLIC_DATA_API_KEY: ${{ secrets.PUBLIC_DATA_API_KEY }}
 
 jobs:
-  automation:
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # PROD — 장 전·장 중 배치 (15분마다)
+  #   트리거: 장 전/장 중 cron 3개  또는  workflow_dispatch(mode=prod)
+  # ════════════════════════════════════════════════════════════════════════════
+  prod-batch:
+    name: "Intraday Prod Batch"
+    # EOD cron('35 7 * * 1-5') 이 아닌 schedule 이거나, 수동 실행(mode != eod)일 때만 실행
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
+      (github.event_name == 'schedule' && github.event.schedule != '35 7 * * 1-5')
     runs-on: ubuntu-latest
-    
-    # 🔍 모든 실행 단계에서 공통으로 사용할 환경 변수 설정
-    env:
-      PYTHONPATH: ${{ github.workspace }}
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      DART_API_KEY: ${{ secrets.DART_API_KEY }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests pandas supabase pykrx urllib3 groq
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 1단계: 지수 정보 업데이트
-      - name: Run Market Indices Update
+      # 시장 지수는 별도로 유지 (run_daily_batch 와 무관한 외부 소스)
+      - name: "① 시장 지수 업데이트"
         run: python scripts/update_indices.py
 
-      # 2단계: AI 공시 인사이트 수집
-      - name: Run AI Disclosure Crawler
-        run: python scripts/dart_crawler.py
-  
-      # 3단계: AI 분석 실행
-      - name: Run AI Analyst
-        run: python scripts/auto_analyst.py
+      # DART 수집 → fetch_market/loan → LPS → AI 분석 → BaseScore/FinalScore
+      - name: "② 장 중 전체 배치 (--prod)"
+        run: python scripts/run_daily_batch.py --prod
 
-      # Vercel 배포 트리거 (요청하신 대로 기존 로직 유지 및 주석 처리)
-      # - name: Trigger Vercel Deploy
-      #   env:
-      #     DEPLOY_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
-      #   run: |
-      #     # 응답 코드(http_code)를 확인하도록 수정된 기존 로직 유지
-      #     response=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$DEPLOY_URL")
-      #     echo "Vercel Response Code: $response"
-      #     if [ "$response" != "201" ] && [ "$response" != "200" ]; then
-      #       echo "❌ Deploy Hook failed with status $response"
-      #       exit 1
-      #     fi
+  # ════════════════════════════════════════════════════════════════════════════
+  # EOD — 장 마감 후 1일 1회 (KST 16:35)
+  #   트리거: EOD cron('35 7 * * 1-5')  또는  workflow_dispatch(mode=eod)
+  # ════════════════════════════════════════════════════════════════════════════
+  eod-batch:
+    name: "EOD End-of-Day Batch"
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'eod') ||
+      (github.event_name == 'schedule' && github.event.schedule == '35 7 * * 1-5')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # 종가·대차 확정 수집 → LPS 재계산 → AI 백필 → FinalScore 갱신
+      # → 섹터 시그널 → event_stats 재집계
+      - name: "EOD 장 마감 배치 (--eod)"
+        run: python scripts/run_daily_batch.py --eod

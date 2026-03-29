@@ -9,9 +9,6 @@ interface ExtendedInsight {
   stock_code: string;
   report_nm: string;
   ai_summary: string | null;
-  sonnet_summary: string | null;
-  sonnet_detailed_analysis: string | null;
-  sentiment: string;
   sentiment_score: number;
   created_at: string;
   rcept_no: string;
@@ -40,7 +37,7 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
   const [insightRes, companyRes] = await Promise.all([
     supabase
       .from('disclosure_insights')
-      .select('id, corp_name, stock_code, report_nm, ai_summary, sonnet_summary, sonnet_detailed_analysis, sentiment, sentiment_score, created_at, rcept_no')
+      .select('id, corp_name, stock_code, report_nm, ai_summary, sentiment_score, created_at, rcept_no')
       .eq('stock_code', code)
       .eq('analysis_status', 'completed') // 분석 완료된 것만
       .order('created_at', { ascending: false })
@@ -66,8 +63,7 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
     );
   }
 
-  // ✅ Sonnet 분석이 있으면 우선 사용, 없으면 Groq 분석 사용
-  const displaySummary = insight.sonnet_summary || insight.sonnet_detailed_analysis || insight.ai_summary || "분석 데이터를 생성 중입니다.";
+  const displaySummary = insight.ai_summary || "분석 데이터를 생성 중입니다.";
 
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-10">
@@ -100,7 +96,7 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold text-gray-800">AI 리서치 리포트</h2>
           <StockSentiment
-            sentiment={insight.sentiment}
+            sentiment={insight.sentiment_score >= 0.3 ? 'POSITIVE' : insight.sentiment_score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL'}
             sentiment_score={insight.sentiment_score}
             ai_summary={displaySummary}
           />

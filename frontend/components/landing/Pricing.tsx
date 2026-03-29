@@ -73,6 +73,7 @@ export default function Pricing() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>('developer');
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   // ✅ authReady: onAuthStateChange의 INITIAL_SESSION이 완료되기 전까지 false
   //    → 버튼이 auth 상태 확인 전에 눌리는 race condition 방지
@@ -86,6 +87,7 @@ export default function Pricing() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session?.user);
       setUserEmail(session?.user?.email ?? null);
+      setUserId(session?.user?.id ?? null);
       // 첫 이벤트(INITIAL_SESSION 포함) 수신 시점부터 auth 상태 확정
       setAuthReady(true);
     });
@@ -183,6 +185,7 @@ export default function Pricing() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         userEmail={userEmail}
+        userId={userId}
         planType={selectedPlan}
       />
     </Section>

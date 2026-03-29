@@ -1,14 +1,73 @@
+import Link from 'next/link';
 import Section from './ui/Section';
 import Card from './ui/Card';
 import { Zap } from 'lucide-react';
+import { createServiceClient } from '@/lib/supabase/server';
 
-const events = [
-  { company: 'Samsung Electronics', ticker: '005930', event: 'Earnings Beat',      impact: '+0.83', positive: true,  color: 'bg-[#00D4A6]/10 text-[#00D4A6] border-[#00D4A6]/30' },
-  { company: 'SK Hynix',            ticker: '000660', event: 'Capital Investment',  impact: '+0.71', positive: true,  color: 'bg-[#4EA3FF]/10 text-[#4EA3FF] border-[#4EA3FF]/30' },
-  { company: 'Hyundai Motor',        ticker: '005380', event: 'Strategic Contract', impact: '+0.65', positive: true,  color: 'bg-purple-400/10 text-purple-400 border-purple-400/30' },
+// ── 상수 ──────────────────────────────────────────────────────────────────────
+
+const EVENT_LABELS: Record<string, string> = {
+  EARNINGS: 'Earnings Release',
+  CONTRACT: 'Strategic Contract',
+  DILUTION: 'Capital Increase',
+  BUYBACK:  'Share Buyback',
+  MNA:      'M&A / Merger',
+  LEGAL:    'Legal / Regulatory',
+  CAPEX:    'Capital Investment',
+  OTHER:    'Disclosure',
+};
+
+const SENTIMENT_STYLE: Record<string, string> = {
+  POSITIVE: 'bg-[#00D4A6]/10 text-[#00D4A6] border-[#00D4A6]/30',
+  NEGATIVE: 'bg-red-400/10 text-red-400 border-red-400/30',
+  NEUTRAL:  'bg-gray-400/10 text-gray-400 border-gray-400/30',
+};
+
+// DB에 데이터가 없을 때 표시할 폴백 (초기 셋업 기간 대비)
+const FALLBACK_EVENTS = [
+  { id: '', company: 'Samsung Electronics', ticker: '005930', event: 'Earnings Beat',      impact: '+0.83', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
+  { id: '', company: 'SK Hynix',            ticker: '000660', event: 'Capital Investment',  impact: '+0.71', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
+  { id: '', company: 'Hyundai Motor',        ticker: '005380', event: 'Strategic Contract', impact: '+0.65', positive: true,  color: SENTIMENT_STYLE.NEUTRAL  },
 ];
 
-export default function LiveEvents() {
+// ── 데이터 페칭 ───────────────────────────────────────────────────────────────
+
+async function fetchLatestEvents() {
+  try {
+    const sb = createServiceClient();
+    const { data, error } = await sb
+      .from('disclosure_insights')
+      .select('id, corp_name, stock_code, event_type, sentiment_score')
+      .eq('analysis_status', 'completed')
+      .eq('is_visible', true)
+      .order('rcept_dt', { ascending: false })
+      .limit(5);
+
+    if (error || !data?.length) return null;
+
+    return data.map((row) => {
+      const score  = row.sentiment_score ?? 0;
+      const sentiment = score >= 0.3 ? 'POSITIVE' : score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
+      return {
+        id:       row.id ?? '',
+        company:  row.corp_name ?? '',
+        ticker:   row.stock_code ?? '',
+        event:    EVENT_LABELS[row.event_type ?? ''] ?? EVENT_LABELS.OTHER,
+        impact:   (score >= 0 ? '+' : '') + score.toFixed(2),
+        positive: score >= 0,
+        color:    SENTIMENT_STYLE[sentiment] ?? SENTIMENT_STYLE.NEUTRAL,
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+// ── 컴포넌트 ──────────────────────────────────────────────────────────────────
+
+export default async function LiveEvents() {
+  const events = (await fetchLatestEvents()) ?? FALLBACK_EVENTS;
+
   return (
     <Section className="bg-[#0D1117]" id="events">
       <div className="flex items-center gap-2 mb-3">
@@ -20,7 +79,12 @@ export default function LiveEvents() {
 
       <div className="flex flex-col gap-3">
         {events.map((e) => (
-          <Card key={e.company} hover className="flex items-center justify-between px-6 py-5">
+          <Link
+            key={e.id || `${e.company}-${e.ticker}`}
+            href={e.id ? `/disclosures/${e.id}` : '/disclosures'}
+            className="block"
+          >
+          <Card hover className="flex items-center justify-between px-6 py-5 cursor-pointer">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
                 <span className="text-xs font-bold text-gray-300">
@@ -40,6 +104,7 @@ export default function LiveEvents() {
               <p className="text-xs text-gray-500">Impact Score</p>
             </div>
           </Card>
+          </Link>
         ))}
       </div>
     </Section>

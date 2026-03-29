@@ -7,13 +7,13 @@ B2B API 인증 / 플랜 확인 공통 의존성.
     from backend.routers.v1.auth import require_plan
 
     @router.get("/v1/market-radar")
-    async def endpoint(user=Depends(require_plan(["PRO", "ENTERPRISE"]))):
+    async def endpoint(user=Depends(require_plan(["developer", "pro"]))):
         ...
 
 플랜 계층:
-    FREE       → /v1/ 접근 불가
-    PRO        → disclosures, events, sector-signals (최근 7일)
-    ENTERPRISE → 모든 엔드포인트, 전체 이력
+    free      → /v1/ 접근 불가 (랜딩 UI 노출만)
+    developer → disclosures 제한 접근, 최근 3일
+    pro       → 모든 엔드포인트, 최근 30일
 
 인증 방식:
     X-API-Key: <api_key>  헤더
@@ -36,16 +36,16 @@ _query_scheme  = APIKeyQuery(name="api_key",    auto_error=False)
 # ── 플랜 계층 정의 ────────────────────────────────────────────────────────────
 
 PLAN_RANK = {
-    "FREE":       0,
-    "PRO":        1,
-    "ENTERPRISE": 2,
+    "free":       0,
+    "developer":  1,
+    "pro":        2,
 }
 
 # 플랜별 이력 조회 가능 일수 (-1 = 무제한)
 PLAN_HISTORY_DAYS = {
-    "FREE":       0,
-    "PRO":        7,
-    "ENTERPRISE": -1,
+    "free":       0,
+    "developer":  3,
+    "pro":        30,
 }
 
 
@@ -84,10 +84,10 @@ async def _resolve_api_key(
             sb.table("users")
             .select("id, email, plan")
             .eq("api_key", api_key)
-            .single()
+            .maybe_single()
             .execute()
         )
-        user = resp.data
+        user = resp.data if resp else None
     except HTTPException:
         raise
     except Exception as e:
@@ -111,17 +111,18 @@ def require_plan(min_plans: list[str]):
     최소 플랜 요구 의존성 팩토리.
 
     사용:
-        Depends(require_plan(["PRO", "ENTERPRISE"]))
+        Depends(require_plan(["developer", "pro"]))
     """
     async def _dependency(
         header_key: str | None = Security(_header_scheme),
         query_key:  str | None = Security(_query_scheme),
     ) -> dict:
         user = await _resolve_api_key(header_key, query_key)
-        plan = (user.get("plan") or "FREE").upper()
+        # DB 값은 소문자 (free / developer / pro)
+        plan = (user.get("plan") or "free").lower()
 
         if plan not in min_plans:
-            min_rank = min(PLAN_RANK.get(p, 99) for p in min_plans)
+            min_rank  = min(PLAN_RANK.get(p, 99) for p in min_plans)
             user_rank = PLAN_RANK.get(plan, 0)
             if user_rank < min_rank:
                 raise HTTPException(

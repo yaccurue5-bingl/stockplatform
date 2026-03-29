@@ -7,12 +7,14 @@ GET /v1/disclosures
 disclosure_insights 테이블 데이터를 반환합니다.
 
 플랜 접근:
-    PRO      : 최근 7일, is_visible=true 항목만, AI 요약 포함
-    ENTERPRISE: 전체 이력, 모든 항목, 상세 분석 포함
+    developer : 최근 3일, is_visible=true 항목만, 기본 AI 요약 + 스코어
+    pro       : 최근 30일, 모든 항목, 상세 분석 포함
+
+캐시:
+    TTL 300 초 (5 min)  —  키: plan + 쿼리 파라미터 전체 해시
 """
 
 import logging
-import os
 from datetime import date, timedelta
 from typing import Optional
 
@@ -20,6 +22,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from backend.routers.v1.auth import require_plan, PLAN_HISTORY_DAYS
+from backend.core.cache import make_cache_key, cache_get, cache_set, TTL_DISCLOSURES
+from backend.core.db import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["v1 - Disclosures"])
@@ -34,22 +38,19 @@ class DisclosureItem(BaseModel):
     stock_code:      Optional[str] = None
     report_nm:       str
     rcept_dt:        str
-    sentiment:       Optional[str] = None
-    sentiment_score: Optional[float] = None
-    importance:      Optional[str] = None
+    sentiment_score:         Optional[float] = None
+    short_term_impact_score: Optional[int]   = None
     event_type:      Optional[str] = None
     ai_summary:      Optional[str] = None
-    # 스코어 (PRO+): BaseScore · FinalScore · 시그널 태그
+    # 스코어 (developer+): BaseScore · FinalScore · 시그널 태그
     base_score:      Optional[float] = None
     final_score:     Optional[float] = None
     signal_tag:      Optional[str]   = None
-    # ENTERPRISE 전용: 상세 분석
-    headline:               Optional[str]   = None
-    financial_impact:       Optional[str]   = None
-    short_term_impact_score: Optional[int]  = None
-    base_score_raw:         Optional[float] = None
-    analysis:               Optional[str]   = None
-    risk_factors:           Optional[str]   = None
+    # pro 전용: 상세 분석
+    headline:        Optional[str]   = None
+    financial_impact: Optional[str]  = None
+    base_score_raw:  Optional[float] = None
+    risk_factors:    Optional[str]   = None
 
 
 class DisclosuresResponse(BaseModel):
@@ -59,29 +60,21 @@ class DisclosuresResponse(BaseModel):
     date_to:   Optional[str] = None
 
 
-# ── Supabase ──────────────────────────────────────────────────────────────────
+# ── 컬럼 정의 ─────────────────────────────────────────────────────────────────
 
-def _get_supabase():
-    from supabase import create_client
-    url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-    return create_client(url, key)
+# developer: 기본 컬럼 + 스코어
+_DEV_COLUMNS = (
+    "id, rcept_no, corp_name, stock_code, report_nm, rcept_dt, "
+    "sentiment_score, short_term_impact_score, event_type, ai_summary, "
+    "base_score, final_score, signal_tag"
+)
+# pro: 상세 분석 추가
+_PRO_COLUMNS = _DEV_COLUMNS + (
+    ", headline, financial_impact, base_score_raw, risk_factors"
+)
 
 
 # ── 엔드포인트 ────────────────────────────────────────────────────────────────
-
-# PRO: 기본 컬럼 + 스코어
-_PRO_COLUMNS = (
-    "id, rcept_no, corp_name, stock_code, report_nm, rcept_dt, "
-    "sentiment, sentiment_score, importance, event_type, ai_summary, "
-    "base_score, final_score, signal_tag"
-)
-# ENTERPRISE: 상세 분석 추가
-_ENT_COLUMNS = _PRO_COLUMNS + (
-    ", headline, financial_impact, short_term_impact_score, "
-    "base_score_raw, analysis, risk_factors"
-)
-
 
 @router.get(
     "/disclosures",
@@ -89,8 +82,8 @@ _ENT_COLUMNS = _PRO_COLUMNS + (
     summary="공시 목록 조회",
     description=(
         "기업 공시와 AI 분석 요약을 반환합니다.\n\n"
-        "**PRO**: 최근 7일, 게시 공시만, 기본 AI 요약 포함\n"
-        "**ENTERPRISE**: 전체 이력, 상세 분석 포함"
+        "**developer**: 최근 3일, 게시 공시만, 기본 AI 요약 + 스코어\n"
+        "**pro**: 최근 30일, 전체 항목, 상세 분석 포함"
     ),
 )
 async def get_disclosures(
@@ -101,14 +94,15 @@ async def get_disclosures(
     event_type: Optional[str] = Query(None, description="이벤트 유형 필터"),
     sort_by:    Optional[str] = Query(None, description="정렬 기준: rcept_dt (기본) / final_score / base_score"),
     limit:      int            = Query(50, ge=1, le=200, description="최대 반환 건수"),
-    user: dict = Depends(require_plan(["PRO", "ENTERPRISE"])),
+    user: dict = Depends(require_plan(["developer", "pro"])),
 ):
     plan = user["plan"]
-    history_days = PLAN_HISTORY_DAYS.get(plan, 7)
-    is_enterprise = (plan == "ENTERPRISE")
+    history_days = PLAN_HISTORY_DAYS.get(plan, 3)
+    is_pro = (plan == "pro")
 
     today = date.today()
 
+    # ── 날짜 범위 계산 ─────────────────────────────────────────────────────────
     if date_to:
         try:
             dt_to = date.fromisoformat(date_to)
@@ -128,21 +122,40 @@ async def get_disclosures(
     if history_days > 0 and (today - dt_from).days > history_days:
         dt_from = today - timedelta(days=history_days)
 
-    # 감성 유효성 검사
+    # ── 파라미터 검증 ──────────────────────────────────────────────────────────
     if sentiment and sentiment.upper() not in ("POSITIVE", "NEGATIVE", "NEUTRAL"):
-        raise HTTPException(status_code=400, detail="sentiment는 POSITIVE, NEGATIVE, NEUTRAL 중 하나여야 합니다.")
+        raise HTTPException(
+            status_code=400,
+            detail="sentiment는 POSITIVE, NEGATIVE, NEUTRAL 중 하나여야 합니다. (sentiment_score 기준: ≥0.3 POSITIVE, ≤-0.3 NEGATIVE)",
+        )
 
-    # rcept_dt는 YYYYMMDD TEXT → gte/lte 비교 시 ISO 형식 변환 필요
+    # rcept_dt 는 YYYYMMDD TEXT
     dt_from_str = dt_from.strftime("%Y%m%d")
     dt_to_str   = dt_to.strftime("%Y%m%d")
 
-    try:
-        sb = _get_supabase()
-        columns = _ENT_COLUMNS if is_enterprise else _PRO_COLUMNS
+    _SORT_WHITELIST = {"rcept_dt", "final_score", "base_score"}
+    sort_col = sort_by if sort_by in _SORT_WHITELIST else "rcept_dt"
 
-        # 정렬 기준 결정
-        _SORT_WHITELIST = {"rcept_dt", "final_score", "base_score"}
-        sort_col = sort_by if sort_by in _SORT_WHITELIST else "rcept_dt"
+    # ── 캐시 조회 ──────────────────────────────────────────────────────────────
+    cache_key = make_cache_key(
+        "v1:disclosures",
+        plan=plan,
+        dt_from=dt_from_str,
+        dt_to=dt_to_str,
+        stock_code=stock_code or "",
+        sentiment=(sentiment or "").upper(),
+        event_type=event_type or "",
+        sort_by=sort_col,
+        limit=limit,
+    )
+    cached = await cache_get(cache_key)
+    if cached:
+        return DisclosuresResponse(**cached)
+
+    # ── Supabase 쿼리 ──────────────────────────────────────────────────────────
+    try:
+        sb = get_supabase()
+        columns = _PRO_COLUMNS if is_pro else _DEV_COLUMNS
 
         query = (
             sb.table("disclosure_insights")
@@ -150,17 +163,23 @@ async def get_disclosures(
             .gte("rcept_dt", dt_from_str)
             .lte("rcept_dt", dt_to_str)
             .eq("analysis_status", "completed")
-            .order(sort_col, desc=True, nulls_first=False)
+            .order(sort_col, desc=True, nullsfirst=False)
         )
 
-        # PRO: is_visible=true 항목만
-        if not is_enterprise:
+        # developer 플랜: is_visible=true 항목만
+        if not is_pro:
             query = query.eq("is_visible", True)
 
         if stock_code:
             query = query.eq("stock_code", stock_code)
         if sentiment:
-            query = query.eq("sentiment", sentiment.upper())
+            s = sentiment.upper()
+            if s == "POSITIVE":
+                query = query.gte("sentiment_score", 0.3)
+            elif s == "NEGATIVE":
+                query = query.lte("sentiment_score", -0.3)
+            else:  # NEUTRAL
+                query = query.gt("sentiment_score", -0.3).lt("sentiment_score", 0.3)
         if event_type:
             query = query.eq("event_type", event_type)
 
@@ -171,9 +190,14 @@ async def get_disclosures(
         raise HTTPException(status_code=500, detail="데이터 조회 중 오류가 발생했습니다.")
 
     items = [DisclosureItem(**row) for row in rows]
-    return DisclosuresResponse(
+    result = DisclosuresResponse(
         data=items,
         total=len(items),
         date_from=dt_from.isoformat(),
         date_to=dt_to.isoformat(),
     )
+
+    # ── 캐시 저장 ──────────────────────────────────────────────────────────────
+    await cache_set(cache_key, result.model_dump(), TTL_DISCLOSURES)
+
+    return result

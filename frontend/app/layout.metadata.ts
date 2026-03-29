@@ -1,24 +1,41 @@
 // app/layout.metadata.ts
 import type { Metadata } from "next";
 
+const SITE_URL = "https://k-marketinsight.com";
+
 export const baseMetadata: Metadata = {
   title: {
-    default: "K-MarketInsight | AI-powered Korean Stock Market Intelligence",
+    default: "Korean Event-Driven Market Data API | K-MarketInsight",
     template: "%s | K-MarketInsight"
   },
-  description: "Gain a competitive edge in the Korean stock market with AI-driven analysis, real-time sector insights, and comprehensive financial data for global investors.",
-  keywords: ["Korean stock market", "KOSPI", "KOSDAQ", "AI stock analysis", "Korean sector insight", "Global investors"],
+  description: "Real-time Korean corporate event signals derived from DART filings. Detect earnings surprises, dilution events, and major contracts before the market reacts.",
+  keywords: [
+    "korean event driven investing",
+    "dart filings analysis api",
+    "korean stock signals",
+    "dilution signal api",
+    "earnings surprise korea",
+    "KOSPI data API",
+    "KOSDAQ API",
+    "Korean financial data API",
+    "Korean corporate events API",
+    "quant data Korea",
+  ],
+  metadataBase: new URL(SITE_URL),
   openGraph: {
-    title: "K-MarketInsight",
-    description: "Professional Korean stock market intelligence for global investors.",
-    url: "https://your-domain.com",
+    title: "Korean Event-Driven Market Data API | K-MarketInsight",
+    description: "Real-time Korean corporate event signals derived from DART filings. Detect earnings surprises, dilution events, and major contracts before the market reacts.",
+    url: SITE_URL,
     siteName: "K-MarketInsight",
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "K-MarketInsight",
-    description: "AI-powered Korean stock market analysis",
+    title: "Korean Event-Driven Market Data API | K-MarketInsight",
+    description: "Real-time Korean corporate event signals derived from DART filings.",
+  },
+  alternates: {
+    canonical: SITE_URL,
   },
 };

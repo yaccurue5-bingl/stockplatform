@@ -18,7 +18,7 @@ interface Disclosure {
   sentiment: string;
   sentiment_score: number;
   importance: string;
-  analyzed_at: string;
+  updated_at: string;
   sector?: string;
   sector_en?: string;
   detailed_analysis?: string;
@@ -51,6 +51,8 @@ function DisclosuresContent() {
   const [isSearching, setIsSearching] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  // popstate 핸들러에서 stale closure 방지용 ref
+  const selectedStockRef = useRef<GroupedStock | null>(null);
   // 접근 제어: null = 아직 확인 중, false = 접근 불가, true = 접근 허용
   const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
 
@@ -59,8 +61,9 @@ function DisclosuresContent() {
     const supabase = getSupabase();
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) {
-        // 비로그인 → 홈으로
-        router.replace('/');
+        // 비로그인 → 로그인 페이지로 (완료 후 /disclosures 복귀)
+        const redirectTo = encodeURIComponent('/disclosures');
+        router.replace(`/login?redirectTo=${redirectTo}`);
         return;
       }
 
@@ -93,8 +96,9 @@ function DisclosuresContent() {
   }, [router]);
 
   // URL에서 파라미터 읽기 (hooks 전에 선언 필요)
-  const stockCodeParam = searchParams.get('stock');
-  const searchQueryParam = searchParams.get('search');  // 검색어 파라미터
+  const stockCodeParam    = searchParams.get('stock');
+  const disclosureParam   = searchParams.get('disclosure'); // 개별 공시 ID
+  const searchQueryParam  = searchParams.get('search');     // 검색어 파라미터
 
   // 서버 사이드 검색 함수
   const searchFromServer = useCallback(async (query: string) => {
@@ -133,13 +137,13 @@ function DisclosuresContent() {
               market: 'KOSPI',
               report_name: result.latest_disclosure.report_nm,
               summary: '',
-              sentiment: result.latest_disclosure.sentiment || 'NEUTRAL',
+              sentiment: 'NEUTRAL',
               sentiment_score: 0,
-              importance: result.latest_disclosure.importance || 'MEDIUM',
-              analyzed_at: result.latest_disclosure.analyzed_at,
+              importance: 'MEDIUM',
+              updated_at: result.latest_disclosure.updated_at || result.latest_disclosure.rcept_dt || '',
             }] : [],
-            latestImportance: result.latest_disclosure?.importance || 'MEDIUM',
-            hasHighImpact: result.latest_disclosure?.importance === 'HIGH',
+            latestImportance: 'MEDIUM',
+            hasHighImpact: false,
           };
         }).filter((stock: GroupedStock) => stock.disclosures.length > 0);
 
@@ -184,6 +188,11 @@ function DisclosuresContent() {
     };
   }, [searchQuery, searchFromServer, groupedStocks]);
 
+  // selectedStock ref 동기화 (popstate stale closure 방지)
+  useEffect(() => {
+    selectedStockRef.current = selectedStock;
+  }, [selectedStock]);
+
   // stock 파라미터에 따라 데이터 로드
   useEffect(() => {
     if (stockCodeParam) {
@@ -224,25 +233,47 @@ function DisclosuresContent() {
   }, [router]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
-    // URL을 변경하지 않고 상태만 변경
     setSelectedDisclosure(disclosure);
-  }, []);
+    // URL에 disclosure param 추가 (push → 뒤로가기 시 종목 뷰로 복귀 가능)
+    const stock = selectedStockRef.current?.stock_code;
+    if (stock) {
+      router.push(`/disclosures?stock=${stock}&disclosure=${disclosure.id}`, { scroll: false });
+    }
+  }, [router]);
 
   const navigateBack = useCallback(() => {
     // 브라우저 히스토리 뒤로가기 - 이전 페이지로 바로 이동
     router.back();
   }, [router]);
 
-  // 브라우저 뒤로가기 처리 - 상태만 초기화 (데이터는 유지)
+  // 브라우저 뒤로가기 처리 — URL 파라미터에 따라 뷰 상태 동기화
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
-      const stockCode = params.get('stock');
+      const stockCode    = params.get('stock');
+      const disclosureId = params.get('disclosure');
 
       if (!stockCode) {
-        // 선택 상태만 초기화 (데이터는 이미 있으므로 유지)
+        // ?stock 없음 → 전체 목록 뷰
         setSelectedStock(null);
         setSelectedDisclosure(null);
+        return;
+      }
+
+      if (!disclosureId) {
+        // ?stock만 있음 → 종목 선택 뷰 (첫 번째 공시로 리셋)
+        const stock = selectedStockRef.current;
+        if (stock) {
+          setSelectedDisclosure(stock.disclosures[0] || null);
+        }
+        return;
+      }
+
+      // ?stock + ?disclosure 둘 다 있음 → 해당 공시 선택
+      const stock = selectedStockRef.current;
+      if (stock) {
+        const target = stock.disclosures.find(d => d.id === disclosureId);
+        if (target) setSelectedDisclosure(target);
       }
     };
 
@@ -306,9 +337,11 @@ function DisclosuresContent() {
           if (targetStock) {
             console.log(`🎯 [Disclosures] Auto-selecting stock: ${stockCode}`);
             setSelectedStock(targetStock);
-            if (targetStock.disclosures.length > 0) {
-              setSelectedDisclosure(targetStock.disclosures[0]);
-            }
+            // disclosure 파라미터가 있으면 해당 공시 선택, 없으면 첫 번째
+            const targetDisclosure = disclosureParam
+              ? targetStock.disclosures.find(d => d.id === disclosureParam)
+              : null;
+            setSelectedDisclosure(targetDisclosure ?? targetStock.disclosures[0] ?? null);
           }
         }
 
@@ -458,7 +491,7 @@ function DisclosuresContent() {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className={`text-sm font-medium truncate ${isSelected ? 'text-white' : 'text-gray-300'}`}>
-                          {formatDate(disclosure.analyzed_at)}: {disclosure.report_name?.substring(0, 20)}...
+                          {formatDate(disclosure.updated_at)}: {disclosure.report_name?.substring(0, 20)}...
                         </div>
                         {isCurrent && isSelected && (
                           <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded mt-1 inline-block">
@@ -520,7 +553,7 @@ function DisclosuresContent() {
                     <p><span className="text-gray-500">corp_name</span></p>
                     <p>{selectedStock.corp_name_en || selectedStock.corp_name}</p>
                     <p><span className="text-gray-500">sector</span> {selectedDisclosure.sector_en || selectedDisclosure.sector || 'Others'}</p>
-                    <p>{formatDateTime(selectedDisclosure.analyzed_at)}</p>
+                    <p>{formatDateTime(selectedDisclosure.updated_at)}</p>
                   </div>
                 </div>
               </div>
@@ -763,7 +796,7 @@ function DisclosuresContent() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-gray-500 mb-1">{getTimeAgo(latestDisclosure.analyzed_at)}</div>
+                      <div className="text-xs text-gray-500 mb-1">{getTimeAgo(latestDisclosure.updated_at)}</div>
                       <span className={`inline-block text-xs px-3 py-1 rounded-full font-medium ${getImpactColor(stock.latestImportance, stock.hasHighImpact)}`}>
                         {disclosureCount} disclosure{disclosureCount > 1 ? 's' : ''}
                       </span>
