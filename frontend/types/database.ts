@@ -10,131 +10,77 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
-      bundle_hashes: {
-        Row: {
-          bundle_date: string
-          corp_code: string
-          corp_name: string
-          created_at: string | null
-          disclosure_count: number | null
-          expires_at: string | null
-          hash_key: string
-          id: string
-          sonnet_called: boolean | null
-          time_bucket: string
-          tokens_used: number | null
-        }
-        Insert: {
-          bundle_date: string
-          corp_code: string
-          corp_name: string
-          created_at?: string | null
-          disclosure_count?: number | null
-          expires_at?: string | null
-          hash_key: string
-          id?: string
-          sonnet_called?: boolean | null
-          time_bucket: string
-          tokens_used?: number | null
-        }
-        Update: {
-          bundle_date?: string
-          corp_code?: string
-          corp_name?: string
-          created_at?: string | null
-          disclosure_count?: number | null
-          expires_at?: string | null
-          hash_key?: string
-          id?: string
-          sonnet_called?: boolean | null
-          time_bucket?: string
-          tokens_used?: number | null
-        }
-        Relationships: []
-      }
       companies: {
         Row: {
-          close_price: number | null
-          code: string | null
           corp_name: string
+          corp_reg_no: string | null
           created_at: string | null
-          full_code: string | null
-          high_price: number | null
+          employee_count: number | null
+          established_at: string | null
+          foreign_hold_shares: number | null
+          foreign_ratio: number | null
+          homepage_url: string | null
           id: number
+          ksic_code: string | null
           listed_shares: number | null
-          low_price: number | null
-          market: string | null
           market_cap: number | null
           market_type: string | null
-          open_price: number | null
+          representative: string | null
           sector: string | null
           sector_en: string | null
           stock_code: string
-          trade_value: number | null
           updated_at: string | null
-          volume: number | null
         }
         Insert: {
-          close_price?: number | null
-          code?: string | null
           corp_name: string
+          corp_reg_no?: string | null
           created_at?: string | null
-          full_code?: string | null
-          high_price?: number | null
+          employee_count?: number | null
+          established_at?: string | null
+          foreign_hold_shares?: number | null
+          foreign_ratio?: number | null
+          homepage_url?: string | null
           id?: number
+          ksic_code?: string | null
           listed_shares?: number | null
-          low_price?: number | null
-          market?: string | null
           market_cap?: number | null
           market_type?: string | null
-          open_price?: number | null
+          representative?: string | null
           sector?: string | null
           sector_en?: string | null
           stock_code: string
-          trade_value?: number | null
           updated_at?: string | null
-          volume?: number | null
         }
         Update: {
-          close_price?: number | null
-          code?: string | null
           corp_name?: string
+          corp_reg_no?: string | null
           created_at?: string | null
-          full_code?: string | null
-          high_price?: number | null
+          employee_count?: number | null
+          established_at?: string | null
+          foreign_hold_shares?: number | null
+          foreign_ratio?: number | null
+          homepage_url?: string | null
           id?: number
+          ksic_code?: string | null
           listed_shares?: number | null
-          low_price?: number | null
-          market?: string | null
           market_cap?: number | null
           market_type?: string | null
-          open_price?: number | null
+          representative?: string | null
           sector?: string | null
           sector_en?: string | null
           stock_code?: string
-          trade_value?: number | null
           updated_at?: string | null
-          volume?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "fk_companies_sector"
-            columns: ["sector"]
-            isOneToOne: false
-            referencedRelation: "sectors"
-            referencedColumns: ["name"]
-          },
-        ]
+        Relationships: []
       }
       dart_corp_codes: {
         Row: {
           corp_code: string
           corp_name: string
-          corp_name_en: string | null
           created_at: string | null
           modify_date: string | null
           stock_code: string
@@ -143,7 +89,6 @@ export type Database = {
         Insert: {
           corp_code: string
           corp_name: string
-          corp_name_en?: string | null
           created_at?: string | null
           modify_date?: string | null
           stock_code: string
@@ -152,7 +97,6 @@ export type Database = {
         Update: {
           corp_code?: string
           corp_name?: string
-          corp_name_en?: string | null
           created_at?: string | null
           modify_date?: string | null
           stock_code?: string
@@ -244,25 +188,37 @@ export type Database = {
       disclosure_insights: {
         Row: {
           ai_summary: string | null
+          analysis: string | null
           analysis_retry_count: number | null
           analysis_status: string | null
+          analyzed_at: string | null
+          base_score: number | null
+          base_score_raw: number | null
           content: string | null
-          corp_code: string
-          corp_name: string
+          corp_code: string | null
+          corp_name: string | null
           created_at: string | null
           event_type: string | null
+          final_score: number | null
           financial_impact: string | null
           headline: string | null
           id: string
+          importance: string | null
+          industry_avg_comparison: Json | null
+          industry_comparison_data: Json | null
+          is_sample_disclosure: boolean | null
           is_visible: boolean | null
           key_numbers: Json | null
-          rcept_dt: string
-          rcept_no: string
-          report_nm: string
+          market_reaction_history: Json | null
+          rcept_dt: string | null
+          rcept_no: string | null
+          report_nm: string | null
           risk_factors: string | null
           sector: string | null
+          sentiment: string | null
           sentiment_score: number | null
           short_term_impact_score: number | null
+          signal_tag: string | null
           sonnet_analyzed: boolean | null
           sonnet_analyzed_at: string | null
           sonnet_detailed_analysis: string | null
@@ -272,29 +228,42 @@ export type Database = {
           sonnet_summary: string | null
           sonnet_tokens_used: number | null
           stock_code: string | null
+          system_score: number | null
           updated_at: string | null
         }
         Insert: {
           ai_summary?: string | null
+          analysis?: string | null
           analysis_retry_count?: number | null
           analysis_status?: string | null
+          analyzed_at?: string | null
+          base_score?: number | null
+          base_score_raw?: number | null
           content?: string | null
-          corp_code: string
-          corp_name: string
+          corp_code?: string | null
+          corp_name?: string | null
           created_at?: string | null
           event_type?: string | null
+          final_score?: number | null
           financial_impact?: string | null
           headline?: string | null
           id?: string
+          importance?: string | null
+          industry_avg_comparison?: Json | null
+          industry_comparison_data?: Json | null
+          is_sample_disclosure?: boolean | null
           is_visible?: boolean | null
           key_numbers?: Json | null
-          rcept_dt: string
-          rcept_no: string
-          report_nm: string
+          market_reaction_history?: Json | null
+          rcept_dt?: string | null
+          rcept_no?: string | null
+          report_nm?: string | null
           risk_factors?: string | null
           sector?: string | null
+          sentiment?: string | null
           sentiment_score?: number | null
           short_term_impact_score?: number | null
+          signal_tag?: string | null
           sonnet_analyzed?: boolean | null
           sonnet_analyzed_at?: string | null
           sonnet_detailed_analysis?: string | null
@@ -304,29 +273,42 @@ export type Database = {
           sonnet_summary?: string | null
           sonnet_tokens_used?: number | null
           stock_code?: string | null
+          system_score?: number | null
           updated_at?: string | null
         }
         Update: {
           ai_summary?: string | null
+          analysis?: string | null
           analysis_retry_count?: number | null
           analysis_status?: string | null
+          analyzed_at?: string | null
+          base_score?: number | null
+          base_score_raw?: number | null
           content?: string | null
-          corp_code?: string
-          corp_name?: string
+          corp_code?: string | null
+          corp_name?: string | null
           created_at?: string | null
           event_type?: string | null
+          final_score?: number | null
           financial_impact?: string | null
           headline?: string | null
           id?: string
+          importance?: string | null
+          industry_avg_comparison?: Json | null
+          industry_comparison_data?: Json | null
+          is_sample_disclosure?: boolean | null
           is_visible?: boolean | null
           key_numbers?: Json | null
-          rcept_dt?: string
-          rcept_no?: string
-          report_nm?: string
+          market_reaction_history?: Json | null
+          rcept_dt?: string | null
+          rcept_no?: string | null
+          report_nm?: string | null
           risk_factors?: string | null
           sector?: string | null
+          sentiment?: string | null
           sentiment_score?: number | null
           short_term_impact_score?: number | null
+          signal_tag?: string | null
           sonnet_analyzed?: boolean | null
           sonnet_analyzed_at?: string | null
           sonnet_detailed_analysis?: string | null
@@ -336,6 +318,7 @@ export type Database = {
           sonnet_summary?: string | null
           sonnet_tokens_used?: number | null
           stock_code?: string | null
+          system_score?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -374,6 +357,39 @@ export type Database = {
           sample_size?: number | null
           std_1d?: number | null
           std_3d?: number | null
+          std_5d?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      event_stats: {
+        Row: {
+          avg_1d_return: number | null
+          avg_20d_return: number | null
+          avg_3d_return: number | null
+          avg_5d_return: number | null
+          event_type: string
+          sample_size: number | null
+          std_5d: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_1d_return?: number | null
+          avg_20d_return?: number | null
+          avg_3d_return?: number | null
+          avg_5d_return?: number | null
+          event_type: string
+          sample_size?: number | null
+          std_5d?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_1d_return?: number | null
+          avg_20d_return?: number | null
+          avg_3d_return?: number | null
+          avg_5d_return?: number | null
+          event_type?: string
+          sample_size?: number | null
           std_5d?: number | null
           updated_at?: string | null
         }
@@ -438,13 +454,14 @@ export type Database = {
       }
       ksic_codes: {
         Row: {
+          created_at: string | null
           description: string | null
           detail_code: string | null
           detail_name: string | null
           division_code: string | null
           division_name: string | null
           ksic_code: string
-          ksic_name: string | null
+          ksic_name: string
           major_code: string | null
           major_name: string | null
           minor_code: string | null
@@ -452,15 +469,17 @@ export type Database = {
           sub_code: string | null
           sub_name: string | null
           top_industry: string | null
+          updated_at: string | null
         }
         Insert: {
+          created_at?: string | null
           description?: string | null
           detail_code?: string | null
           detail_name?: string | null
           division_code?: string | null
           division_name?: string | null
           ksic_code: string
-          ksic_name?: string | null
+          ksic_name: string
           major_code?: string | null
           major_name?: string | null
           minor_code?: string | null
@@ -468,15 +487,17 @@ export type Database = {
           sub_code?: string | null
           sub_name?: string | null
           top_industry?: string | null
+          updated_at?: string | null
         }
         Update: {
+          created_at?: string | null
           description?: string | null
           detail_code?: string | null
           detail_name?: string | null
           division_code?: string | null
           division_name?: string | null
           ksic_code?: string
-          ksic_name?: string | null
+          ksic_name?: string
           major_code?: string | null
           major_name?: string | null
           minor_code?: string | null
@@ -484,6 +505,43 @@ export type Database = {
           sub_code?: string | null
           sub_name?: string | null
           top_industry?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      loan_stats: {
+        Row: {
+          created_at: string | null
+          date: string
+          loan_balance: number | null
+          loan_delta: number | null
+          loan_z: number | null
+          lps: number | null
+          stock_code: string
+          volume: number | null
+          volume_ratio: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          loan_balance?: number | null
+          loan_delta?: number | null
+          loan_z?: number | null
+          lps?: number | null
+          stock_code: string
+          volume?: number | null
+          volume_ratio?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          loan_balance?: number | null
+          loan_delta?: number | null
+          loan_z?: number | null
+          lps?: number | null
+          stock_code?: string
+          volume?: number | null
+          volume_ratio?: number | null
         }
         Relationships: []
       }
@@ -539,27 +597,24 @@ export type Database = {
         Row: {
           change_rate: number | null
           change_value: string | null
-          id: number
           name: string
-          price: string | null
+          price: string
           symbol: string
           updated_at: string | null
         }
         Insert: {
           change_rate?: number | null
           change_value?: string | null
-          id?: number
           name: string
-          price?: string | null
+          price: string
           symbol: string
           updated_at?: string | null
         }
         Update: {
           change_rate?: number | null
           change_value?: string | null
-          id?: number
           name?: string
-          price?: string | null
+          price?: string
           symbol?: string
           updated_at?: string | null
         }
@@ -580,6 +635,48 @@ export type Database = {
           created_at?: string
           data?: Json
           id?: string
+        }
+        Relationships: []
+      }
+      market_radar: {
+        Row: {
+          created_at: string | null
+          date: string
+          foreign_flow: string | null
+          id: string
+          kosdaq_change: number | null
+          kospi_change: number | null
+          market_signal: string | null
+          summary: string | null
+          top_sector: string | null
+          top_sector_en: string | null
+          total_disclosures: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          foreign_flow?: string | null
+          id?: string
+          kosdaq_change?: number | null
+          kospi_change?: number | null
+          market_signal?: string | null
+          summary?: string | null
+          top_sector?: string | null
+          top_sector_en?: string | null
+          total_disclosures?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          foreign_flow?: string | null
+          id?: string
+          kosdaq_change?: number | null
+          kospi_change?: number | null
+          market_signal?: string | null
+          summary?: string | null
+          top_sector?: string | null
+          top_sector_en?: string | null
+          total_disclosures?: number | null
         }
         Relationships: []
       }
@@ -610,6 +707,51 @@ export type Database = {
         }
         Relationships: []
       }
+      scores_log: {
+        Row: {
+          base_score: number | null
+          base_score_raw: number | null
+          created_at: string | null
+          date: string
+          disclosure_id: string | null
+          final_score: number | null
+          future_return_20d: number | null
+          future_return_5d: number | null
+          id: string
+          lps: number | null
+          signal_tag: string | null
+          stock_code: string
+        }
+        Insert: {
+          base_score?: number | null
+          base_score_raw?: number | null
+          created_at?: string | null
+          date: string
+          disclosure_id?: string | null
+          final_score?: number | null
+          future_return_20d?: number | null
+          future_return_5d?: number | null
+          id?: string
+          lps?: number | null
+          signal_tag?: string | null
+          stock_code: string
+        }
+        Update: {
+          base_score?: number | null
+          base_score_raw?: number | null
+          created_at?: string | null
+          date?: string
+          disclosure_id?: string | null
+          final_score?: number | null
+          future_return_20d?: number | null
+          future_return_5d?: number | null
+          id?: string
+          lps?: number | null
+          signal_tag?: string | null
+          stock_code?: string
+        }
+        Relationships: []
+      }
       sector_benchmarks: {
         Row: {
           avg_net_margin: number | null
@@ -628,7 +770,7 @@ export type Database = {
           avg_pbr?: number | null
           avg_per?: number | null
           growth_rate_yoy?: number | null
-          id?: number
+          id: number
           sector: string
           sector_en?: string | null
           updated_at?: string | null
@@ -646,23 +788,71 @@ export type Database = {
         }
         Relationships: []
       }
+      sector_signals: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          date: string
+          disclosure_count: number | null
+          drivers: string[] | null
+          id: string
+          negative_count: number | null
+          neutral_count: number | null
+          positive_count: number | null
+          sector: string
+          sector_en: string | null
+          signal: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          date: string
+          disclosure_count?: number | null
+          drivers?: string[] | null
+          id?: string
+          negative_count?: number | null
+          neutral_count?: number | null
+          positive_count?: number | null
+          sector: string
+          sector_en?: string | null
+          signal?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          date?: string
+          disclosure_count?: number | null
+          drivers?: string[] | null
+          id?: string
+          negative_count?: number | null
+          neutral_count?: number | null
+          positive_count?: number | null
+          sector?: string
+          sector_en?: string | null
+          signal?: string | null
+        }
+        Relationships: []
+      }
       sectors: {
         Row: {
           created_at: string | null
           description: string | null
           name: string
+          sector_en: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           description?: string | null
           name: string
+          sector_en?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           description?: string | null
           name?: string
+          sector_en?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -730,84 +920,13 @@ export type Database = {
         }
         Relationships: []
       }
-      test_event_returns: {
-        Row: {
-          corp_name: string | null
-          created_at: string | null
-          disclosure_date: string | null
-          id: number
-          return_1d: number | null
-          return_3d: number | null
-          return_5d: number | null
-          stock_code: string | null
-        }
-        Insert: {
-          corp_name?: string | null
-          created_at?: string | null
-          disclosure_date?: string | null
-          id?: number
-          return_1d?: number | null
-          return_3d?: number | null
-          return_5d?: number | null
-          stock_code?: string | null
-        }
-        Update: {
-          corp_name?: string | null
-          created_at?: string | null
-          disclosure_date?: string | null
-          id?: number
-          return_1d?: number | null
-          return_3d?: number | null
-          return_5d?: number | null
-          stock_code?: string | null
-        }
-        Relationships: []
-      }
-      test_event_statistics: {
-        Row: {
-          avg_1d: number | null
-          avg_3d: number | null
-          avg_5d: number | null
-          created_at: string | null
-          event_type: string | null
-          id: number
-          sample_size: number | null
-          std_1d: number | null
-          std_3d: number | null
-          std_5d: number | null
-        }
-        Insert: {
-          avg_1d?: number | null
-          avg_3d?: number | null
-          avg_5d?: number | null
-          created_at?: string | null
-          event_type?: string | null
-          id?: number
-          sample_size?: number | null
-          std_1d?: number | null
-          std_3d?: number | null
-          std_5d?: number | null
-        }
-        Update: {
-          avg_1d?: number | null
-          avg_3d?: number | null
-          avg_5d?: number | null
-          created_at?: string | null
-          event_type?: string | null
-          id?: number
-          sample_size?: number | null
-          std_1d?: number | null
-          std_3d?: number | null
-          std_5d?: number | null
-        }
-        Relationships: []
-      }
       users: {
         Row: {
+          api_key: string | null
+          api_key_created_at: string | null
           created_at: string | null
           email: string
           id: string
-          last_session_id: string | null
           plan: string | null
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -815,10 +934,11 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          api_key?: string | null
+          api_key_created_at?: string | null
           created_at?: string | null
           email: string
           id: string
-          last_session_id?: string | null
           plan?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -826,10 +946,11 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          api_key?: string | null
+          api_key_created_at?: string | null
           created_at?: string | null
           email?: string
           id?: string
-          last_session_id?: string | null
           plan?: string | null
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -870,18 +991,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      demote_expired_hot_stocks: { Args: never; Returns: number }
-      get_active_hot_stocks: {
-        Args: never
-        Returns: {
-          corp_code: string
-          corp_name: string
-          expires_at: string
-          promoted_at: string
-          reason: string
-          stock_code: string
-        }[]
-      }
       get_corp_code: {
         Args: { p_stock_code: string }
         Returns: {
@@ -889,16 +998,14 @@ export type Database = {
           corp_name: string
         }[]
       }
-      is_hot_stock: { Args: { p_corp_code: string }; Returns: boolean }
-      promote_to_hot_stock: {
+      get_ksic_major_code: { Args: { ksic_code: string }; Returns: string }
+      update_company_ksic: {
         Args: {
-          p_corp_code: string
-          p_corp_name: string
-          p_reason: string
-          p_reason_detail?: string
+          p_corp_code?: string
+          p_industry_category?: string
+          p_ksic_code: string
+          p_ksic_name?: string
           p_stock_code: string
-          p_trigger_threshold?: number
-          p_trigger_value?: number
         }
         Returns: boolean
       }
