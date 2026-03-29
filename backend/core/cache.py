@@ -113,25 +113,32 @@ async def _get_redis():
     - REDIS_URL 없음 → None (로컬 캐시 사용)
     - 연결 실패      → None (로컬 캐시 폴백, 재시도 없음)
     - 연결 성공      → redis.asyncio.Redis 인스턴스 (이후 재사용)
+
+    지원 URL 형식:
+      rediss://default:TOKEN@HOST:6379   ← Vercel KV (KV_URL 그대로 사용)
+      redis://HOST:PORT                  ← 로컬 개발
+      https://HOST                       ← 구 Upstash REST (레거시, REDIS_TOKEN 필요)
     """
     global _redis, _redis_initialized
     if _redis_initialized:
         return _redis
 
     _redis_initialized = True
-    url = os.getenv("REDIS_URL")
+
+    # Vercel KV는 KV_URL로 제공, 없으면 REDIS_URL 폴백 (하위 호환)
+    url = os.getenv("KV_URL") or os.getenv("REDIS_URL")
     if not url:
-        logger.info("[cache] REDIS_URL 미설정 → in-process 캐시 사용")
+        logger.info("[cache] KV_URL/REDIS_URL 미설정 → in-process 캐시 사용")
         return None
 
-    # Upstash REST URL(https://)은 Redis 프로토콜(rediss://)로 자동 변환
-    token = os.getenv("REDIS_TOKEN")
-    if url.startswith("https://") and token:
+    # 레거시: 구 Upstash REST URL(https://) 변환 — KV_URL 사용 시 불필요
+    if url.startswith("https://"):
+        token = os.getenv("REDIS_TOKEN")
+        if not token:
+            logger.warning("[cache] Upstash REST URL이지만 REDIS_TOKEN 없음 → 로컬 캐시 사용")
+            return None
         host = url.replace("https://", "").rstrip("/")
         url = f"rediss://default:{token}@{host}:6379"
-    elif url.startswith("https://"):
-        logger.warning("[cache] Upstash REST URL이지만 REDIS_TOKEN 없음 → 로컬 캐시 사용")
-        return None
 
     try:
         import redis.asyncio as aioredis  # type: ignore[import]
@@ -144,7 +151,7 @@ async def _get_redis():
         )
         await client.ping()
         _redis = client
-        logger.info(f"[cache] Redis 연결 성공: {url[:30]}...")
+        logger.info(f"[cache] Redis 연결 성공: {url[:40]}...")
     except ImportError:
         logger.warning("[cache] redis 패키지 없음 (pip install redis) → 로컬 캐시 사용")
     except Exception as e:

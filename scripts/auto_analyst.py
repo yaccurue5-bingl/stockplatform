@@ -248,12 +248,11 @@ SENTIMENT SCORE GUIDE (sentiment_score):
     def classify_disclosure(self, title: str) -> str:
         title = title.lower()
 
-        if "분기" in title or "사업보고서" in title or "잠정" in title:
-            return "EARNINGS"
+        # DILUTION 최우선 — 희석 이벤트는 가장 강한 시그널
+        if "전환사채" in title or "bw" in title or "cb" in title or "유상증자" in title:
+            return "DILUTION"
         elif "단일판매" in title or "공급계약" in title:
             return "CONTRACT"
-        elif "전환사채" in title or "bw" in title or "유상증자" in title:
-            return "DILUTION"
         elif "자기주식" in title:
             return "BUYBACK"
         elif "합병" in title or "분할" in title or "지분" in title:
@@ -262,6 +261,8 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             return "LEGAL"
         elif "신규시설" in title or "투자" in title:
             return "CAPEX"
+        elif "분기" in title or "사업보고서" in title or "잠정" in title or "실적" in title:
+            return "EARNINGS"
         else:
             return "OTHER"
 

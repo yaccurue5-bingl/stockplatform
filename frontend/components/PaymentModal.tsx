@@ -107,7 +107,7 @@ export default function PaymentModal({ isOpen, onClose, userEmail, userId, planT
       });
     } catch {
       setStatus('error');
-      setErrorMessage('결제 창을 열 수 없습니다. 잠시 후 다시 시도해주세요.');
+      setErrorMessage('Unable to open checkout. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -143,8 +143,8 @@ export default function PaymentModal({ isOpen, onClose, userEmail, userId, planT
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">결제가 성공적으로 진행되었습니다.</h2>
-            <p className="text-gray-400 mb-8">주문에 대한 세부 정보는 이메일로 보내드립니다.</p>
+            <h2 className="text-2xl font-bold text-white mb-2">Payment Successful</h2>
+            <p className="text-gray-400 mb-8">Order details will be sent to your email.</p>
             {/* ✅ 확인 버튼: 하드 리로드 없이 dashboard로 이동 → 세션 유지 */}
             <button
               onClick={() => {
@@ -153,7 +153,7 @@ export default function PaymentModal({ isOpen, onClose, userEmail, userId, planT
               }}
               className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors"
             >
-              확인
+              Continue
             </button>
           </div>
         ) : (
@@ -218,7 +218,7 @@ export default function PaymentModal({ isOpen, onClose, userEmail, userId, planT
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  처리 중...
+                  Processing...
                 </>
               ) : !paddle ? (
                 <>
@@ -226,7 +226,7 @@ export default function PaymentModal({ isOpen, onClose, userEmail, userId, planT
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  로딩 중...
+                  Loading...
                 </>
               ) : (
                 plan.buttonLabel
