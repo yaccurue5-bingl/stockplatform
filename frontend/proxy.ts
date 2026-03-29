@@ -86,6 +86,7 @@ export default async function proxy(req: NextRequest) {
     '/api/stripe/webhook',    // Stripe Webhook은 서명 검증으로 보호됨
     '/api/disclosures/latest', // 메인 페이지 공시 목록 API
     '/disclosures/',           // 개별 공시 상세 페이지 (공개 미끼 상품)
+    '/signal/',               // SEO 공시 시그널 페이지 (공개, 구글 인덱싱 대상)
   ];
 
   // 로그인한 사용자가 /login, /signup 접근 시 redirectTo 혹은 홈으로 리다이렉트

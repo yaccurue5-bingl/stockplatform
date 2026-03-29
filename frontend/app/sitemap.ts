@@ -1,8 +1,34 @@
 import { MetadataRoute } from "next";
+import { createServiceClient } from "@/lib/supabase/server";
 
 const SITE_URL = "https://k-marketinsight.com";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+async function fetchRecentSignalIds(): Promise<{ id: string; updated_at: string | null }[]> {
+  try {
+    const sb = createServiceClient();
+    const { data } = await sb
+      .from("disclosure_insights")
+      .select("id, updated_at")
+      .eq("is_visible", true)
+      .eq("analysis_status", "completed")
+      .order("rcept_dt", { ascending: false })
+      .limit(500);
+    return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const signals = await fetchRecentSignalIds();
+
+  const signalUrls: MetadataRoute.Sitemap = signals.map((s) => ({
+    url: `${SITE_URL}/signal/${s.id}`,
+    lastModified: s.updated_at ? new Date(s.updated_at) : new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+  }));
+
   return [
     {
       url: SITE_URL,
@@ -47,5 +73,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "daily",
       priority: 0.9,
     },
+    // 개별 시그널 페이지 (최대 500개, 동적)
+    ...signalUrls,
   ];
 }
