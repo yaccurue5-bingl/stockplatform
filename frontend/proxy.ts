@@ -92,6 +92,8 @@ export default async function proxy(req: NextRequest) {
     '/korea-earnings-signals',  // SEO 랜딩 페이지 (공개)
     '/korea-dilution-filings',  // SEO 랜딩 페이지 (공개)
     '/korea-contract-signals',  // SEO 랜딩 페이지 (공개)
+    '/sitemap.xml',             // 구글 서치 콘솔 크롤링 허용
+    '/robots.txt',              // 크롤러 접근 허용
   ];
 
   // 로그인한 사용자가 /login, /signup 접근 시 redirectTo 혹은 홈으로 리다이렉트
