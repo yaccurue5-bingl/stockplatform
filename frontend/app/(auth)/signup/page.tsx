@@ -82,13 +82,16 @@ export default function SignupPage() {
             We've sent a confirmation link to <strong>{email}</strong>
           </p>
           <p className="text-sm text-gray-500">
-            Click the link in the email to activate your account.
+            Click the link in the email — you'll be taken directly to your dashboard.
+          </p>
+          <p className="text-xs text-gray-400 mt-2">
+            Didn't receive it? Check your spam folder.
           </p>
           <Link
-            href="/login"
+            href="/"
             className="inline-block mt-4 text-blue-600 hover:text-blue-500 font-medium"
           >
-            Back to login
+            ← Back to Homepage
           </Link>
         </div>
       </div>

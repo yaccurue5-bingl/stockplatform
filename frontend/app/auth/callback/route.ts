@@ -63,7 +63,19 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error('Failed to exchange code for session:', error);
       const errorUrl = new URL('/login', request.url);
-      errorUrl.searchParams.set('error', error.message || 'Authentication failed');
+
+      // 이미 사용됐거나 만료된 토큰 → 친절한 안내
+      const isExpiredToken =
+        error.message?.toLowerCase().includes('expired') ||
+        error.message?.toLowerCase().includes('already') ||
+        error.message?.toLowerCase().includes('invalid');
+
+      errorUrl.searchParams.set(
+        'error',
+        isExpiredToken
+          ? 'This confirmation link has already been used or has expired. Please sign in directly.'
+          : 'Authentication failed. Please try again.'
+      );
       return NextResponse.redirect(errorUrl);
     }
 
