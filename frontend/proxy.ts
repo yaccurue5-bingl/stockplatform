@@ -89,6 +89,9 @@ export default async function proxy(req: NextRequest) {
     '/api/disclosures/latest', // 메인 페이지 공시 목록 API
     '/disclosures/',           // 개별 공시 상세 페이지 (공개 미끼 상품)
     '/signal/',               // SEO 공시 시그널 페이지 (공개, 구글 인덱싱 대상)
+    '/korea-earnings-signals',  // SEO 랜딩 페이지 (공개)
+    '/korea-dilution-filings',  // SEO 랜딩 페이지 (공개)
+    '/korea-contract-signals',  // SEO 랜딩 페이지 (공개)
   ];
 
   // 로그인한 사용자가 /login, /signup 접근 시 redirectTo 혹은 홈으로 리다이렉트
