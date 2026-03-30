@@ -43,7 +43,7 @@ const FeatureIcon = ({ name }: { name: EventLandingConfig['features'][0]['icon']
 
 export default function EventLandingPage({ cfg }: { cfg: EventLandingConfig }) {
   return (
-    <div className="bg-[#0B0F14] text-gray-200 font-sans min-h-screen">
+    <div className="bg-[#0B0F14] text-gray-200 font-sans min-h-screen overflow-x-hidden">
       <Navbar />
 
       {/* ── Hero ── */}

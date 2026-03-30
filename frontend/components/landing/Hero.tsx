@@ -6,7 +6,7 @@ import MarketRadar from './MarketRadar';
 
 export default function Hero() {
   return (
-    <section className="bg-[#0B0F14] py-20 px-4 overflow-hidden">
+    <section className="bg-[#0B0F14] py-16 md:py-20 px-4 overflow-hidden">
       <div className="max-w-[1200px] mx-auto grid md:grid-cols-2 gap-12 items-center">
 
         {/* Left */}
