@@ -82,12 +82,12 @@ function DisclosuresContent() {
         .eq('id', session.user.id)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
-      // plan이 free이거나 없으면 홈으로 (waitlist 모달 오픈 파라미터 포함)
+      // plan이 free이거나 없으면 pricing 페이지로
       const isPaid =
         data?.plan && data.plan !== 'free' && data?.subscription_status === 'active';
 
       if (!isPaid) {
-        router.replace('/?waitlist=1');
+        router.replace('/pricing');
         return;
       }
 

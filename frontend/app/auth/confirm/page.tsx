@@ -8,10 +8,10 @@ export default function ConfirmPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // 5초 후 자동으로 랜딩페이지로 이동
+    // 3초 후 대시보드로 이동 (이미 로그인된 상태)
     const timer = setTimeout(() => {
-      router.push('/');
-    }, 5000);
+      router.push('/dashboard');
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, [router]);
@@ -38,16 +38,16 @@ export default function ConfirmPage() {
 
         {/* Auto redirect notice */}
         <p className="text-sm text-gray-500 mb-6">
-          Redirecting to homepage in 5 seconds...
+          Redirecting to your dashboard in 3 seconds...
         </p>
 
         {/* Buttons */}
         <div className="space-y-3">
           <Link
-            href="/login"
+            href="/dashboard"
             className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition"
           >
-            Sign In Now
+            Go to Dashboard →
           </Link>
           <Link
             href="/"
