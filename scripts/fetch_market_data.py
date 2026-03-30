@@ -249,8 +249,14 @@ def save_to_db(
     success = failure = 0
 
     # ── 1. companies 테이블 ────────────────────────────────────────────────────
-    for i in range(0, len(company_rows), BATCH_SIZE):
-        batch = company_rows[i:i + BATCH_SIZE]
+    # 같은 배치 내 stock_code 중복 시 companies_pkey 충돌 방지 → 마지막 row 우선 유지
+    seen_sc: dict[str, dict] = {}
+    for row in company_rows:
+        seen_sc[row["stock_code"]] = row
+    deduped_company_rows = list(seen_sc.values())
+
+    for i in range(0, len(deduped_company_rows), BATCH_SIZE):
+        batch = deduped_company_rows[i:i + BATCH_SIZE]
         bn = i // BATCH_SIZE + 1
         try:
             sb.table("companies").upsert(
