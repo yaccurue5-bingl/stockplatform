@@ -14,13 +14,14 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [success, setSuccess] = useState(false);
+  const [alreadyExists, setAlreadyExists] = useState(false);
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMessage('');
+    setAlreadyExists(false);
 
-    // Validation
     if (password !== confirmPassword) {
       setErrorMessage('Passwords do not match');
       setLoading(false);
@@ -36,9 +37,25 @@ export default function SignupPage() {
     try {
       await signUp(email, password);
       setSuccess(true);
-      // Supabase는 이메일 확인 링크를 보냅니다
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Signup failed');
+      const msg = err instanceof Error ? err.message : 'Signup failed';
+      const isExisting =
+        msg.toLowerCase().includes('already registered') ||
+        msg.toLowerCase().includes('already been registered') ||
+        msg.toLowerCase().includes('user already exists');
+      const isEmailError =
+        msg.toLowerCase().includes('sending confirmation') ||
+        msg.toLowerCase().includes('email');
+
+      if (isExisting) {
+        setAlreadyExists(true);
+      } else if (isEmailError) {
+        setErrorMessage(
+          'Failed to send confirmation email. Please try again or use a different email address (e.g. Gmail).'
+        );
+      } else {
+        setErrorMessage(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -57,6 +74,44 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
+  if (alreadyExists) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 px-4">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl text-center space-y-6">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
+            <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Account Already Exists</h2>
+          <p className="text-gray-600">
+            An account with <strong>{email}</strong> is already registered.
+          </p>
+          <div className="space-y-3">
+            <Link
+              href="/login"
+              className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition"
+            >
+              Sign In →
+            </Link>
+            <Link
+              href="/forgot-password"
+              className="block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 rounded-lg transition"
+            >
+              Forgot Password?
+            </Link>
+          </div>
+          <button
+            onClick={() => { setAlreadyExists(false); setEmail(''); }}
+            className="text-sm text-gray-400 hover:text-gray-600"
+          >
+            ← Try a different email
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (success) {
     return (

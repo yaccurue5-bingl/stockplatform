@@ -10,6 +10,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/';
   const error = searchParams.get('error');
+  const message = searchParams.get('message');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -77,11 +78,18 @@ function LoginForm() {
           </p>
         </div>
 
+        {/* Success Message (e.g. password reset) */}
+        {message && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-sm text-green-700">{message}</p>
+          </div>
+        )}
+
         {/* Error Message */}
         {(errorMessage || error) && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-sm text-red-600">
-              {errorMessage || 'Authentication failed. Please try again.'}
+              {errorMessage || error}
             </p>
           </div>
         )}
@@ -117,6 +125,12 @@ function LoginForm() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 placeholder="••••••••"
               />
+            </div>
+
+            <div className="flex justify-end">
+              <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500">
+                Forgot password?
+              </Link>
             </div>
 
             <button
