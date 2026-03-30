@@ -83,6 +83,8 @@ export default async function proxy(req: NextRequest) {
   const prefixPublicPaths = [
     '/auth/callback',
     '/auth/confirm',
+    '/auth/reset-password',    // 비밀번호 재설정 (recovery 토큰으로 접근)
+    '/forgot-password',        // 비밀번호 찾기 (미인증 접근 허용)
     '/api/stripe/webhook',    // Stripe Webhook은 서명 검증으로 보호됨
     '/api/disclosures/latest', // 메인 페이지 공시 목록 API
     '/disclosures/',           // 개별 공시 상세 페이지 (공개 미끼 상품)
