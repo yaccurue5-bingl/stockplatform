@@ -29,15 +29,19 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
   const [userEmail, setUserEmail] = useState<string>('');
   const [userInitial, setUserInitial] = useState<string>('?');
 
-  // 현재 로그인 유저 정보 불러오기
+  // 현재 로그인 유저 정보 불러오기 + 미인증 시 로그인 페이지로
   useEffect(() => {
     const supabase = getSupabase();
     supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) {
+        router.replace('/login');
+        return;
+      }
       const email = data.user?.email || '';
       setUserEmail(email);
       setUserInitial(email ? email[0].toUpperCase() : '?');
     });
-  }, []);
+  }, [router]);
 
   // 기존 signOut 알고리즘 사용 (lib/supabase/client.ts)
   const handleLogout = async () => {
