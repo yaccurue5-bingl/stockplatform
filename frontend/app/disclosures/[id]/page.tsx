@@ -11,7 +11,6 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import HistoryInject from './HistoryInject';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -138,9 +137,6 @@ export default async function DisclosureDetailPage({
 
   return (
     <main className="min-h-screen bg-[#0D1117] text-white">
-      {/* 로그인 유저: history에 /disclosures 주입 (뒤로가기 시 all list로 이동) */}
-      {isLoggedIn && <HistoryInject />}
-
       {/* 상단 네비 */}
       <div className="border-b border-gray-800 px-4 py-3">
         <div className="max-w-3xl mx-auto">
