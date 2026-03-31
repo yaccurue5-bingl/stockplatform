@@ -53,9 +53,10 @@ NOISE_KEYWORDS = [
     "주주명부폐쇄기준일", "배당기준일", "명의개서정지",
 ]
 
-# 종목명 필터 — 스팩/펀드/부동산리츠 등 투자 시그널 무의미 종목 제외
+# 종목명 필터 — 스팩/펀드/부동산리츠/비상장금융기관 등 투자 시그널 무의미 종목 제외
 NOISE_CORP_KEYWORDS = [
-    "전문유한회사", "부동산투자회사", "스팩", "자산운용", "펀드", "기업인수목적",
+    "전문유한회사", "부동산투자회사", "스팩", "자산운용", "자산운영", "펀드",
+    "기업인수목적", "투자증권", "투자자문",
 ]
 
 # 구분류 event_type 값 (재분석 대상)
@@ -172,16 +173,28 @@ def step_noise(sb: Client, dry_run: bool):
         [f"report_nm.ilike.%{kw}%" for kw in NOISE_KEYWORDS] +
         [f"corp_name.ilike.%{kw}%" for kw in NOISE_CORP_KEYWORDS]
     )
+    # 키워드 노이즈
     targets = (
         sb.table("disclosure_insights")
         .select("id")
         .or_(or_filter)
-        .not_.eq("analysis_status", "skipped")   # 이미 skipped 는 제외
+        .not_.eq("analysis_status", "skipped")
         .execute()
     )
-
     ids = [r["id"] for r in (targets.data or [])]
-    logger.info(f"  노이즈 대상: {len(ids)}건")
+
+    # stock_code 빈값 = 비상장 법인 (시장 데이터 연결 불가 → 투자 시그널 무의미)
+    no_code_targets = (
+        sb.table("disclosure_insights")
+        .select("id")
+        .eq("stock_code", "")
+        .not_.eq("analysis_status", "skipped")
+        .execute()
+    )
+    no_code_ids = [r["id"] for r in (no_code_targets.data or [])]
+    ids = list(set(ids + no_code_ids))
+
+    logger.info(f"  노이즈 대상: {len(ids)}건 (키워드:{len(ids)-len(no_code_ids)} + stock_code없음:{len(no_code_ids)})")
 
     if dry_run or not ids:
         return len(ids)

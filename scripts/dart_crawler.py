@@ -59,7 +59,8 @@ _NOISE_KEYWORDS = [
 
 # 종목명 필터 — 스팩/펀드/부동산리츠 등 투자 시그널 무의미 종목 제외
 _NOISE_CORP_KEYWORDS = [
-    "전문유한회사", "부동산투자회사", "스팩", "자산운용", "펀드", "기업인수목적",
+    "전문유한회사", "부동산투자회사", "스팩", "자산운용", "자산운영", "펀드",
+    "기업인수목적", "투자증권", "투자자문",
 ]
 
 def is_noise_disclosure(report_nm: str) -> bool:
@@ -251,6 +252,12 @@ def run_crawler():
                 continue
             if is_noise_corp(corp_name_val):
                 logger.info(f"⏭ 노이즈 종목 스킵: {corp_name_val}")
+                continue
+
+            # 비상장 법인 스킵 (stock_code 없음 = 시장 데이터 연결 불가)
+            stock_code_val = item.get("stock_code", "").strip()
+            if not stock_code_val:
+                logger.info(f"⏭ 비상장 법인 스킵 (stock_code 없음): {corp_name_val}")
                 continue
 
             # 정제된 본문 추출 함수 호출 (내부에서 sleep + 재시도 처리)
