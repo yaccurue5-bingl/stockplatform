@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import ApiKeyButton from './ApiKeyButton';
 import { Check, TrendingUp, Zap, Database, ArrowRight } from 'lucide-react';
 
 export interface EventLandingConfig {
@@ -60,12 +61,7 @@ export default function EventLandingPage({ cfg }: { cfg: EventLandingConfig }) {
             {cfg.subtitle}
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <Link
-              href="/login"
-              className="bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold px-7 py-3 rounded-lg transition text-sm"
-            >
-              Get API Key →
-            </Link>
+            <ApiKeyButton className="bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold px-7 py-3 rounded-lg transition text-sm" />
             <Link
               href="/api-docs"
               className="border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-medium px-7 py-3 rounded-lg transition text-sm"
@@ -196,12 +192,10 @@ export default function EventLandingPage({ cfg }: { cfg: EventLandingConfig }) {
           <p className="text-gray-400 mb-8">
             Free plan includes 100 API requests/day. No credit card required.
           </p>
-          <Link
-            href="/login"
+          <ApiKeyButton
             className="inline-block bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold px-8 py-4 rounded-lg transition text-sm"
-          >
-            Get Your Free API Key →
-          </Link>
+            label="Get Your Free API Key →"
+          />
           <p className="text-xs text-gray-600 mt-4">
             Upgrade to Developer ($49/mo) or Pro ($199/mo) for higher limits.
           </p>

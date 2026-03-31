@@ -124,7 +124,7 @@ export default function Navbar() {
                 Login
               </Link>
               <Link
-                href="/login"
+                href="/signup"
                 className="text-sm font-semibold bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] px-4 py-2 rounded-lg transition flex items-center gap-1.5"
               >
                 GET API KEY →
@@ -176,7 +176,7 @@ export default function Navbar() {
               <>
                 <Link href="/login" className="text-sm text-gray-300 hover:text-white px-3 py-2">Login</Link>
                 <Link
-                  href="/login"
+                  href="/signup"
                   className="text-sm font-semibold bg-[#00D4A6] text-[#0B0F14] px-4 py-2 rounded-lg"
                 >
                   GET API KEY
