@@ -23,7 +23,8 @@ export async function GET(request: Request) {
     let query = supabase
       .from('disclosure_insights')
       .select('*')
-      .eq('analysis_status', 'completed');
+      .eq('analysis_status', 'completed')
+      .eq('is_visible', true);
 
     // 특정 종목 필터 적용
     if (stockParam) {

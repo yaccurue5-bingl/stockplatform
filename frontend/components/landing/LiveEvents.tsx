@@ -25,9 +25,9 @@ const SENTIMENT_STYLE: Record<string, string> = {
 
 // DB에 데이터가 없을 때 표시할 폴백 (초기 셋업 기간 대비)
 const FALLBACK_EVENTS = [
-  { id: '', company: 'Samsung Electronics', ticker: '005930', event: 'Earnings Beat',      impact: '+0.83', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
-  { id: '', company: 'SK Hynix',            ticker: '000660', event: 'Capital Investment',  impact: '+0.71', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
-  { id: '', company: 'Hyundai Motor',        ticker: '005380', event: 'Strategic Contract', impact: '+0.65', positive: true,  color: SENTIMENT_STYLE.NEUTRAL  },
+  { id: '', company: 'Samsung Electronics', company_kr: '삼성전자', ticker: '005930', event: 'Earnings Beat',      impact: '+0.83', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
+  { id: '', company: 'SK Hynix',            company_kr: 'SK하이닉스', ticker: '000660', event: 'Capital Investment',  impact: '+0.71', positive: true,  color: SENTIMENT_STYLE.POSITIVE },
+  { id: '', company: 'Hyundai Motor',        company_kr: '현대자동차', ticker: '005380', event: 'Strategic Contract', impact: '+0.65', positive: true,  color: SENTIMENT_STYLE.NEUTRAL  },
 ];
 
 // ── 데이터 페칭 ───────────────────────────────────────────────────────────────
@@ -45,17 +45,32 @@ async function fetchLatestEvents() {
 
     if (error || !data?.length) return null;
 
+    // 영문 기업명 조회
+    const stockCodes = [...new Set(data.map((r) => r.stock_code).filter(Boolean))];
+    const corpNameEnMap: Record<string, string> = {};
+    if (stockCodes.length > 0) {
+      const { data: corpData } = await sb
+        .from('dart_corp_codes')
+        .select('stock_code, corp_name_en')
+        .in('stock_code', stockCodes);
+      if (corpData) {
+        corpData.forEach((c: any) => { if (c.corp_name_en) corpNameEnMap[c.stock_code] = c.corp_name_en; });
+      }
+    }
+
     return data.map((row) => {
       const score  = row.sentiment_score ?? 0;
       const sentiment = score >= 0.3 ? 'POSITIVE' : score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
+      const corpNameEn = corpNameEnMap[row.stock_code] ?? null;
       return {
-        id:       row.id ?? '',
-        company:  row.corp_name ?? '',
-        ticker:   row.stock_code ?? '',
-        event:    EVENT_LABELS[row.event_type ?? ''] ?? EVENT_LABELS.OTHER,
-        impact:   (score >= 0 ? '+' : '') + score.toFixed(2),
-        positive: score >= 0,
-        color:    SENTIMENT_STYLE[sentiment] ?? SENTIMENT_STYLE.NEUTRAL,
+        id:          row.id ?? '',
+        company:     corpNameEn ?? row.corp_name ?? '',
+        company_kr:  corpNameEn ? (row.corp_name ?? '') : '',
+        ticker:      row.stock_code ?? '',
+        event:       EVENT_LABELS[row.event_type ?? ''] ?? EVENT_LABELS.OTHER,
+        impact:      (score >= 0 ? '+' : '') + score.toFixed(2),
+        positive:    score >= 0,
+        color:       SENTIMENT_STYLE[sentiment] ?? SENTIMENT_STYLE.NEUTRAL,
       };
     });
   } catch {
@@ -93,7 +108,7 @@ export default async function LiveEvents() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">{e.company}</p>
-                <p className="text-xs text-gray-500">{e.ticker}</p>
+                <p className="text-xs text-gray-500">{e.company_kr || e.ticker}</p>
               </div>
             </div>
             <div className="hidden sm:flex items-center gap-3">
