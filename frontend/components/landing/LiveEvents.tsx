@@ -46,7 +46,7 @@ async function fetchLatestEvents() {
     if (error || !data?.length) return null;
 
     // 영문 기업명 조회
-    const stockCodes = [...new Set(data.map((r) => r.stock_code).filter(Boolean))];
+    const stockCodes = [...new Set(data.map((r) => r.stock_code).filter((s): s is string => !!s))];
     const corpNameEnMap: Record<string, string> = {};
     if (stockCodes.length > 0) {
       const { data: corpData } = await sb
@@ -54,14 +54,14 @@ async function fetchLatestEvents() {
         .select('stock_code, corp_name_en')
         .in('stock_code', stockCodes);
       if (corpData) {
-        corpData.forEach((c: any) => { if (c.corp_name_en) corpNameEnMap[c.stock_code] = c.corp_name_en; });
+        corpData.forEach((c: any) => { if (c.corp_name_en && c.stock_code) corpNameEnMap[c.stock_code] = c.corp_name_en; });
       }
     }
 
     return data.map((row) => {
       const score  = row.sentiment_score ?? 0;
       const sentiment = score >= 0.3 ? 'POSITIVE' : score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
-      const corpNameEn = corpNameEnMap[row.stock_code] ?? null;
+      const corpNameEn = row.stock_code ? (corpNameEnMap[row.stock_code] ?? null) : null;
       return {
         id:          row.id ?? '',
         company:     corpNameEn ?? row.corp_name ?? '',
