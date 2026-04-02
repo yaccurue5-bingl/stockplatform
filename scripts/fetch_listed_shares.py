@@ -144,10 +144,13 @@ def main() -> None:
 
 
 def _flush(sb: Client, rows: list[dict]) -> None:
-    sb.table("companies").upsert(
-        rows, on_conflict="stock_code"
-    ).execute()
-    logger.info(f"  [DB] {len(rows)}건 저장")
+    # upsert 대신 UPDATE만 — 기존 companies 행에만 업데이트 (신규 INSERT 방지)
+    for row in rows:
+        sb.table("companies").update({
+            "listed_shares":         row["listed_shares"],
+            "listed_shares_updated": row["listed_shares_updated"],
+        }).eq("stock_code", row["stock_code"]).execute()
+    logger.info(f"  [DB] {len(rows)}건 업데이트")
 
 
 if __name__ == "__main__":
