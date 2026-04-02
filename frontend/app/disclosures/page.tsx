@@ -197,7 +197,18 @@ function DisclosuresContent() {
   // stock 파라미터에 따라 데이터 로드
   useEffect(() => {
     if (stockCodeParam) {
-      // 특정 종목 조회
+      // 이미 로드된 데이터에 해당 종목이 있으면 API 재호출 없이 즉시 선택
+      const existing = groupedStocks.find(s => s.stock_code === stockCodeParam);
+      if (existing) {
+        const targetDisclosure = disclosureParam
+          ? existing.disclosures.find(d => d.id === disclosureParam) ?? existing.disclosures[0]
+          : existing.disclosures[0];
+        setSelectedStock(existing);
+        setSelectedDisclosure(targetDisclosure ?? null);
+        setLoading(false);
+        return;
+      }
+      // 없을 때만 서버 fetch
       fetchDisclosures(stockCodeParam);
     } else if (groupedStocks.length === 0) {
       // 전체 공시 로드 (데이터가 없을 때만)
