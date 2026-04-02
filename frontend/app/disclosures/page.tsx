@@ -14,6 +14,7 @@ interface Disclosure {
   stock_code: string;
   market: string;
   report_name: string;
+  report_name_ko?: string;
   summary: string;
   sentiment: string;
   sentiment_score: number;
@@ -491,7 +492,7 @@ function DisclosuresContent() {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className={`text-sm font-medium truncate ${isSelected ? 'text-white' : 'text-gray-300'}`}>
-                          {formatDate(disclosure.updated_at)}: {disclosure.report_name?.substring(0, 20)}...
+                          {formatDate(disclosure.updated_at)}: {(disclosure.report_name || disclosure.report_name_ko || '')?.substring(0, 25)}
                         </div>
                         {isCurrent && isSelected && (
                           <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded mt-1 inline-block">
@@ -804,6 +805,9 @@ function DisclosuresContent() {
                   </div>
 
                   <h5 className="font-medium mb-2">{latestDisclosure.report_name}</h5>
+                  {latestDisclosure.report_name_ko && latestDisclosure.report_name !== latestDisclosure.report_name_ko && (
+                    <p className="text-xs text-gray-500 mb-1">{latestDisclosure.report_name_ko}</p>
+                  )}
 
                   <p className="text-sm text-gray-400 line-clamp-2 mb-4">
                     {latestDisclosure.summary}

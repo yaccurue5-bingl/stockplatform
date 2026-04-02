@@ -35,6 +35,7 @@ interface DisclosureRow {
   stock_code: string | null;
   rcept_dt: string;
   report_nm: string;
+  report_nm_en: string | null;
   headline: string | null;
   event_type: string | null;
   sentiment_score: number | null;
@@ -51,7 +52,7 @@ async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
   const { data, error } = await sb
     .from('disclosure_insights')
     .select(
-      'id, corp_name, stock_code, rcept_dt, report_nm, ' +
+      'id, corp_name, stock_code, rcept_dt, report_nm, report_nm_en, ' +
       'headline, event_type, sentiment_score, ' +
       'ai_summary, key_numbers, risk_factors, financial_impact, ' +
       'analysis_status, is_visible'
@@ -162,7 +163,7 @@ export default async function DisclosureDetailPage({
           </div>
 
           <h1 className="text-2xl font-bold leading-snug">
-            {disclosure.headline ?? disclosure.report_nm ?? 'Corporate Disclosure'}
+            {disclosure.headline ?? disclosure.report_nm_en ?? disclosure.report_nm ?? 'Corporate Disclosure'}
           </h1>
 
           <div className="flex items-center gap-3 flex-wrap">

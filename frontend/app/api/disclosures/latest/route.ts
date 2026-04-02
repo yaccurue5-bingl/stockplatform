@@ -154,13 +154,15 @@ export async function GET(request: Request) {
       const sectorKr = sectorMap[item.stock_code] || null;
       const sectorEn = sectorKr ? (sectorEnMap[sectorKr] || 'Others') : null;
 
+      const translated = item.report_nm_en || null;
       const transformed = {
         id: item.id,
         corp_name: safeString(item.corp_name, 'Unknown'),
         corp_name_en: corpNameEn,
         stock_code: safeString(item.stock_code, '000000'),
         market: safeString(item.market, 'KOSPI'),
-        report_name: safeString(item.report_nm, 'Disclosure Report'),
+        report_name: translated ?? safeString(item.report_nm, 'Disclosure Report'),
+        report_name_ko: safeString(item.report_nm, ''),
         summary: summary,
         sentiment,
         sentiment_score: sentimentScore,
