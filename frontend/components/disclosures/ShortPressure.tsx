@@ -3,27 +3,39 @@
 import { useEffect, useState } from 'react';
 
 interface ShortData {
-  loan_change_pct:  number | null;
-  current_balance:  number | null;
-  current_date?:    string;
-  prev_date?:       string;
+  loan_change_pct:    number | null;
+  loan_shares:        number | null;
+  listed_shares:      number | null;
+  short_interest_pct: number | null;
+  current_date?:      string;
+  prev_date?:         string;
 }
 
-function getSignal(change: number | null) {
-  if (change === null) return { label: 'No Data', color: 'gray' };
-  if (change >= 20)    return { label: 'Strong Increase', color: 'red' };
-  if (change >= 10)    return { label: 'Increasing',      color: 'orange' };
+// 3D 변화율 시그널
+function get3DSignal(change: number | null) {
+  if (change === null) return { label: 'No Data',        color: 'gray'    };
+  if (change >= 20)    return { label: 'Strong Increase', color: 'red'     };
+  if (change >= 10)    return { label: 'Increasing',      color: 'orange'  };
   if (change <= -20)   return { label: 'Strong Decrease', color: 'emerald' };
   if (change <= -10)   return { label: 'Decreasing',      color: 'emerald' };
-  return                      { label: 'Stable',          color: 'gray' };
+  return                      { label: 'Stable',          color: 'gray'    };
 }
 
-function formatBalance(n: number | null): string {
+// Short Interest % 레벨
+function getSIPct(pct: number | null) {
+  if (pct === null) return { level: 'N/A',   color: 'gray'    };
+  if (pct >= 10)   return { level: 'High',   color: 'red'     };
+  if (pct >= 5)    return { level: 'Medium', color: 'orange'  };
+  if (pct >= 2)    return { level: 'Low',    color: 'gray'    };
+  return                  { level: 'Minimal', color: 'emerald' };
+}
+
+function formatShares(n: number | null): string {
   if (n == null) return '—';
-  if (n >= 1_000_000_000_000) return `₩${(n / 1_000_000_000_000).toFixed(1)}T`;
-  if (n >= 1_000_000_000)     return `₩${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000)         return `₩${(n / 1_000_000).toFixed(0)}M`;
-  return `₩${n.toLocaleString()}`;
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B shares`;
+  if (n >= 1_000_000)     return `${(n / 1_000_000).toFixed(1)}M shares`;
+  if (n >= 1_000)         return `${(n / 1_000).toFixed(1)}K shares`;
+  return `${n.toLocaleString()} shares`;
 }
 
 export default function ShortPressure({ stockCode }: { stockCode: string }) {
@@ -40,71 +52,91 @@ export default function ShortPressure({ stockCode }: { stockCode: string }) {
       .finally(() => setLoading(false));
   }, [stockCode]);
 
-  // 데이터 없으면 섹션 숨김
   if (loading || !data || data.loan_change_pct === null) return null;
 
-  const signal = getSignal(data.loan_change_pct);
-  const value  = data.loan_change_pct;
+  const signal3D = get3DSignal(data.loan_change_pct);
+  const siSignal = getSIPct(data.short_interest_pct);
 
-  const textColor =
-    signal.color === 'red'     ? 'text-red-400'     :
-    signal.color === 'orange'  ? 'text-orange-400'  :
-    signal.color === 'emerald' ? 'text-emerald-400' : 'text-gray-400';
+  const color3D =
+    signal3D.color === 'red'     ? 'text-red-400'     :
+    signal3D.color === 'orange'  ? 'text-orange-400'  :
+    signal3D.color === 'emerald' ? 'text-emerald-400' : 'text-gray-400';
 
-  const badgeStyle =
-    signal.color === 'red'
-      ? 'border-red-500/30 bg-red-500/10 text-red-400'
-      : signal.color === 'orange'
-      ? 'border-orange-500/30 bg-orange-500/10 text-orange-400'
-      : signal.color === 'emerald'
-      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-      : 'border-gray-500/30 bg-gray-500/10 text-gray-400';
+  const badge3D =
+    signal3D.color === 'red'     ? 'border-red-500/30 bg-red-500/10 text-red-400'          :
+    signal3D.color === 'orange'  ? 'border-orange-500/30 bg-orange-500/10 text-orange-400'  :
+    signal3D.color === 'emerald' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' :
+                                   'border-gray-500/30 bg-gray-500/10 text-gray-400';
 
-  // 바 너비: ±30% 이상이면 100%
-  const barWidth = Math.min(Math.abs(value) / 30 * 100, 100);
-  const barColor =
-    signal.color === 'red'     ? 'bg-red-500'     :
-    signal.color === 'orange'  ? 'bg-orange-500'  :
-    signal.color === 'emerald' ? 'bg-emerald-500' : 'bg-gray-500';
+  const colorSI =
+    siSignal.color === 'red'     ? 'text-red-400'     :
+    siSignal.color === 'orange'  ? 'text-orange-400'  :
+    siSignal.color === 'emerald' ? 'text-emerald-400' : 'text-gray-400';
+
+  const barWidth3D = Math.min(Math.abs(data.loan_change_pct) / 30 * 100, 100);
+  const barColor3D =
+    signal3D.color === 'red'     ? 'bg-red-500'     :
+    signal3D.color === 'orange'  ? 'bg-orange-500'  :
+    signal3D.color === 'emerald' ? 'bg-emerald-500' : 'bg-gray-500';
 
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5 space-y-4">
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5 space-y-5">
       <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest">
         Short Pressure
       </p>
 
-      {/* 변화율 + 레이블 */}
-      <div className="flex items-center justify-between">
-        <span className={`text-3xl font-bold tabular-nums ${textColor}`}>
-          {value > 0 ? '+' : ''}{value.toFixed(1)}%
-        </span>
-        <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${badgeStyle}`}>
-          {signal.label}
-        </span>
+      {/* ── 1. Short Interest % of float ── */}
+      <div className="space-y-2">
+        <p className="text-xs text-gray-600 uppercase tracking-wider">Short Interest</p>
+        {data.short_interest_pct != null ? (
+          <div className="flex items-end justify-between">
+            <span className={`text-3xl font-bold tabular-nums ${colorSI}`}>
+              {data.short_interest_pct.toFixed(2)}%
+            </span>
+            <span className={`text-xs font-semibold pb-1 ${colorSI}`}>
+              of float · {siSignal.level}
+            </span>
+          </div>
+        ) : (
+          <span className="text-sm text-gray-600">No float data</span>
+        )}
       </div>
 
-      {/* 강도 바 */}
-      <div className="space-y-1.5">
-        <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-            style={{ width: `${barWidth}%` }}
-          />
+      <div className="border-t border-gray-800/60" />
+
+      {/* ── 2. Short Pressure (3D change) ── */}
+      <div className="space-y-3">
+        <p className="text-xs text-gray-600 uppercase tracking-wider">Loan Balance Change (3D)</p>
+
+        <div className="flex items-center justify-between">
+          <span className={`text-2xl font-bold tabular-nums ${color3D}`}>
+            {data.loan_change_pct > 0 ? '+' : ''}{data.loan_change_pct.toFixed(1)}%
+          </span>
+          <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${badge3D}`}>
+            {signal3D.label}
+          </span>
         </div>
-        <div className="flex justify-between text-xs text-gray-600">
-          <span>Low Pressure</span>
-          <span>High Pressure</span>
+
+        <div className="space-y-1">
+          <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${barColor3D}`}
+              style={{ width: `${barWidth3D}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-700">
+            <span>Low</span>
+            <span>High</span>
+          </div>
         </div>
       </div>
 
-      {/* 메타 정보 */}
-      <div className="flex items-center gap-3 text-xs pt-1 border-t border-gray-800">
-        <span className="text-gray-500">
-          Balance: <span className="font-medium text-gray-400">{formatBalance(data.current_balance)}</span>
-        </span>
-        <span className="text-gray-700">·</span>
-        <span className="text-gray-500">3-day change</span>
-      </div>
+      {/* ── 3. 참고: 차입주식수 ── */}
+      {data.loan_shares != null && (
+        <div className="text-xs text-gray-600 pt-1 border-t border-gray-800/60">
+          {formatShares(data.loan_shares)} on loan
+        </div>
+      )}
     </div>
   );
 }

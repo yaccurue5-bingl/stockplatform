@@ -192,10 +192,18 @@ def main() -> None:
 
             # date: YYYYMMDD → YYYY-MM-DD
             d = date_str
+            # 차입주식수 (% of float 계산용)
+            raw_shares = item.get("lnbRmanStckCnt")
+            try:
+                loan_shares = int(str(raw_shares).replace(",", ""))
+            except (ValueError, TypeError):
+                loan_shares = None
+
             rows.append({
                 "stock_code":   stock_code,
                 "date":         f"{d[:4]}-{d[4:6]}-{d[6:8]}",
                 "loan_balance": loan_balance,
+                "loan_shares":  loan_shares,
             })
 
         if not rows:
