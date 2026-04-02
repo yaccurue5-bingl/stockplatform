@@ -46,15 +46,16 @@ function RatioRow({ label, value }: RatioRowProps) {
   );
 }
 
-export default function FinancialRatios({ stockCode, eventType }: {
+export default function FinancialRatios({ stockCode, eventType, alwaysShow = false }: {
   stockCode: string;
   eventType: string | null;
+  alwaysShow?: boolean;  // true면 eventType 무관하게 데이터 있을 때 표시
 }) {
   const [data, setData]       = useState<FinancialsData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // EARNINGS 타입일 때만 표시
-  const showSection = eventType === 'EARNINGS';
+  // alwaysShow=true이면 항상 시도, 아니면 EARNINGS 타입만
+  const showSection = alwaysShow || eventType === 'EARNINGS';
 
   useEffect(() => {
     if (!showSection || !stockCode) { setLoading(false); return; }

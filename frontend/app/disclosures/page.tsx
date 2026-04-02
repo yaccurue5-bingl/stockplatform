@@ -6,6 +6,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import SearchDropdown from '@/components/SearchDropdown';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperAdmin } from '@/lib/constants';
+import SignalStrength from '@/components/disclosures/SignalStrength';
+import ShortPressure from '@/components/disclosures/ShortPressure';
+import FinancialRatios from '@/components/disclosures/FinancialRatios';
 
 interface Disclosure {
   id: string;
@@ -623,83 +626,23 @@ function DisclosuresContent() {
                   </div>
                 </div>
 
-                {/* Right Column - Charts & Related */}
+                {/* Right Column */}
                 <div className="space-y-6">
-                  {/* Stock Price Trend (하드코딩) */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 className="text-sm font-bold mb-4">Stock Price Trend (Past 1M)</h3>
-                    <div className="h-32 flex items-end justify-between gap-1 mb-2">
-                      {/* 하드코딩된 차트 바 */}
-                      {[40, 55, 45, 60, 50, 70, 65, 80, 75, 90, 85, 95].map((height, i) => (
-                        <div
-                          key={i}
-                          className="flex-1 bg-blue-500 rounded-t"
-                          style={{ height: `${height}%` }}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>20</span>
-                      <span>300</span>
-                      <span>400</span>
-                      <span>300</span>
-                    </div>
-                    <div className="text-right mt-2">
-                      <span className="text-green-400 font-bold">+15.2%</span>
-                    </div>
-                  </div>
+                  {/* 1. Signal Strength */}
+                  <SignalStrength
+                    sentimentScore={selectedDisclosure.sentiment_score ?? 0}
+                    importance={selectedDisclosure.importance ?? 'MEDIUM'}
+                  />
 
-                  {/* Financial Ratios (하드코딩) */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 className="text-sm font-bold mb-4">Financial Ratios (YoY)</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-400">Revenue</span>
-                          <span className="text-green-400">+10%</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="h-6 bg-green-600 rounded" style={{ width: '60%' }}></div>
-                          <div className="h-6 bg-green-400 rounded" style={{ width: '30%' }}></div>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">Revenue</div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-400">Net Profit</span>
-                          <span className="text-green-400">+17%</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="h-6 bg-green-600 rounded" style={{ width: '50%' }}></div>
-                          <div className="h-6 bg-green-400 rounded" style={{ width: '40%' }}></div>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">Net Profit</div>
-                      </div>
-                    </div>
-                  </div>
+                  {/* 2. Short Pressure */}
+                  <ShortPressure stockCode={selectedStock.stock_code} />
 
-                  {/* Related Disclosures (하드코딩) */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 className="text-sm font-bold mb-4">Related Disclosures (Automotive Sector)</h3>
-                    <ol className="space-y-2 text-sm text-gray-300">
-                      <li className="flex gap-2">
-                        <span className="text-gray-500">1.</span>
-                        <span>Kia Corp: New EV Platform Launch</span>
-                      </li>
-                      <li className="flex gap-2">
-                        <span className="text-gray-500">2.</span>
-                        <span>Tesla Inc: Gigafactory Expansion Plans</span>
-                      </li>
-                    </ol>
-                    <div className="flex gap-2 mt-4">
-                      <button className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded text-xs hover:bg-gray-700 transition">
-                        This Company (2)
-                      </button>
-                      <button className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded text-xs hover:bg-gray-700 transition">
-                        (This Company) (2)
-                      </button>
-                    </div>
-                  </div>
+                  {/* 3. Financial YoY */}
+                  <FinancialRatios
+                    stockCode={selectedStock.stock_code}
+                    eventType={null}
+                    alwaysShow={true}
+                  />
                 </div>
               </div>
             </div>
