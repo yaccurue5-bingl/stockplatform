@@ -87,6 +87,7 @@ export default async function proxy(req: NextRequest) {
     '/forgot-password',        // 비밀번호 찾기 (미인증 접근 허용)
     '/api/stripe/webhook',    // Stripe Webhook은 서명 검증으로 보호됨
     '/api/disclosures/latest', // 메인 페이지 공시 목록 API
+    '/api/financials/',        // 재무 YoY API (공개)
     '/disclosures/',           // 개별 공시 상세 페이지 (공개 미끼 상품)
     '/signal/',               // SEO 공시 시그널 페이지 (공개, 구글 인덱싱 대상)
     '/korea-earnings-signals',  // SEO 랜딩 페이지 (공개)

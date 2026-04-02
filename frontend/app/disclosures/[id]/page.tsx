@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import FinancialRatios from '@/components/disclosures/FinancialRatios';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -191,6 +192,12 @@ export default async function DisclosureDetailPage({
             <p className="text-sm text-gray-300 leading-relaxed">{disclosure.financial_impact}</p>
           </div>
         )}
+
+        {/* Financial Ratios YoY (EARNINGS 타입 + 데이터 있을 때만 표시) */}
+        <FinancialRatios
+          stockCode={disclosure.stock_code ?? ''}
+          eventType={disclosure.event_type ?? null}
+        />
 
         {/* ── 로그인 유저: 전체 공개 ── */}
         {isLoggedIn ? (
