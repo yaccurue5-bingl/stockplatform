@@ -317,7 +317,7 @@ function DisclosuresContent() {
       // stock 파라미터가 있으면 해당 종목만, 없으면 전체
       const url = stockCode
         ? `/api/disclosures/latest?stock=${stockCode}&limit=50`
-        : '/api/disclosures/latest?limit=100';
+        : '/api/disclosures/latest?limit=500';
 
       console.log(`🔍 [Disclosures] Fetching: ${url}`);
       const response = await fetch(url);
@@ -466,6 +466,13 @@ function DisclosuresContent() {
               >
                 ← Back
               </button>
+              <Link
+                href="/disclosures"
+                onClick={() => { setSelectedStock(null); setSelectedDisclosure(null); setStockCodeParam(null); }}
+                className="text-blue-400 hover:text-blue-300 text-sm transition"
+              >
+                All Disclosures
+              </Link>
               <span className="text-lg font-semibold">AI Disclosure Detail</span>
             </div>
             <div className="text-sm text-gray-400">
