@@ -298,7 +298,7 @@ SENTIMENT SCORE GUIDE (sentiment_score):
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.2,
-                max_completion_tokens=1200
+                max_completion_tokens=2400
             )
 
             return json.loads(response.choices[0].message.content)
@@ -367,6 +367,7 @@ def run(backfill: bool = False, limit: int = 50):
 
             update_data = {
                 "headline": result.get("headline"),
+                "report_nm_en": result.get("report_nm") or None,  # Groq 번역 영문 공시 제목
                 "key_numbers": result.get("key_numbers"),
                 "event_type": result.get("event_type"),
                 "financial_impact": result.get("financial_impact"),
