@@ -1,12 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { signUp, signInWithGoogle } from '@/lib/supabase/client';
+import { signUp, signInWithGoogle, getSupabase } from '@/lib/supabase/client';
 
 export default function SignupPage() {
   const router = useRouter();
+
+  // 이미 로그인된 유저는 dashboard로 리다이렉트
+  useEffect(() => {
+    const supabase = getSupabase();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        router.replace('/dashboard');
+      }
+    });
+  }, [router]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

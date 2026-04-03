@@ -683,8 +683,8 @@ function DisclosuresContent() {
                 placeholder="Search company..."
               />
             </div>
-            <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
-              Sign Up
+            <Link href="/dashboard" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
+              Dashboard
             </Link>
           </div>
         </div>
