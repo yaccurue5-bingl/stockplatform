@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import SearchDropdown from '@/components/SearchDropdown';
@@ -55,8 +55,11 @@ function DisclosuresContent() {
   const [isSearching, setIsSearching] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  // popstate 핸들러에서 stale closure 방지용 ref
-  const selectedStockRef = useRef<GroupedStock | null>(null);
+  // popstate / useEffect stale closure 방지용 ref
+  const selectedStockRef   = useRef<GroupedStock | null>(null);
+  const groupedStocksRef   = useRef<GroupedStock[]>([]);
+  // router.push/back을 transition으로 감싸 Suspense fallback 깜빡임 방지
+  const [, startTransition] = useTransition();
   // 접근 제어: null = 아직 확인 중, false = 접근 불가, true = 접근 허용
   const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
 
@@ -192,16 +195,15 @@ function DisclosuresContent() {
     };
   }, [searchQuery, searchFromServer, groupedStocks]);
 
-  // selectedStock ref 동기화 (popstate stale closure 방지)
-  useEffect(() => {
-    selectedStockRef.current = selectedStock;
-  }, [selectedStock]);
+  // ref 동기화 — stale closure 방지
+  useEffect(() => { selectedStockRef.current = selectedStock; }, [selectedStock]);
+  useEffect(() => { groupedStocksRef.current = groupedStocks; }, [groupedStocks]);
 
   // stock 파라미터에 따라 데이터 로드
+  // groupedStocksRef 사용으로 stale closure 완전 차단
   useEffect(() => {
     if (stockCodeParam) {
-      // 이미 로드된 데이터에 해당 종목이 있으면 API 재호출 없이 즉시 선택
-      const existing = groupedStocks.find(s => s.stock_code === stockCodeParam);
+      const existing = groupedStocksRef.current.find(s => s.stock_code === stockCodeParam);
       if (existing) {
         const targetDisclosure = disclosureParam
           ? existing.disclosures.find(d => d.id === disclosureParam) ?? existing.disclosures[0]
@@ -211,13 +213,10 @@ function DisclosuresContent() {
         setLoading(false);
         return;
       }
-      // 없을 때만 서버 fetch
       fetchDisclosures(stockCodeParam);
-    } else if (groupedStocks.length === 0) {
-      // 전체 공시 로드 (데이터가 없을 때만)
+    } else if (groupedStocksRef.current.length === 0) {
       fetchDisclosures();
     } else {
-      // 이미 데이터가 있으면 선택 상태만 초기화
       setSelectedStock(null);
       setSelectedDisclosure(null);
       setLoading(false);
@@ -234,32 +233,32 @@ function DisclosuresContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQueryParam, groupedStocks.length]);
 
-  // URL 기반 네비게이션 함수들
+  // URL 기반 네비게이션 — startTransition으로 Suspense fallback 깜빡임 완전 차단
   const navigateToStock = useCallback((stock: GroupedStock) => {
-    // 현재 스크롤 위치 저장
     setSavedScrollPosition(window.scrollY);
+    // 상태를 먼저 업데이트해 즉각적인 화면 전환 → URL은 transition으로 조용히 업데이트
     setSelectedStock(stock);
-    // 첫 번째 공시 자동 선택 - 바로 공시 상세 화면으로 이동
-    if (stock.disclosures.length > 0) {
-      setSelectedDisclosure(stock.disclosures[0]);
-    }
-    // push 사용 - 뒤로가기 시 이전 페이지로 이동
-    router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
-  }, [router]);
+    setSelectedDisclosure(stock.disclosures[0] ?? null);
+    startTransition(() => {
+      router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
+    });
+  }, [router, startTransition]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
     setSelectedDisclosure(disclosure);
-    // URL에 disclosure param 추가 (push → 뒤로가기 시 종목 뷰로 복귀 가능)
     const stock = selectedStockRef.current?.stock_code;
     if (stock) {
-      router.push(`/disclosures?stock=${stock}&disclosure=${disclosure.id}`, { scroll: false });
+      startTransition(() => {
+        router.push(`/disclosures?stock=${stock}&disclosure=${disclosure.id}`, { scroll: false });
+      });
     }
-  }, [router]);
+  }, [router, startTransition]);
 
   const navigateBack = useCallback(() => {
-    // 브라우저 히스토리 뒤로가기 - 이전 페이지로 바로 이동
-    router.back();
-  }, [router]);
+    startTransition(() => {
+      router.back();
+    });
+  }, [router, startTransition]);
 
   // 브라우저 뒤로가기 처리 — URL 파라미터에 따라 뷰 상태 동기화
   useEffect(() => {
@@ -668,16 +667,19 @@ function DisclosuresContent() {
             <div className="w-48 md:w-80">
               <SearchDropdown
                 onSelectStock={(stockCode) => {
-                  const stock = groupedStocks.find(s => s.stock_code === stockCode);
+                  const stock = groupedStocksRef.current.find(s => s.stock_code === stockCode);
                   if (stock) {
                     navigateToStock(stock);
                   } else {
-                    router.push(`/disclosures?stock=${stockCode}`);
+                    startTransition(() => {
+                      router.push(`/disclosures?stock=${stockCode}`);
+                    });
                   }
                 }}
                 onSearch={(query) => {
-                  // 검색어로 전체 검색 - URL 업데이트
-                  router.push(`/disclosures?search=${encodeURIComponent(query)}`);
+                  startTransition(() => {
+                    router.push(`/disclosures?search=${encodeURIComponent(query)}`);
+                  });
                 }}
                 isSuperUser={true}
                 placeholder="Search company..."
