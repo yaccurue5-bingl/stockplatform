@@ -27,7 +27,7 @@ interface Company {
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
   const { code } = await params;
   const { data } = await supabase.from('disclosure_insights').select('corp_name').eq('stock_code', code).single();
-  return { title: `${data?.corp_name || code} AI 공시 분석` };
+  return { title: `${data?.corp_name || code} | AI Disclosure Analysis` };
 }
 
 export default async function StockPage({ params }: { params: Promise<{ code: string }> }) {
@@ -52,18 +52,18 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
   if (!insight) {
     return (
       <div className="max-w-4xl mx-auto p-10 text-center">
-        <h1 className="text-2xl font-bold text-gray-800">데이터를 찾을 수 없습니다.</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Data Not Found</h1>
         <p className="text-gray-600 mt-4">
-          종목코드 {code}에 대한 공시 분석 데이터가 없습니다.
+          No disclosure analysis data available for stock code {code}.
         </p>
         <p className="text-sm text-gray-500 mt-2">
-          공시가 등록되면 AI 분석이 자동으로 진행됩니다.
+          AI analysis will run automatically once a disclosure is registered.
         </p>
       </div>
     );
   }
 
-  const displaySummary = insight.ai_summary || "분석 데이터를 생성 중입니다.";
+  const displaySummary = insight.ai_summary || "Generating analysis data...";
 
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-10">
@@ -75,18 +75,18 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-            <p className="text-sm text-blue-600 mb-1 font-medium">업종</p>
+            <p className="text-sm text-blue-600 mb-1 font-medium">Industry</p>
             <p className="text-lg font-bold text-gray-800">
-              {company?.industry_category || company?.sector || '정보 없음'}
+              {company?.industry_category || company?.sector || 'N/A'}
             </p>
             {company?.ksic_name && (
               <p className="text-xs text-gray-500 mt-1">{company.ksic_name}</p>
             )}
           </div>
           <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-            <p className="text-sm text-blue-600 mb-1 font-medium">시가총액</p>
+            <p className="text-sm text-blue-600 mb-1 font-medium">Market Cap</p>
             <p className="text-lg font-bold text-gray-800">
-              {company?.market_cap ? `${company.market_cap.toLocaleString()}억` : '정보 없음'}
+              {company?.market_cap ? `₩${company.market_cap.toLocaleString()}B` : 'N/A'}
             </p>
           </div>
         </div>
@@ -94,7 +94,7 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
 
       <section className="space-y-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">AI 리서치 리포트</h2>
+          <h2 className="text-2xl font-bold text-gray-800">AI Research Report</h2>
           <StockSentiment
             sentiment={insight.sentiment_score >= 0.3 ? 'POSITIVE' : insight.sentiment_score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL'}
             sentiment_score={insight.sentiment_score}
@@ -104,13 +104,13 @@ export default async function StockPage({ params }: { params: Promise<{ code: st
 
         <div className="bg-white border border-gray-200 shadow-sm rounded-2xl p-6 md:p-8">
           <h3 className="text-lg font-bold text-gray-700 mb-4 pb-2 border-b">
-            최신 공시: {insight.report_nm}
+            Latest Filing: {insight.report_nm}
           </h3>
           <div className="prose max-w-none text-gray-800 leading-relaxed bg-slate-50 p-6 rounded-xl">
             <p className="whitespace-pre-wrap">{displaySummary}</p>
           </div>
           <p className="mt-6 text-sm text-gray-400">
-            분석 일시: {new Date(insight.created_at).toLocaleString('ko-KR')}
+            Analyzed: {new Date(insight.created_at).toLocaleString('en-US')}
           </p>
         </div>
       </section>

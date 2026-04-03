@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import StatBadge from './ui/StatBadge';
 import MarketRadar from './MarketRadar';
+import ApiKeyButton from './ApiKeyButton';
 
 export default function Hero() {
   return (
-    <section className="bg-[#0B0F14] py-20 px-4 overflow-hidden">
+    <section className="bg-[#0B0F14] py-16 md:py-20 px-4 overflow-hidden">
       <div className="max-w-[1200px] mx-auto grid md:grid-cols-2 gap-12 items-center">
 
         {/* Left */}
@@ -33,12 +34,7 @@ export default function Hero() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Link
-              href="/login"
-              className="bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold px-6 py-3 rounded-lg transition text-sm"
-            >
-              Get API Key →
-            </Link>
+            <ApiKeyButton className="bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold px-6 py-3 rounded-lg transition text-sm" />
             <Link
               href="/api-docs"
               className="border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-medium px-6 py-3 rounded-lg transition text-sm"

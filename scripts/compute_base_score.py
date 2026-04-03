@@ -31,6 +31,7 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
 """
 
 import asyncio
+import json
 import os
 import sys
 import math
@@ -100,12 +101,27 @@ def compute_base_score(s: float, i: float, e: float) -> tuple[float, float]:
     return round(raw, 4), round(normalized, 4)
 
 
-def compute_final_score(base_score: float, lps: float | None) -> float:
-    """FinalScore = base_score * (1 - min(LPS/100, 0.4))"""
+def compute_reliability(key_numbers: object) -> float:
+    """
+    Reliability multiplier: key_numbers 개수 기반 (0.5~1.0).
+    key_numbers 가 없거나 파싱 실패 시 0.5 (패널티 없음 대신 최소 신뢰도).
+    """
+    try:
+        if not key_numbers:
+            return 0.5
+        parsed = json.loads(key_numbers) if isinstance(key_numbers, str) else key_numbers
+        n = len(parsed) if isinstance(parsed, (list, dict)) else 0
+        return min(1.0, 0.5 + n * 0.1)
+    except Exception:
+        return 0.5
+
+
+def compute_final_score(base_score: float, lps: float | None, reliability: float = 1.0) -> float:
+    """FinalScore = base_score * (1 - min(LPS/100, 0.4)) * reliability"""
     if lps is None:
         lps = 50.0   # LPS 데이터 없으면 중립 가정
     loan_weight = min(float(lps) / 100.0, 0.4)
-    final = base_score * (1.0 - loan_weight)
+    final = base_score * (1.0 - loan_weight) * reliability
     return round(max(0.0, min(100.0, final)), 4)
 
 
@@ -162,7 +178,7 @@ def fetch_unscored(sb, recompute: bool) -> list[dict]:
         sb.table("disclosure_insights")
         .select(
             "id, stock_code, rcept_dt, "
-            "sentiment_score, short_term_impact_score, event_type"
+            "sentiment_score, short_term_impact_score, event_type, key_numbers"
         )
         .eq("analysis_status", "completed")
         .not_.is_("sentiment_score", "null")
@@ -355,8 +371,9 @@ def main():
         e   = compute_e(ev_info.get("avg_5d_return"), ev_info.get("sample_size"))
         raw, bs = compute_base_score(s, i_, e)
 
-        lps = lps_map.get((code, rdt))
-        fs  = compute_final_score(bs, lps)
+        lps         = lps_map.get((code, rdt))
+        reliability = compute_reliability(row.get("key_numbers"))
+        fs  = compute_final_score(bs, lps, reliability)
         tag = compute_signal_tag(bs, lps)
 
         insight_updates.append({

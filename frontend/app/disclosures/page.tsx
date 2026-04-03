@@ -1,11 +1,14 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import SearchDropdown from '@/components/SearchDropdown';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperAdmin } from '@/lib/constants';
+import SignalStrength from '@/components/disclosures/SignalStrength';
+import ShortPressure from '@/components/disclosures/ShortPressure';
+import FinancialRatios from '@/components/disclosures/FinancialRatios';
 
 interface Disclosure {
   id: string;
@@ -14,6 +17,7 @@ interface Disclosure {
   stock_code: string;
   market: string;
   report_name: string;
+  report_name_ko?: string;
   summary: string;
   sentiment: string;
   sentiment_score: number;
@@ -51,8 +55,11 @@ function DisclosuresContent() {
   const [isSearching, setIsSearching] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  // popstate 핸들러에서 stale closure 방지용 ref
-  const selectedStockRef = useRef<GroupedStock | null>(null);
+  // popstate / useEffect stale closure 방지용 ref
+  const selectedStockRef   = useRef<GroupedStock | null>(null);
+  const groupedStocksRef   = useRef<GroupedStock[]>([]);
+  // router.push/back을 transition으로 감싸 Suspense fallback 깜빡임 방지
+  const [, startTransition] = useTransition();
   // 접근 제어: null = 아직 확인 중, false = 접근 불가, true = 접근 허용
   const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
 
@@ -82,12 +89,12 @@ function DisclosuresContent() {
         .eq('id', session.user.id)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
-      // plan이 free이거나 없으면 홈으로 (waitlist 모달 오픈 파라미터 포함)
+      // plan이 free이거나 없으면 pricing 페이지로
       const isPaid =
         data?.plan && data.plan !== 'free' && data?.subscription_status === 'active';
 
       if (!isPaid) {
-        router.replace('/?waitlist=1');
+        router.replace('/pricing');
         return;
       }
 
@@ -188,21 +195,28 @@ function DisclosuresContent() {
     };
   }, [searchQuery, searchFromServer, groupedStocks]);
 
-  // selectedStock ref 동기화 (popstate stale closure 방지)
-  useEffect(() => {
-    selectedStockRef.current = selectedStock;
-  }, [selectedStock]);
+  // ref 동기화 — stale closure 방지
+  useEffect(() => { selectedStockRef.current = selectedStock; }, [selectedStock]);
+  useEffect(() => { groupedStocksRef.current = groupedStocks; }, [groupedStocks]);
 
   // stock 파라미터에 따라 데이터 로드
+  // groupedStocksRef 사용으로 stale closure 완전 차단
   useEffect(() => {
     if (stockCodeParam) {
-      // 특정 종목 조회
+      const existing = groupedStocksRef.current.find(s => s.stock_code === stockCodeParam);
+      if (existing) {
+        const targetDisclosure = disclosureParam
+          ? existing.disclosures.find(d => d.id === disclosureParam) ?? existing.disclosures[0]
+          : existing.disclosures[0];
+        setSelectedStock(existing);
+        setSelectedDisclosure(targetDisclosure ?? null);
+        setLoading(false);
+        return;
+      }
       fetchDisclosures(stockCodeParam);
-    } else if (groupedStocks.length === 0) {
-      // 전체 공시 로드 (데이터가 없을 때만)
+    } else if (groupedStocksRef.current.length === 0) {
       fetchDisclosures();
     } else {
-      // 이미 데이터가 있으면 선택 상태만 초기화
       setSelectedStock(null);
       setSelectedDisclosure(null);
       setLoading(false);
@@ -219,32 +233,32 @@ function DisclosuresContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQueryParam, groupedStocks.length]);
 
-  // URL 기반 네비게이션 함수들
+  // URL 기반 네비게이션 — startTransition으로 Suspense fallback 깜빡임 완전 차단
   const navigateToStock = useCallback((stock: GroupedStock) => {
-    // 현재 스크롤 위치 저장
     setSavedScrollPosition(window.scrollY);
+    // 상태를 먼저 업데이트해 즉각적인 화면 전환 → URL은 transition으로 조용히 업데이트
     setSelectedStock(stock);
-    // 첫 번째 공시 자동 선택 - 바로 공시 상세 화면으로 이동
-    if (stock.disclosures.length > 0) {
-      setSelectedDisclosure(stock.disclosures[0]);
-    }
-    // push 사용 - 뒤로가기 시 이전 페이지로 이동
-    router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
-  }, [router]);
+    setSelectedDisclosure(stock.disclosures[0] ?? null);
+    startTransition(() => {
+      router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
+    });
+  }, [router, startTransition]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
     setSelectedDisclosure(disclosure);
-    // URL에 disclosure param 추가 (push → 뒤로가기 시 종목 뷰로 복귀 가능)
     const stock = selectedStockRef.current?.stock_code;
     if (stock) {
-      router.push(`/disclosures?stock=${stock}&disclosure=${disclosure.id}`, { scroll: false });
+      startTransition(() => {
+        router.push(`/disclosures?stock=${stock}&disclosure=${disclosure.id}`, { scroll: false });
+      });
     }
-  }, [router]);
+  }, [router, startTransition]);
 
   const navigateBack = useCallback(() => {
-    // 브라우저 히스토리 뒤로가기 - 이전 페이지로 바로 이동
-    router.back();
-  }, [router]);
+    startTransition(() => {
+      router.back();
+    });
+  }, [router, startTransition]);
 
   // 브라우저 뒤로가기 처리 — URL 파라미터에 따라 뷰 상태 동기화
   useEffect(() => {
@@ -491,7 +505,7 @@ function DisclosuresContent() {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className={`text-sm font-medium truncate ${isSelected ? 'text-white' : 'text-gray-300'}`}>
-                          {formatDate(disclosure.updated_at)}: {disclosure.report_name?.substring(0, 20)}...
+                          {formatDate(disclosure.updated_at)}: {(disclosure.report_name || disclosure.report_name_ko || '')?.substring(0, 25)}
                         </div>
                         {isCurrent && isSelected && (
                           <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded mt-1 inline-block">
@@ -611,83 +625,23 @@ function DisclosuresContent() {
                   </div>
                 </div>
 
-                {/* Right Column - Charts & Related */}
+                {/* Right Column */}
                 <div className="space-y-6">
-                  {/* Stock Price Trend (하드코딩) */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 className="text-sm font-bold mb-4">Stock Price Trend (Past 1M)</h3>
-                    <div className="h-32 flex items-end justify-between gap-1 mb-2">
-                      {/* 하드코딩된 차트 바 */}
-                      {[40, 55, 45, 60, 50, 70, 65, 80, 75, 90, 85, 95].map((height, i) => (
-                        <div
-                          key={i}
-                          className="flex-1 bg-blue-500 rounded-t"
-                          style={{ height: `${height}%` }}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>20</span>
-                      <span>300</span>
-                      <span>400</span>
-                      <span>300</span>
-                    </div>
-                    <div className="text-right mt-2">
-                      <span className="text-green-400 font-bold">+15.2%</span>
-                    </div>
-                  </div>
+                  {/* 1. Signal Strength */}
+                  <SignalStrength
+                    sentimentScore={selectedDisclosure.sentiment_score ?? 0}
+                    importance={selectedDisclosure.importance ?? 'MEDIUM'}
+                  />
 
-                  {/* Financial Ratios (하드코딩) */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 className="text-sm font-bold mb-4">Financial Ratios (YoY)</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-400">Revenue</span>
-                          <span className="text-green-400">+10%</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="h-6 bg-green-600 rounded" style={{ width: '60%' }}></div>
-                          <div className="h-6 bg-green-400 rounded" style={{ width: '30%' }}></div>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">Revenue</div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-400">Net Profit</span>
-                          <span className="text-green-400">+17%</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="h-6 bg-green-600 rounded" style={{ width: '50%' }}></div>
-                          <div className="h-6 bg-green-400 rounded" style={{ width: '40%' }}></div>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">Net Profit</div>
-                      </div>
-                    </div>
-                  </div>
+                  {/* 2. Short Pressure */}
+                  <ShortPressure stockCode={selectedStock.stock_code} />
 
-                  {/* Related Disclosures (하드코딩) */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <h3 className="text-sm font-bold mb-4">Related Disclosures (Automotive Sector)</h3>
-                    <ol className="space-y-2 text-sm text-gray-300">
-                      <li className="flex gap-2">
-                        <span className="text-gray-500">1.</span>
-                        <span>Kia Corp: New EV Platform Launch</span>
-                      </li>
-                      <li className="flex gap-2">
-                        <span className="text-gray-500">2.</span>
-                        <span>Tesla Inc: Gigafactory Expansion Plans</span>
-                      </li>
-                    </ol>
-                    <div className="flex gap-2 mt-4">
-                      <button className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded text-xs hover:bg-gray-700 transition">
-                        This Company (2)
-                      </button>
-                      <button className="bg-gray-800 text-gray-300 px-3 py-1.5 rounded text-xs hover:bg-gray-700 transition">
-                        (This Company) (2)
-                      </button>
-                    </div>
-                  </div>
+                  {/* 3. Financial YoY */}
+                  <FinancialRatios
+                    stockCode={selectedStock.stock_code}
+                    eventType={null}
+                    alwaysShow={true}
+                  />
                 </div>
               </div>
             </div>
@@ -713,23 +667,26 @@ function DisclosuresContent() {
             <div className="w-48 md:w-80">
               <SearchDropdown
                 onSelectStock={(stockCode) => {
-                  const stock = groupedStocks.find(s => s.stock_code === stockCode);
+                  const stock = groupedStocksRef.current.find(s => s.stock_code === stockCode);
                   if (stock) {
                     navigateToStock(stock);
                   } else {
-                    router.push(`/disclosures?stock=${stockCode}`);
+                    startTransition(() => {
+                      router.push(`/disclosures?stock=${stockCode}`);
+                    });
                   }
                 }}
                 onSearch={(query) => {
-                  // 검색어로 전체 검색 - URL 업데이트
-                  router.push(`/disclosures?search=${encodeURIComponent(query)}`);
+                  startTransition(() => {
+                    router.push(`/disclosures?search=${encodeURIComponent(query)}`);
+                  });
                 }}
                 isSuperUser={true}
                 placeholder="Search company..."
               />
             </div>
-            <Link href="/signup" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
-              Sign Up
+            <Link href="/dashboard" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
+              Dashboard
             </Link>
           </div>
         </div>
@@ -804,6 +761,9 @@ function DisclosuresContent() {
                   </div>
 
                   <h5 className="font-medium mb-2">{latestDisclosure.report_name}</h5>
+                  {latestDisclosure.report_name_ko && latestDisclosure.report_name !== latestDisclosure.report_name_ko && (
+                    <p className="text-xs text-gray-500 mb-1">{latestDisclosure.report_name_ko}</p>
+                  )}
 
                   <p className="text-sm text-gray-400 line-clamp-2 mb-4">
                     {latestDisclosure.summary}

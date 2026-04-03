@@ -203,6 +203,12 @@ def save_to_db(rows: list[dict]) -> tuple[int, int]:
     sb = create_client(url, key)
     success = failure = 0
 
+    # 같은 배치 내 stock_code 중복 시 companies_pkey 충돌 방지 → 마지막 row 우선 유지
+    seen_sc: dict[str, dict] = {}
+    for row in rows:
+        seen_sc[row["stock_code"]] = row
+    rows = list(seen_sc.values())
+
     for i in range(0, len(rows), BATCH_SIZE):
         batch = rows[i:i + BATCH_SIZE]
         bn = i // BATCH_SIZE + 1

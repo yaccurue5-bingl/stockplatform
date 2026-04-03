@@ -138,21 +138,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
     if (reason === 'duplicate') {
       await Swal.fire({
-        title: '다른 기기에서 로그인됨',
-        text: '보안을 위해 이 기기의 세션이 종료되었습니다. 계정은 한 기기에서만 사용할 수 있습니다.',
+        title: 'Signed In on Another Device',
+        text: 'For security, this session has been terminated. Your account can only be used on one device at a time.',
         icon: 'warning',
         confirmButtonColor: '#3085d6',
-        confirmButtonText: '확인',
+        confirmButtonText: 'OK',
         allowOutsideClick: false,
         allowEscapeKey: false,
       });
     } else {
       await Swal.fire({
         title: 'Session Expired',
-        text: '30분 동안 활동이 없어 보안을 위해 로그아웃되었습니다.',
+        text: 'You have been logged out due to 30 minutes of inactivity.',
         icon: 'warning',
         confirmButtonColor: '#3085d6',
-        confirmButtonText: '확인',
+        confirmButtonText: 'OK',
         allowOutsideClick: false,
         allowEscapeKey: false,
         customClass: { confirmButton: 'swal2-confirm-visible' },
@@ -338,11 +338,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     document.body.classList.add('capture-detected');
 
     Swal.fire({
-      title: '화면 캡처 감지',
-      text: '콘텐츠 보호를 위해 화면 캡처가 제한됩니다. 무단 복제는 이용약관 위반입니다.',
+      title: 'Screen Capture Detected',
+      text: 'Screen capture is restricted to protect content. Unauthorized reproduction violates our Terms of Service.',
       icon: 'error',
       confirmButtonColor: '#d33',
-      confirmButtonText: '확인',
+      confirmButtonText: 'OK',
       allowOutsideClick: false,
     }).then(() => {
       document.body.classList.remove('capture-detected');

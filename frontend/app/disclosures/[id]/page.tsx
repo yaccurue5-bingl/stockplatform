@@ -11,7 +11,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import HistoryInject from './HistoryInject';
+import FinancialRatios from '@/components/disclosures/FinancialRatios';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -36,6 +36,7 @@ interface DisclosureRow {
   stock_code: string | null;
   rcept_dt: string;
   report_nm: string;
+  report_nm_en: string | null;
   headline: string | null;
   event_type: string | null;
   sentiment_score: number | null;
@@ -52,7 +53,7 @@ async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
   const { data, error } = await sb
     .from('disclosure_insights')
     .select(
-      'id, corp_name, stock_code, rcept_dt, report_nm, ' +
+      'id, corp_name, stock_code, rcept_dt, report_nm, report_nm_en, ' +
       'headline, event_type, sentiment_score, ' +
       'ai_summary, key_numbers, risk_factors, financial_impact, ' +
       'analysis_status, is_visible'
@@ -138,9 +139,6 @@ export default async function DisclosureDetailPage({
 
   return (
     <main className="min-h-screen bg-[#0D1117] text-white">
-      {/* 로그인 유저: history에 /disclosures 주입 (뒤로가기 시 all list로 이동) */}
-      {isLoggedIn && <HistoryInject />}
-
       {/* 상단 네비 */}
       <div className="border-b border-gray-800 px-4 py-3">
         <div className="max-w-3xl mx-auto">
@@ -166,7 +164,7 @@ export default async function DisclosureDetailPage({
           </div>
 
           <h1 className="text-2xl font-bold leading-snug">
-            {disclosure.headline ?? disclosure.report_nm ?? 'Corporate Disclosure'}
+            {disclosure.headline ?? disclosure.report_nm_en ?? disclosure.report_nm ?? 'Corporate Disclosure'}
           </h1>
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -194,6 +192,12 @@ export default async function DisclosureDetailPage({
             <p className="text-sm text-gray-300 leading-relaxed">{disclosure.financial_impact}</p>
           </div>
         )}
+
+        {/* Financial Ratios YoY (EARNINGS 타입 + 데이터 있을 때만 표시) */}
+        <FinancialRatios
+          stockCode={disclosure.stock_code ?? ''}
+          eventType={disclosure.event_type ?? null}
+        />
 
         {/* ── 로그인 유저: 전체 공개 ── */}
         {isLoggedIn ? (

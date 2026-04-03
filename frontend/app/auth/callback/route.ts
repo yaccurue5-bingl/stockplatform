@@ -63,15 +63,41 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error('Failed to exchange code for session:', error);
       const errorUrl = new URL('/login', request.url);
-      errorUrl.searchParams.set('error', error.message || 'Authentication failed');
+
+      // 이미 사용됐거나 만료된 토큰 → 친절한 안내
+      const isExpiredToken =
+        error.message?.toLowerCase().includes('expired') ||
+        error.message?.toLowerCase().includes('already') ||
+        error.message?.toLowerCase().includes('invalid');
+
+      errorUrl.searchParams.set(
+        'error',
+        isExpiredToken
+          ? 'This confirmation link has already been used or has expired. Please sign in directly.'
+          : 'Authentication failed. Please try again.'
+      );
       return NextResponse.redirect(errorUrl);
     }
 
     // 성공 - 사용자 정보 로깅
     console.log('OAuth login successful for user:', data.user?.email);
 
-    // 이메일 확인인 경우만 confirm 페이지로
+    // 비밀번호 재설정 링크
+    if (type === 'recovery') {
+      return NextResponse.redirect(new URL('/auth/reset-password', request.url));
+    }
+
+    // 이메일 확인인 경우만 confirm 페이지로 + 웰컴 메일 발송
     if (type === 'signup' || type === 'email') {
+      // 웰컴 이메일 발송 (fire-and-forget, 실패해도 흐름 차단 안 함)
+      if (data.user?.email) {
+        const name = data.user.user_metadata?.full_name || data.user.user_metadata?.name || '';
+        fetch(new URL('/api/auth/welcome', request.url).toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: data.user.email, name }),
+        }).catch((err) => console.error('[welcome-email] fire-and-forget failed:', err));
+      }
       return NextResponse.redirect(new URL('/auth/confirm', request.url));
     }
 
