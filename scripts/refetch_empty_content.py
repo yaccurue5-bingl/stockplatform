@@ -92,18 +92,29 @@ def fetch_content(rcept_no: str) -> str | None:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', action='store_true')
-    parser.add_argument('--limit', type=int, default=200)
+    parser.add_argument('--limit', type=int, default=500)
+    parser.add_argument('--days', type=int, default=None, help='최근 N일 공시만 대상 (rcept_dt 기준)')
     args = parser.parse_args()
 
     # content가 비어있는 completed 공시 조회
-    r = sb.table('disclosure_insights') \
+    query = sb.table('disclosure_insights') \
         .select('id,rcept_no,corp_name,report_nm') \
         .eq('analysis_status', 'completed') \
         .eq('is_visible', True) \
-        .or_('content.is.null,content.eq.') \
-        .order('updated_at', desc=True) \
-        .limit(args.limit) \
-        .execute()
+        .or_('content.is.null,content.eq.')
+
+    if args.days:
+        from datetime import datetime, timedelta
+        since = (datetime.now() - timedelta(days=args.days)).strftime('%Y%m%d')
+        query = query.gte('rcept_dt', since)
+        logger.info(f"rcept_dt 필터: {since} 이후")
+
+    # 투자 시그널 없는 공시 제외
+    SKIP_TYPES = ['감사보고서', '효력발생', 'IR공고', '기업설명회', '증권발행실적']
+    for skip in SKIP_TYPES:
+        query = query.not_.ilike('report_nm', f'%{skip}%')
+
+    r = query.order('rcept_dt', desc=True).limit(args.limit).execute()
 
     items = r.data
     logger.info(f"대상: {len(items)}개")
