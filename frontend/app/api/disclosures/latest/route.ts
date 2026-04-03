@@ -1,11 +1,47 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
+import { isSuperAdmin } from '@/lib/constants';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function GET(request: Request) {
   try {
+    // ── 세션 검증: 로그인 + 유료 플랜만 허용 ──
+    const cookieStore = await cookies();
+    const authClient = createServerClient(
+      supabaseUrl,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: () => {},
+        },
+      }
+    );
+
+    const { data: { session } } = await authClient.auth.getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const email = session.user.email ?? '';
+    if (!isSuperAdmin(email)) {
+      const { data: userData } = await authClient
+        .from('users')
+        .select('plan, subscription_status')
+        .eq('id', session.user.id)
+        .single() as { data: { plan: string | null; subscription_status: string | null } | null };
+
+      const isPaid = userData?.plan && userData.plan !== 'free' && userData?.subscription_status === 'active';
+      if (!isPaid) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // URL에서 파라미터 추출

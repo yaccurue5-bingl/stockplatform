@@ -65,30 +65,28 @@ function DisclosuresContent() {
   // ── 접근 제어: super admin 또는 유료 plan 유저만 허용 ──
   useEffect(() => {
     const supabase = getSupabase();
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const redirectTo = encodeURIComponent('/disclosures');
+
+    const checkAccess = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
       if (!session?.user) {
-        // 비로그인 → 로그인 페이지로 (완료 후 /disclosures 복귀)
-        const redirectTo = encodeURIComponent('/disclosures');
         router.replace(`/login?redirectTo=${redirectTo}`);
         return;
       }
 
       const email = session.user.email ?? '';
-
-      // super admin은 항상 허용
       if (isSuperAdmin(email)) {
         setAccessAllowed(true);
         return;
       }
 
-      // public.users 테이블에서 plan 확인
       const { data } = await supabase
         .from('users')
         .select('plan, subscription_status')
         .eq('id', session.user.id)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
-      // plan이 free이거나 없으면 pricing 페이지로
       const isPaid =
         data?.plan && data.plan !== 'free' && data?.subscription_status === 'active';
 
@@ -98,7 +96,21 @@ function DisclosuresContent() {
       }
 
       setAccessAllowed(true);
+    };
+
+    checkAccess();
+
+    // 세션 만료 시 즉시 로그인 페이지로
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_OUT') {
+          setAccessAllowed(false);
+          router.replace(`/login?redirectTo=${redirectTo}`);
+        }
+      }
     });
+
+    return () => subscription.unsubscribe();
   }, [router]);
 
   // URL 파라미터를 수동으로 관리 (useSearchParams 제거 → Suspense fallback 깜빡임 완전 차단)
