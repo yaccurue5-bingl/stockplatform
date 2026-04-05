@@ -246,28 +246,66 @@ def find_and_download_hwp() -> tuple[str, str] | None:
 
 
 # ── Groq: PDF에서 지표 추출 ───────────────────────────────────────────────────
-INDICATOR_SYSTEM_PROMPT = """You are a financial data extraction engine for Korean economic indicators.
+INDICATOR_SYSTEM_PROMPT = """You are a STRICT data extraction engine.
 
-STRICT RULES:
-1. Extract ONLY factual numeric data — do NOT summarize
-2. Return valid JSON only
-3. Use null for unavailable fields
+CRITICAL RULES:
+1. DO NOT calculate anything
+2. DO NOT infer anything
+3. DO NOT create numbers
+4. ONLY copy numbers EXACTLY as they appear in the text
+5. If data not explicitly present, return null
+6. 전일비 means day-over-day change — extract ONLY the explicitly printed value
+7. 외국인 순매수 values are in 억원 — copy the exact number, do NOT convert units
 
-Extract these indicators from the document:
+Return JSON with EXACTLY this structure:
 {
   "date": "YYYY-MM-DD",
-  "kospi": {"close": float, "change": float, "change_pct": float},
-  "kosdaq": {"close": float, "change": float, "change_pct": float},
-  "foreign_net_buy_kospi": float,
-  "foreign_net_buy_kosdaq": float,
-  "usd_krw": float,
-  "treasury_yield_3y": float,
-  "treasury_yield_10y": float,
-  "wti_oil": float
-}
+  "kospi_close": <copy exact closing value>,
+  "kospi_change_pct": <copy exact 전일비 % value, positive or negative>,
+  "kosdaq_close": <copy exact closing value>,
+  "kosdaq_change_pct": <copy exact 전일비 % value, positive or negative>,
+  "foreign_net_buy_kospi": <copy exact 억원 value, positive=순매수 negative=순매도>,
+  "foreign_net_buy_kosdaq": <copy exact 억원 value>,
+  "usd_krw": <copy exact exchange rate>,
+  "treasury_yield_3y": <copy exact %>,
+  "wti_oil": <copy exact USD price>
+}"""
 
-All monetary values in 억원 (100M KRW) for net buy figures.
-"""
+
+# ── 숫자 검증 ─────────────────────────────────────────────────────────────────
+def validate_indicators(data: dict) -> dict | None:
+    """비정상 값 검증. 통과하면 data 반환, 실패하면 None."""
+    errors = []
+
+    kospi_pct = data.get('kospi_change_pct')
+    if kospi_pct is not None and abs(kospi_pct) > 15:
+        errors.append(f'kospi_change_pct 비정상: {kospi_pct}% (±15% 초과)')
+
+    kosdaq_pct = data.get('kosdaq_change_pct')
+    if kosdaq_pct is not None and abs(kosdaq_pct) > 20:
+        errors.append(f'kosdaq_change_pct 비정상: {kosdaq_pct}% (±20% 초과)')
+
+    kospi_close = data.get('kospi_close')
+    if kospi_close is not None and not (1000 < kospi_close < 20000):
+        errors.append(f'kospi_close 범위 이상: {kospi_close}')
+
+    usd_krw = data.get('usd_krw')
+    if usd_krw is not None and not (900 < usd_krw < 2500):
+        errors.append(f'usd_krw 범위 이상: {usd_krw}')
+
+    # 외국인 순매수 단위 자동 보정 (억원 기준, 소수점이면 단위 혼용 의심)
+    for key in ('foreign_net_buy_kospi', 'foreign_net_buy_kosdaq'):
+        val = data.get(key)
+        if val is not None and abs(val) < 1:
+            # 조원 단위로 잘못 파싱된 경우 억원으로 환산
+            data[key] = round(val * 10000, 1)
+            logger.warning(f'{key} 단위 보정: {val} → {data[key]} 억원')
+
+    if errors:
+        logger.warning(f'검증 실패: {errors}')
+        return None
+
+    return data
 
 
 def extract_indicators(pdf_path: str) -> dict | None:
@@ -292,11 +330,17 @@ def extract_indicators(pdf_path: str) -> dict | None:
                 {'role': 'user', 'content': f'TEXT:\n{full_text[:4000]}'},
             ],
             temperature=0.1,
-            max_completion_tokens=600,
+            max_completion_tokens=400,
             response_format={'type': 'json_object'},
         )
         result = json.loads(response.choices[0].message.content)
-        return result
+
+        validated = validate_indicators(result)
+        if validated is None:
+            logger.error('지표 검증 실패 → 저장 안 함')
+            return None
+
+        return validated
 
     except Exception as e:
         logger.error(f'지표 추출 실패: {e}')
@@ -309,10 +353,10 @@ def save_indicators(data: dict) -> bool:
         report_date = data.get('date') or date.today().isoformat()
         supabase.table('daily_indicators').upsert({
             'date':                    report_date,
-            'kospi_close':             data.get('kospi', {}).get('close'),
-            'kospi_change_pct':        data.get('kospi', {}).get('change_pct'),
-            'kosdaq_close':            data.get('kosdaq', {}).get('close'),
-            'kosdaq_change_pct':       data.get('kosdaq', {}).get('change_pct'),
+            'kospi_close':             data.get('kospi_close'),
+            'kospi_change_pct':        data.get('kospi_change_pct'),
+            'kosdaq_close':            data.get('kosdaq_close'),
+            'kosdaq_change_pct':       data.get('kosdaq_change_pct'),
             'foreign_net_buy_kospi':   data.get('foreign_net_buy_kospi'),
             'foreign_net_buy_kosdaq':  data.get('foreign_net_buy_kosdaq'),
             'usd_krw':                 data.get('usd_krw'),
@@ -373,8 +417,8 @@ def run(local_hwp: str | None = None, dry_run: bool = False):
             return
 
         logger.info('추출된 지표:')
-        logger.info(f"  KOSPI:            {indicators.get('kospi')}")
-        logger.info(f"  KOSDAQ:           {indicators.get('kosdaq')}")
+        logger.info(f"  KOSPI:            {indicators.get('kospi_close')} ({indicators.get('kospi_change_pct')}%)")
+        logger.info(f"  KOSDAQ:           {indicators.get('kosdaq_close')} ({indicators.get('kosdaq_change_pct')}%)")
         logger.info(f"  외국인 순매수 KOSPI:  {indicators.get('foreign_net_buy_kospi')} 억원")
         logger.info(f"  외국인 순매수 KOSDAQ: {indicators.get('foreign_net_buy_kosdaq')} 억원")
         logger.info(f"  USD/KRW:          {indicators.get('usd_krw')}")
