@@ -73,6 +73,36 @@ def is_noise_corp(corp_name: str) -> bool:
     t = (corp_name or "").lower()
     return any(kw.lower() in t for kw in _NOISE_CORP_KEYWORDS)
 
+
+# ── 핵심 섹션 추출 (truncate 대신 사용) ──────────────────────────────────────
+_IMPORTANT_KEYWORDS = [
+    "매출", "영업이익", "당기순이익", "순이익",
+    "계약", "금액", "발행", "증자", "취득", "처분",
+    "손실", "감소", "증가", "%", "억원", "백만원", "KRW",
+    "보증", "채무", "주식수", "주당", "전환가",
+    "수주", "납품", "공급", "투자", "배당", "자본금",
+]
+
+def extract_key_sections(text: str) -> str:
+    """키워드 포함 줄 + 마크다운 테이블/헤딩만 추출 (truncate 금지)"""
+    if not text:
+        return text
+    lines = text.split("\n")
+    filtered = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(k in stripped for k in _IMPORTANT_KEYWORDS):
+            filtered.append(stripped)
+        elif stripped.startswith("|") or stripped.startswith("##"):
+            filtered.append(stripped)
+    result = "\n".join(filtered[:300])
+    # 키워드 매칭 결과가 너무 적으면 원본 앞부분 fallback
+    if len(result) < 200 and len(text) > 200:
+        return text[:6000]
+    return result
+
 def generate_hash_key(corp_code: str, rcept_no: str) -> str:
     """공시 hash key 생성"""
     return hashlib.sha256(f"{corp_code}_{rcept_no}".encode()).hexdigest()
@@ -161,7 +191,7 @@ def _fetch_from_viewer(rcept_no):
             logger.warning(f"{rcept_no} dcmNo 추출 실패 - 메인 페이지 텍스트 시도")
             text = _clean_html_text(resp.text)
             if len(text) > 100:
-                return text[:8000]
+                return extract_key_sections(text)
             return None
 
         dcm_no = dcm_match.group(1)
@@ -181,7 +211,7 @@ def _fetch_from_viewer(rcept_no):
         text = _clean_html_text(resp2.text)
         if len(text) > 100:
             logger.info(f"{rcept_no} 뷰어 폴백 성공 ({len(text)}자)")
-            return text[:2500]
+            return extract_key_sections(text)
 
         return None
 
@@ -221,7 +251,7 @@ def get_clean_content(rcept_no, max_retries=2):
                         raw_text = raw_bytes.decode(encoding, errors='ignore')
                         text = _clean_html_text(raw_text)
                         logger.info(f"{rcept_no} ZIP 추출 성공 (인코딩: {encoding}, {len(text)}자)")
-                        return text[:8000]
+                        return extract_key_sections(text)
                     except Exception as zip_err:
                         logger.error(f"ZIP 처리 중 오류 ({rcept_no}): {zip_err}")
                         return "CONTENT_NOT_AVAILABLE"

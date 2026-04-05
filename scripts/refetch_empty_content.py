@@ -35,6 +35,34 @@ session.headers.update({
 })
 
 
+_IMPORTANT_KEYWORDS = [
+    "매출", "영업이익", "당기순이익", "순이익",
+    "계약", "금액", "발행", "증자", "취득", "처분",
+    "손실", "감소", "증가", "%", "억원", "백만원", "KRW",
+    "보증", "채무", "주식수", "주당", "전환가",
+    "수주", "납품", "공급", "투자", "배당", "자본금",
+]
+
+def extract_key_sections(text: str) -> str:
+    """키워드 포함 줄 + 마크다운 테이블/헤딩만 추출 (truncate 금지)"""
+    if not text:
+        return text
+    lines = text.split("\n")
+    filtered = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(k in stripped for k in _IMPORTANT_KEYWORDS):
+            filtered.append(stripped)
+        elif stripped.startswith("|") or stripped.startswith("##"):
+            filtered.append(stripped)
+    result = "\n".join(filtered[:300])
+    if len(result) < 200 and len(text) > 200:
+        return text[:6000]
+    return result
+
+
 def _clean_html_to_md(raw_html: str) -> str:
     """HTML → 투자 분석용 마크다운 텍스트"""
     clean = re.sub(r'<(script|style|head)[^>]*>.*?</\1>', '', raw_html, flags=re.DOTALL | re.IGNORECASE)
@@ -76,7 +104,7 @@ def fetch_content(rcept_no: str) -> str | None:
             text = _clean_html_to_md(raw)
             korean = len(re.findall(r'[\uAC00-\uD7A3]', text))
             logger.info(f"  ZIP OK: {len(text)}자, 한글 {korean}자")
-            return text[:10000] if len(text) > 0 else None
+            return extract_key_sections(text) if len(text) > 0 else None
 
         # XML 오류 응답
         status_match = re.search(r'<status>(\d+)</status>', resp.text)
