@@ -221,6 +221,7 @@ export async function GET(request: Request) {
       const translated = item.report_nm_en || mappedEn;
       const transformed = {
         id: item.id,
+        rcept_no: safeString(item.rcept_no, ''),
         corp_name: safeString(item.corp_name, 'Unknown'),
         corp_name_en: corpNameEn,
         stock_code: safeString(item.stock_code, '000000'),

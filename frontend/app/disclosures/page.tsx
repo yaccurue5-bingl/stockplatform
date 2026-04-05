@@ -12,6 +12,7 @@ import FinancialRatios from '@/components/disclosures/FinancialRatios';
 
 interface Disclosure {
   id: string;
+  rcept_no?: string;
   corp_name: string;
   corp_name_en?: string;
   stock_code: string;
@@ -608,9 +609,16 @@ function DisclosuresContent() {
                     <button className="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
                       AI Analysis
                     </button>
-                    <button className="bg-gray-800 text-gray-400 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition">
-                      Original Text
-                    </button>
+                    {selectedDisclosure.rcept_no && (
+                      <a
+                        href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-gray-800 text-gray-400 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 hover:text-white transition flex items-center gap-1.5"
+                      >
+                        Original Text ↗
+                      </a>
+                    )}
                   </div>
 
                   {/* Key Takeaways */}
