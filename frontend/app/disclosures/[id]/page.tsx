@@ -44,14 +44,27 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const sb = createServiceClient();
-  const { data } = await sb
+  const { data: raw } = await sb
     .from('disclosure_insights')
     .select('id, corp_name, stock_code, report_nm, report_nm_en, headline, financial_impact, ai_summary, event_type, rcept_dt')
     .eq('id', id)
     .eq('is_visible', true)
     .single();
 
-  if (!data) return { title: 'Disclosure Not Found | K-MarketInsight' };
+  if (!raw) return { title: 'Disclosure Not Found | K-MarketInsight' };
+
+  const data = raw as unknown as {
+    id: string;
+    corp_name: string | null;
+    stock_code: string | null;
+    report_nm: string | null;
+    report_nm_en: string | null;
+    headline: string | null;
+    financial_impact: string | null;
+    ai_summary: string | null;
+    event_type: string | null;
+    rcept_dt: string | null;
+  };
 
   const title = (data.headline ?? data.report_nm_en ?? data.report_nm ?? 'Corporate Disclosure') +
     ` — ${data.corp_name ?? ''} | K-MarketInsight`;
