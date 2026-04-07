@@ -7,13 +7,17 @@
  * - Next.js revalidate 3600s (공시 데이터는 불변 — 1h 후 재검증)
  */
 
+import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
+import DataSourceNote from '@/components/DataSourceNote';
 
 export const revalidate = 3600; // 1h — 불변 데이터
+
+const SITE_URL = 'https://k-marketinsight.com';
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
@@ -27,6 +31,52 @@ const EVENT_LABELS: Record<string, string> = {
   CAPEX:    'Capital Investment',
   OTHER:    'Corporate Disclosure',
 };
+
+// ── generateMetadata ──────────────────────────────────────────────────────────
+// canonical → /signal/[id] (SEO primary page)
+// disclosures/[id] is user-facing (full content when logged in);
+// we don't want Google to index it as a separate page from /signal/[id].
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const sb = createServiceClient();
+  const { data } = await sb
+    .from('disclosure_insights')
+    .select('id, corp_name, stock_code, report_nm, report_nm_en, headline, financial_impact, ai_summary, event_type, rcept_dt')
+    .eq('id', id)
+    .eq('is_visible', true)
+    .single();
+
+  if (!data) return { title: 'Disclosure Not Found | K-MarketInsight' };
+
+  const title = (data.headline ?? data.report_nm_en ?? data.report_nm ?? 'Corporate Disclosure') +
+    ` — ${data.corp_name ?? ''} | K-MarketInsight`;
+  const description = (data.financial_impact ?? data.ai_summary ?? '')
+    .slice(0, 160) ||
+    `${EVENT_LABELS[data.event_type ?? ''] ?? 'Corporate Disclosure'} from ${data.corp_name} (${data.stock_code}). DART filing analysis.`;
+
+  // /signal/[id] is the canonical SEO page — this page defers to it
+  const signalUrl = `${SITE_URL}/signal/${id}`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      url: signalUrl,
+      siteName: 'K-MarketInsight',
+      type: 'article',
+    },
+    alternates: {
+      canonical: signalUrl,
+    },
+  };
+}
 
 // ── 데이터 페칭 ───────────────────────────────────────────────────────────────
 
@@ -270,6 +320,12 @@ export default async function DisclosureDetailPage({
             </p>
           </>
         )}
+
+        {/* Data Source Attribution */}
+        <DataSourceNote
+          source="DART"
+          reportName={disclosure.report_nm_en ?? disclosure.report_nm}
+        />
       </div>
     </main>
   );

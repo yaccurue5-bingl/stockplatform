@@ -13,6 +13,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient } from '@/lib/supabase/server';
 import { TrendingUp, TrendingDown, Minus, Lock, ArrowLeft, ExternalLink } from 'lucide-react';
+import DataSourceNote from '@/components/DataSourceNote';
 
 export const revalidate = 3600;
 
@@ -368,6 +369,12 @@ export default async function SignalPage({
             </Link>
           </div>
         </div>
+
+        {/* ── Data Source Attribution ── */}
+        <DataSourceNote
+          source="DART"
+          reportName={signal.report_nm}
+        />
 
         {/* ── 관련 링크 (SEO internal linking) ── */}
         <div className="pt-2 border-t border-gray-800 flex flex-wrap gap-4 text-xs text-gray-500">
