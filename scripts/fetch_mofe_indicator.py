@@ -253,27 +253,44 @@ CRITICAL RULES:
 1. DO NOT infer or estimate — only extract values explicitly printed in the text
 2. DO NOT create numbers that are not present
 3. If data is not explicitly present, return null
-4. 전일비 = day-over-day change — extract ONLY the explicitly printed value (positive or negative)
-5. 날짜(date): extract the reference date shown in the document in YYYY-MM-DD format
+4. 날짜(date): extract the reference date of this report in YYYY-MM-DD format
 
-UNIT RULES for 외국인 순매수 (foreign net buying):
-- Values in 억원: return as-is (e.g., "8,419억" → 8419)
-- Values in 조원: convert to 억원 by multiplying by 10000 (e.g., "1.2조" → 12000)
-- Expected range after conversion: 100 ~ 30000. If your value is below 100, recheck the unit.
-- Positive = 순매수 (net buy), Negative = 순매도 (net sell)
+KOREAN NUMBER FORMAT — VERY IMPORTANT:
+- Korean documents use comma (,) as a THOUSANDS SEPARATOR, not a decimal point
+- "8,300" means EIGHT THOUSAND THREE HUNDRED (8300), NOT 8.3
+- "6,069" means SIX THOUSAND SIXTY NINE (6069), NOT 6.069
+- "5,377.30" means five thousand three hundred seventy-seven point three (5377.30)
+- NEVER interpret a comma in a number as a decimal point
+
+MULTI-DATE COLUMNS — VERY IMPORTANT:
+- The document contains a table with multiple date columns (e.g., '25말, '26.3말, 4/1, 4/2, 4/3)
+- ALWAYS extract data from the MOST RECENT date column (rightmost data column)
+- The 전일비 column = change from previous day → use this for change_pct and foreign_net_buy daily value
+- DO NOT extract from older date columns (4/2, 4/1, '26.3말, etc.)
+
+FIELD EXTRACTION RULES:
+- kospi_close / kosdaq_close: closing index value from the LATEST date column
+- kospi_change_pct / kosdaq_change_pct: 전일비 % for KOSPI/KOSDAQ (positive or negative)
+- foreign_net_buy_kospi: 외국인 순매수 전일비 value in 억원 (the single-day net buying amount)
+  * "△" or "▽" prefix means NEGATIVE (net selling) — return as negative number
+  * Expected range: ±100 to ±30,000 억원
+- foreign_net_buy_kosdaq: return null if only combined figure is shown
+- usd_krw: USD/KRW exchange rate
+- treasury_yield_3y: 3-year Korean treasury bond yield %
+- wti_oil: WTI crude oil price in USD
 
 Return JSON with EXACTLY this structure (no extra fields):
 {
   "date": "YYYY-MM-DD",
-  "kospi_close": <exact closing index value>,
-  "kospi_change_pct": <exact 전일비 % — positive or negative float>,
-  "kosdaq_close": <exact closing index value>,
-  "kosdaq_change_pct": <exact 전일비 % — positive or negative float>,
-  "foreign_net_buy_kospi": <억원 value after unit conversion — see rules above>,
-  "foreign_net_buy_kosdaq": <억원 value after unit conversion>,
-  "usd_krw": <exact USD/KRW exchange rate>,
-  "treasury_yield_3y": <exact 3-year treasury yield %>,
-  "wti_oil": <exact WTI crude oil price in USD>
+  "kospi_close": <latest date closing value — integer-like float e.g. 5377.30>,
+  "kospi_change_pct": <전일비 % e.g. 2.74 or -1.83>,
+  "kosdaq_close": <latest date closing value>,
+  "kosdaq_change_pct": <전일비 %>,
+  "foreign_net_buy_kospi": <전일비 억원, e.g. 8300 or -2231>,
+  "foreign_net_buy_kosdaq": <억원 or null if only combined shown>,
+  "usd_krw": <e.g. 1519.7>,
+  "treasury_yield_3y": <e.g. 3.45>,
+  "wti_oil": <e.g. 111.54>
 }"""
 
 
