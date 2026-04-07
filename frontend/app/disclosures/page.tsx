@@ -9,6 +9,7 @@ import { isSuperAdmin } from '@/lib/constants';
 import SignalStrength from '@/components/disclosures/SignalStrength';
 import ShortPressure from '@/components/disclosures/ShortPressure';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
+import DataSourceNote from '@/components/DataSourceNote';
 
 interface Disclosure {
   id: string;
@@ -658,6 +659,12 @@ function DisclosuresContent() {
                       )}
                     </div>
                   </div>
+
+                  {/* Data Source Attribution */}
+                  <DataSourceNote
+                    source="DART"
+                    reportName={selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
+                  />
                 </div>
 
                 {/* Right Column */}

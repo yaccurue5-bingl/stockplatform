@@ -62,6 +62,57 @@ export default function Footer() {
           </div>
         </div>
 
+        {/* Data Sources Attribution */}
+        <div className="pt-8 border-t border-gray-800 mb-8">
+          <h3 className="text-white font-semibold mb-3 text-sm">Data Sources</h3>
+          <div className="space-y-2 text-xs text-gray-500 leading-relaxed">
+            <p>
+              <span className="text-gray-400 font-medium">Disclosure filings:</span>{' '}
+              AI-processed summaries derived from the{' '}
+              <a
+                href="https://dart.fss.or.kr"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:text-blue-400 transition"
+              >
+                DART (금융감독원 전자공시시스템)
+              </a>{' '}
+              open API. Original filings remain the property of the respective disclosing companies.
+            </p>
+            <p>
+              <span className="text-gray-400 font-medium">Export/Import trend data:</span>{' '}
+              AI-processed analysis derived from the Monthly Export-Import Trend report published by the{' '}
+              <a
+                href="https://www.motie.go.kr"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:text-blue-400 transition"
+              >
+                Ministry of Trade, Industry and Energy (산업통상자원부)
+              </a>
+              . Source: motir.go.kr. Original publication © Republic of Korea.
+            </p>
+            <p>
+              <span className="text-gray-400 font-medium">Daily economic indicators:</span>{' '}
+              AI-processed analysis derived from the Daily Economic Indicators report published by the{' '}
+              <a
+                href="https://www.moef.go.kr"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:text-blue-400 transition"
+              >
+                Ministry of Economy and Finance (기획재정부)
+              </a>
+              . Original publication © Republic of Korea.
+            </p>
+            <p className="text-gray-600 pt-1">
+              All AI-generated content represents independent analysis and does not constitute an official
+              publication or endorsement by any government ministry. Raw government data is not redistributed.
+              This platform does not provide investment advice.
+            </p>
+          </div>
+        </div>
+
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-gray-800">
           <div className="text-sm text-gray-400 text-center">

@@ -58,7 +58,29 @@ export default function Footer() {
           ))}
         </div>
 
-        <div className="border-t border-gray-800 pt-8 text-center">
+        {/* Data Sources Attribution */}
+        <div className="border-t border-gray-800 pt-8 mb-6">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Data Sources</p>
+          <div className="space-y-1.5 text-xs text-gray-600 leading-relaxed max-w-3xl">
+            <p>
+              Disclosure analysis derived from{' '}
+              <a href="https://dart.fss.or.kr" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-400">
+                DART (금융감독원 전자공시시스템)
+              </a>{' '}
+              open API. Export/Import trend analysis derived from reports by the{' '}
+              <a href="https://www.motie.go.kr" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-400">
+                Ministry of Trade, Industry and Energy (산업통상자원부)
+              </a>
+              . Daily indicator analysis derived from reports by the{' '}
+              <a href="https://www.moef.go.kr" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-400">
+                Ministry of Economy and Finance (기획재정부)
+              </a>
+              . AI-generated analysis only — raw government data is not redistributed. Not investment advice.
+            </p>
+          </div>
+        </div>
+
+        <div className="text-center">
           <p className="text-xs text-gray-600">
             © 2026 K-Market Insight. All rights reserved.
           </p>
