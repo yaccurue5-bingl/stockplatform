@@ -231,6 +231,49 @@ def upsert_returns(sb, rows: list[dict], dry_run: bool) -> tuple[int, int]:
 
 MIN_SAMPLE = 50   # 최소 표본 수 미달 시 event_stats 제외
 
+_GRADE_THRESHOLDS = [
+    (75, 'A'),   # Strong Buy
+    (60, 'B'),   # Buy
+    (45, 'C'),   # Neutral
+    (30, 'D'),   # Weak
+    (0,  'F'),   # Avoid
+]
+
+
+def _compute_signal_v2(
+    median_5d: float,
+    std_5d: float,
+    n_clean: int,
+) -> tuple[int, float, str, float]:
+    """
+    Risk-adjusted signal score (Sharpe-style).
+
+    1. risk_adj = median_5d / std_5d  → clip [-1, 1]
+    2. base_score = (risk_adj + 1) / 2 * 100   → [0, 100]
+    3. confidence = min(1.0, n_clean / 300)
+    4. final_score = base_score * (0.6 + 0.4 * confidence)
+
+    Returns: (score 0-100, confidence 0-1, grade A-F, risk_adj_return)
+    """
+    if std_5d == 0:
+        r = 0.0
+    else:
+        r = median_5d / std_5d
+
+    r = max(-1.0, min(1.0, r))
+    base_score  = (r + 1) / 2 * 100
+    confidence  = min(1.0, n_clean / 300)
+    final_score = base_score * (0.6 + 0.4 * confidence)
+    score       = round(final_score)
+
+    grade = 'F'
+    for threshold, g in _GRADE_THRESHOLDS:
+        if score >= threshold:
+            grade = g
+            break
+
+    return score, round(confidence, 2), grade, round(r, 3)
+
 
 def _winsorize(vals: list[float], lo_pct: float = 0.05, hi_pct: float = 0.95) -> list[float]:
     """5th~95th percentile 범위 밖 outlier 제거."""
@@ -341,6 +384,13 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         avg20 = sum(vals20) / len(vals20) if vals20 else None
         med20 = _median(vals20) if vals20 else None
 
+        # Signal Score v2 (risk-adjusted)
+        sig_score, sig_conf, sig_grade, risk_adj = _compute_signal_v2(
+            median_5d=med5 or 0.0,
+            std_5d=std5,
+            n_clean=n_clean,
+        )
+
         stats_rows.append({
             "event_type":        ev,
             "avg_5d_return":     round(avg5,  4),
@@ -350,6 +400,10 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             "std_5d":            round(std5,  4),
             "sample_size":       n_raw,
             "sample_size_clean": n_clean,
+            "signal_score":      sig_score,
+            "signal_confidence": sig_conf,
+            "signal_grade":      sig_grade,
+            "risk_adj_return":   risk_adj,
             "updated_at":        now_iso,
         })
 
@@ -362,7 +416,8 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         logger.info(
             f"    {r['event_type']:20s} "
             f"n={r['sample_size']:4d}(→{r['sample_size_clean']:4d})  "
-            f"avg5d={r['avg_5d_return']:+.2f}%  med5d={med_str}  std={r['std_5d']:.2f}"
+            f"avg5d={r['avg_5d_return']:+.2f}%  med5d={med_str}  std={r['std_5d']:.2f}  "
+            f"score={r['signal_score']}({r['signal_grade']})  conf={r['signal_confidence']:.2f}"
         )
 
     if dry_run:

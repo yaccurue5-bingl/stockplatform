@@ -60,7 +60,44 @@ interface SignalRow {
   financial_impact: string | null;
 }
 
+interface EventScore {
+  event: string;
+  score: number | null;
+  grade: string | null;
+  confidence: number | null;
+  expected_return: number | null;
+  sample_size: number | null;
+  risk_adj_return: number | null;
+}
+
 // ── 데이터 페칭 ───────────────────────────────────────────────────────────────
+
+async function fetchEventScore(eventType: string): Promise<EventScore | null> {
+  try {
+    const sb = createServiceClient();
+    const { data, error } = await sb
+      .from('event_stats')
+      .select(
+        'event_type, signal_score, signal_grade, signal_confidence, ' +
+        'median_5d_return, sample_size_clean, risk_adj_return'
+      )
+      .eq('event_type', eventType.toUpperCase())
+      .single();
+
+    if (error || !data) return null;
+    return {
+      event:           data.event_type,
+      score:           data.signal_score,
+      grade:           data.signal_grade,
+      confidence:      data.signal_confidence,
+      expected_return: data.median_5d_return,
+      sample_size:     data.sample_size_clean,
+      risk_adj_return: data.risk_adj_return,
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function fetchSignal(id: string): Promise<SignalRow | null> {
   const sb = createServiceClient();
@@ -190,6 +227,80 @@ function EventBadge({ eventType }: { eventType: string | null }) {
   );
 }
 
+const GRADE_STYLES: Record<string, { ring: string; text: string; bg: string; label: string }> = {
+  A: { ring: 'border-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'Strong Buy' },
+  B: { ring: 'border-[#00D4A6]',   text: 'text-[#00D4A6]',   bg: 'bg-[#00D4A6]/10',   label: 'Buy' },
+  C: { ring: 'border-yellow-400',  text: 'text-yellow-400',  bg: 'bg-yellow-400/10',  label: 'Neutral' },
+  D: { ring: 'border-orange-400',  text: 'text-orange-400',  bg: 'bg-orange-400/10',  label: 'Weak' },
+  F: { ring: 'border-red-400',     text: 'text-red-400',     bg: 'bg-red-400/10',     label: 'Avoid' },
+};
+
+function SignalScoreCard({ score }: { score: EventScore }) {
+  const grade   = score.grade ?? 'C';
+  const style   = GRADE_STYLES[grade] ?? GRADE_STYLES['C'];
+  const pct     = score.score ?? 0;
+  const retStr  = score.expected_return !== null
+    ? `${score.expected_return >= 0 ? '+' : ''}${score.expected_return.toFixed(2)}%`
+    : '—';
+  const confPct = score.confidence !== null ? Math.round(score.confidence * 100) : null;
+
+  return (
+    <div className={`rounded-xl border ${style.ring} ${style.bg} p-5`}>
+      <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-4">
+        Signal Score
+      </p>
+
+      <div className="flex items-center gap-6">
+        {/* 큰 숫자 + 등급 */}
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          <span className={`text-5xl font-black tabular-nums ${style.text}`}>{pct}</span>
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${style.ring} ${style.text}`}>
+            {grade} — {style.label}
+          </span>
+        </div>
+
+        {/* 세부 지표 */}
+        <div className="flex-1 space-y-2.5">
+          {/* 게이지 */}
+          <div>
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>Score</span>
+              <span>{pct} / 100</span>
+            </div>
+            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${style.text.replace('text-', 'bg-')}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Expected Return + Confidence */}
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <p className="text-xs text-gray-500">Expected Return (5d)</p>
+              <p className={`font-semibold tabular-nums ${style.text}`}>{retStr}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Confidence</p>
+              <p className="font-semibold text-white">
+                {confPct !== null ? `${confPct}%` : '—'}
+                {score.sample_size !== null && (
+                  <span className="text-xs text-gray-500 ml-1">n={score.sample_size}</span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-600 mt-4">
+        Risk-adjusted score based on {score.sample_size ?? '—'} historical DART filings · Not investment advice
+      </p>
+    </div>
+  );
+}
+
 function LockedSection({ title }: { title: string }) {
   return (
     <div className="relative rounded-xl border border-gray-800 bg-gray-900/50 p-5 overflow-hidden">
@@ -225,6 +336,9 @@ export default async function SignalPage({
   const keyNums    = parseKeyNumbers(signal.key_numbers);
   const publicNums = keyNums.slice(0, 2);   // 상위 2개만 공개
   const hasMore    = keyNums.length > 2;
+
+  // Signal Score (event_stats 조회)
+  const eventScore = signal.event_type ? await fetchEventScore(signal.event_type) : null;
 
   // per-signal JSON-LD
   const jsonLd = {
@@ -309,6 +423,11 @@ export default async function SignalPage({
             <SentimentBadge score={signal.sentiment_score} />
           </div>
         </div>
+
+        {/* ── Signal Score ── */}
+        {eventScore?.score !== null && eventScore !== null && (
+          <SignalScoreCard score={eventScore} />
+        )}
 
         {/* ── Financial Impact (공개) ── */}
         {signal.financial_impact && (
