@@ -206,8 +206,10 @@ def upsert_returns(sb, rows: list[dict], dry_run: bool) -> tuple[int, int]:
     if dry_run:
         logger.info(f"  [DRY] {len(rows)}건 수익률 저장 생략")
         for r in rows[:3]:
+            r20 = r['future_return_20d']
+            r20_str = f"{r20:.2f}%" if r20 is not None else "N/A"
             logger.info(f"    {r['stock_code']} {r['date']} "
-                        f"r5={r['future_return_5d']:.2f}% r20={r['future_return_20d']:.2f}%")
+                        f"r5={r['future_return_5d']:.2f}% r20={r20_str}")
         return len(rows), 0
 
     success = failure = 0
