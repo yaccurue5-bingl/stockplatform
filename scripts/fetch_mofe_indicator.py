@@ -206,13 +206,14 @@ def find_and_download_hwp() -> tuple[str, str] | None:
                 break  # ID가 없으면 더 이상 없음
 
         if not found_ntt:
-            logger.warning('새 게시물 없음 (주말/공휴일 또는 아직 미게시)')
+            # 주말/공휴일/미게시 = 정상 케이스. 에러 아님
+            logger.info('신규 게시물 없음 (주말·공휴일·미게시 정상) — 마지막 저장 데이터 유지')
             return None
 
-        # 최신 NttId 저장
-        if found_ntt > last_ntt:
+        # 최신 NttId 저장 (초회 실행 포함: 상태파일 없으면 무조건 저장)
+        if not LAST_NTT_FILE.exists() or found_ntt > last_ntt:
             _save_ntt_id(found_ntt)
-            logger.info(f'NttId 업데이트: {last_ntt} → {found_ntt}')
+            logger.info(f'NttId 저장: {found_ntt}')
 
         # 상세 페이지 Referer 설정 후 HWP 다운로드
         session.headers.update({'Referer': detail_url})
@@ -246,35 +247,39 @@ def find_and_download_hwp() -> tuple[str, str] | None:
 
 
 # ── Groq: PDF에서 지표 추출 ───────────────────────────────────────────────────
-INDICATOR_SYSTEM_PROMPT = """You are a STRICT data extraction engine.
+INDICATOR_SYSTEM_PROMPT = """You are a STRICT financial data extraction engine for Korean government documents.
 
 CRITICAL RULES:
-1. DO NOT calculate anything
-2. DO NOT infer anything
-3. DO NOT create numbers
-4. ONLY copy numbers EXACTLY as they appear in the text
-5. If data not explicitly present, return null
-6. 전일비 means day-over-day change — extract ONLY the explicitly printed value
-7. 외국인 순매수 values are in 억원 — copy the exact number, do NOT convert units
+1. DO NOT infer or estimate — only extract values explicitly printed in the text
+2. DO NOT create numbers that are not present
+3. If data is not explicitly present, return null
+4. 전일비 = day-over-day change — extract ONLY the explicitly printed value (positive or negative)
+5. 날짜(date): extract the reference date shown in the document in YYYY-MM-DD format
 
-Return JSON with EXACTLY this structure:
+UNIT RULES for 외국인 순매수 (foreign net buying):
+- Values in 억원: return as-is (e.g., "8,419억" → 8419)
+- Values in 조원: convert to 억원 by multiplying by 10000 (e.g., "1.2조" → 12000)
+- Expected range after conversion: 100 ~ 30000. If your value is below 100, recheck the unit.
+- Positive = 순매수 (net buy), Negative = 순매도 (net sell)
+
+Return JSON with EXACTLY this structure (no extra fields):
 {
   "date": "YYYY-MM-DD",
-  "kospi_close": <copy exact closing value>,
-  "kospi_change_pct": <copy exact 전일비 % value, positive or negative>,
-  "kosdaq_close": <copy exact closing value>,
-  "kosdaq_change_pct": <copy exact 전일비 % value, positive or negative>,
-  "foreign_net_buy_kospi": <copy exact 억원 value, positive=순매수 negative=순매도>,
-  "foreign_net_buy_kosdaq": <copy exact 억원 value>,
-  "usd_krw": <copy exact exchange rate>,
-  "treasury_yield_3y": <copy exact %>,
-  "wti_oil": <copy exact USD price>
+  "kospi_close": <exact closing index value>,
+  "kospi_change_pct": <exact 전일비 % — positive or negative float>,
+  "kosdaq_close": <exact closing index value>,
+  "kosdaq_change_pct": <exact 전일비 % — positive or negative float>,
+  "foreign_net_buy_kospi": <억원 value after unit conversion — see rules above>,
+  "foreign_net_buy_kosdaq": <억원 value after unit conversion>,
+  "usd_krw": <exact USD/KRW exchange rate>,
+  "treasury_yield_3y": <exact 3-year treasury yield %>,
+  "wti_oil": <exact WTI crude oil price in USD>
 }"""
 
 
 # ── 숫자 검증 ─────────────────────────────────────────────────────────────────
 def validate_indicators(data: dict) -> dict | None:
-    """비정상 값 검증. 통과하면 data 반환, 실패하면 None."""
+    """비정상 값 검증 및 단위 보정. 통과하면 data 반환, 실패하면 None."""
     errors = []
 
     kospi_pct = data.get('kospi_change_pct')
@@ -293,13 +298,21 @@ def validate_indicators(data: dict) -> dict | None:
     if usd_krw is not None and not (900 < usd_krw < 2500):
         errors.append(f'usd_krw 범위 이상: {usd_krw}')
 
-    # 외국인 순매수 단위 자동 보정 (억원 기준, 소수점이면 단위 혼용 의심)
+    # 외국인 순매수 단위 보정
+    # - abs(val) < 1      → 조원 단위 (0.84조 등) → ×10000
+    # - 1 ≤ abs(val) < 100 → 조원 단위 가능성 높음 (8.3조 등) → ×10000 + 경고
+    # - abs(val) >= 100   → 억원 단위로 간주 (정상)
     for key in ('foreign_net_buy_kospi', 'foreign_net_buy_kosdaq'):
         val = data.get(key)
-        if val is not None and abs(val) < 1:
-            # 조원 단위로 잘못 파싱된 경우 억원으로 환산
-            data[key] = round(val * 10000, 1)
-            logger.warning(f'{key} 단위 보정: {val} → {data[key]} 억원')
+        if val is None:
+            continue
+        if abs(val) < 100:
+            original = val
+            data[key] = round(val * 10000, 0)
+            logger.warning(
+                f'{key} 단위 보정: {original} → {data[key]} 억원 '
+                f'(원값이 100 미만 → 조원 단위로 추정, ×10000 적용)'
+            )
 
     if errors:
         logger.warning(f'검증 실패: {errors}')
@@ -361,7 +374,7 @@ def save_indicators(data: dict) -> bool:
             'foreign_net_buy_kosdaq':  data.get('foreign_net_buy_kosdaq'),
             'usd_krw':                 data.get('usd_krw'),
             'treasury_yield_3y':       data.get('treasury_yield_3y'),
-            'treasury_yield_10y':      data.get('treasury_yield_10y'),
+            # treasury_yield_10y: 기재부 일일경제지표에 포함되지 않으므로 수집 제외
             'wti_oil':                 data.get('wti_oil'),
             'source':                  '기획재정부_일일경제지표',
             'updated_at':              datetime.now().isoformat(),
@@ -398,7 +411,9 @@ def run(local_hwp: str | None = None, dry_run: bool = False):
                 hwp_path, _ = result
                 cleanup_files.append(hwp_path)
             else:
-                logger.warning('HWP 자동 다운로드 실패 → --hwp 옵션으로 수동 지정 필요')
+                # 신규 데이터 없음 = 주말·공휴일·미게시 정상 케이스
+                # DB에는 이미 마지막 수집 데이터가 유지되므로 별도 처리 불필요
+                logger.info('신규 HWP 없음 — DB의 마지막 데이터 유지. 파이프라인 정상 종료.')
                 return
 
         if not hwp_path:
