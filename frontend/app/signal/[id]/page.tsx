@@ -64,10 +64,10 @@ interface EventScore {
   event: string;
   score: number | null;
   grade: string | null;
-  confidence: number | null;
-  expected_return: number | null;
+  data_coverage: number | null;
+  historical_avg_return_5d: number | null;
   sample_size: number | null;
-  risk_adj_return: number | null;
+  risk_adj_factor: number | null;
 }
 
 // ── 데이터 페칭 ───────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ interface EventScore {
 async function fetchEventScore(eventType: string): Promise<EventScore | null> {
   try {
     const sb = createServiceClient();
-    const { data, error } = await sb
+    const { data: raw, error } = await sb
       .from('event_stats')
       .select(
         'event_type, signal_score, signal_grade, signal_confidence, ' +
@@ -84,15 +84,24 @@ async function fetchEventScore(eventType: string): Promise<EventScore | null> {
       .eq('event_type', eventType.toUpperCase())
       .single();
 
-    if (error || !data) return null;
+    if (error || !raw) return null;
+    const data = raw as unknown as {
+      event_type: string;
+      signal_score: number | null;
+      signal_grade: string | null;
+      signal_confidence: number | null;
+      median_5d_return: number | null;
+      sample_size_clean: number | null;
+      risk_adj_return: number | null;
+    };
     return {
-      event:           data.event_type,
-      score:           data.signal_score,
-      grade:           data.signal_grade,
-      confidence:      data.signal_confidence,
-      expected_return: data.median_5d_return,
-      sample_size:     data.sample_size_clean,
-      risk_adj_return: data.risk_adj_return,
+      event:                    data.event_type,
+      score:                    data.signal_score,
+      grade:                    data.signal_grade,
+      data_coverage:            data.signal_confidence,
+      historical_avg_return_5d: data.median_5d_return,
+      sample_size:              data.sample_size_clean,
+      risk_adj_factor:          data.risk_adj_return,
     };
   } catch {
     return null;
@@ -228,21 +237,21 @@ function EventBadge({ eventType }: { eventType: string | null }) {
 }
 
 const GRADE_STYLES: Record<string, { ring: string; text: string; bg: string; label: string }> = {
-  A: { ring: 'border-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'Strong Buy' },
-  B: { ring: 'border-[#00D4A6]',   text: 'text-[#00D4A6]',   bg: 'bg-[#00D4A6]/10',   label: 'Buy' },
+  A: { ring: 'border-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'High Positive Signal' },
+  B: { ring: 'border-[#00D4A6]',   text: 'text-[#00D4A6]',   bg: 'bg-[#00D4A6]/10',   label: 'Moderate Signal' },
   C: { ring: 'border-yellow-400',  text: 'text-yellow-400',  bg: 'bg-yellow-400/10',  label: 'Neutral' },
-  D: { ring: 'border-orange-400',  text: 'text-orange-400',  bg: 'bg-orange-400/10',  label: 'Weak' },
-  F: { ring: 'border-red-400',     text: 'text-red-400',     bg: 'bg-red-400/10',     label: 'Avoid' },
+  D: { ring: 'border-orange-400',  text: 'text-orange-400',  bg: 'bg-orange-400/10',  label: 'Weak Signal' },
+  F: { ring: 'border-red-400',     text: 'text-red-400',     bg: 'bg-red-400/10',     label: 'Low Signal' },
 };
 
 function SignalScoreCard({ score }: { score: EventScore }) {
   const grade   = score.grade ?? 'C';
   const style   = GRADE_STYLES[grade] ?? GRADE_STYLES['C'];
   const pct     = score.score ?? 0;
-  const retStr  = score.expected_return !== null
-    ? `${score.expected_return >= 0 ? '+' : ''}${score.expected_return.toFixed(2)}%`
+  const retStr  = score.historical_avg_return_5d !== null
+    ? `${score.historical_avg_return_5d >= 0 ? '+' : ''}${score.historical_avg_return_5d.toFixed(2)}%`
     : '—';
-  const confPct = score.confidence !== null ? Math.round(score.confidence * 100) : null;
+  const confPct = score.data_coverage !== null ? Math.round(score.data_coverage * 100) : null;
 
   return (
     <div className={`rounded-xl border ${style.ring} ${style.bg} p-5`}>
@@ -275,14 +284,14 @@ function SignalScoreCard({ score }: { score: EventScore }) {
             </div>
           </div>
 
-          {/* Expected Return + Confidence */}
+          {/* Historical Avg Return + Data Coverage */}
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <p className="text-xs text-gray-500">Expected Return (5d)</p>
+              <p className="text-xs text-gray-500">Historical Avg Return (5d)</p>
               <p className={`font-semibold tabular-nums ${style.text}`}>{retStr}</p>
             </div>
             <div>
-              <p className="text-xs text-gray-500">Confidence</p>
+              <p className="text-xs text-gray-500">Data Coverage</p>
               <p className="font-semibold text-white">
                 {confPct !== null ? `${confPct}%` : '—'}
                 {score.sample_size !== null && (
@@ -295,7 +304,8 @@ function SignalScoreCard({ score }: { score: EventScore }) {
       </div>
 
       <p className="text-xs text-gray-600 mt-4">
-        Risk-adjusted score based on {score.sample_size ?? '—'} historical DART filings · Not investment advice
+        Risk-adjusted indicator based on {score.sample_size ?? '—'} historical DART filings.
+        For informational purposes only — not investment advice.
       </p>
     </div>
   );
@@ -467,11 +477,11 @@ export default async function SignalPage({
 
         {/* ── CTA ── */}
         <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
-          <p className="text-lg font-bold">Get Early Access to Korean Market Signals</p>
+          <p className="text-lg font-bold">Access Full Korean Market Signal Analytics</p>
           <div className="text-sm text-gray-400 space-y-1">
-            <p>✔ AI-detected high-impact DART filings</p>
-            <p>✔ Real-time quant-grade event signals</p>
-            <p>✔ Alpha before public news</p>
+            <p>✔ AI-parsed DART filing classification &amp; scoring</p>
+            <p>✔ Real-time event impact indicators</p>
+            <p>✔ Historical pattern data via REST API</p>
           </div>
           <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
             <Link
@@ -488,6 +498,12 @@ export default async function SignalPage({
             </Link>
           </div>
         </div>
+
+        {/* ── Disclaimer ── */}
+        <p className="text-xs text-gray-600 text-center leading-relaxed">
+          This content is for informational purposes only and does not constitute investment advice.
+          Past signal patterns do not guarantee future results. All data is sourced from public DART filings.
+        </p>
 
         {/* ── Data Source Attribution ── */}
         <DataSourceNote

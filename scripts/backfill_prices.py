@@ -232,11 +232,11 @@ def upsert_returns(sb, rows: list[dict], dry_run: bool) -> tuple[int, int]:
 MIN_SAMPLE = 50   # 최소 표본 수 미달 시 event_stats 제외
 
 _GRADE_THRESHOLDS = [
-    (75, 'A'),   # Strong Buy
-    (60, 'B'),   # Buy
+    (75, 'A'),   # High Positive Signal
+    (60, 'B'),   # Moderate Positive Signal
     (45, 'C'),   # Neutral
-    (30, 'D'),   # Weak
-    (0,  'F'),   # Avoid
+    (30, 'D'),   # Weak Signal
+    (0,  'F'),   # Low Signal
 ]
 
 
