@@ -206,8 +206,10 @@ def upsert_returns(sb, rows: list[dict], dry_run: bool) -> tuple[int, int]:
     if dry_run:
         logger.info(f"  [DRY] {len(rows)}건 수익률 저장 생략")
         for r in rows[:3]:
+            r20 = r['future_return_20d']
+            r20_str = f"{r20:.2f}%" if r20 is not None else "N/A"
             logger.info(f"    {r['stock_code']} {r['date']} "
-                        f"r5={r['future_return_5d']:.2f}% r20={r['future_return_20d']:.2f}%")
+                        f"r5={r['future_return_5d']:.2f}% r20={r20_str}")
         return len(rows), 0
 
     success = failure = 0
@@ -227,19 +229,91 @@ def upsert_returns(sb, rows: list[dict], dry_run: bool) -> tuple[int, int]:
 
 # ── event_stats 집계 ──────────────────────────────────────────────────────────
 
+MIN_SAMPLE = 50   # 최소 표본 수 미달 시 event_stats 제외
+
+_GRADE_THRESHOLDS = [
+    (75, 'A'),   # High Positive Signal
+    (60, 'B'),   # Moderate Positive Signal
+    (45, 'C'),   # Neutral
+    (30, 'D'),   # Weak Signal
+    (0,  'F'),   # Low Signal
+]
+
+
+def _compute_signal_v2(
+    median_5d: float,
+    std_5d: float,
+    n_clean: int,
+) -> tuple[int, float, str, float]:
+    """
+    Risk-adjusted signal score (Sharpe-style).
+
+    1. risk_adj = median_5d / std_5d  → clip [-1, 1]
+    2. base_score = (risk_adj + 1) / 2 * 100   → [0, 100]
+    3. confidence = min(1.0, n_clean / 300)
+    4. final_score = base_score * (0.6 + 0.4 * confidence)
+
+    Returns: (score 0-100, confidence 0-1, grade A-F, risk_adj_return)
+    """
+    if std_5d == 0:
+        r = 0.0
+    else:
+        r = median_5d / std_5d
+
+    r = max(-1.0, min(1.0, r))
+    base_score  = (r + 1) / 2 * 100
+    confidence  = min(1.0, n_clean / 300)
+    final_score = base_score * (0.6 + 0.4 * confidence)
+    score       = round(final_score)
+
+    grade = 'F'
+    for threshold, g in _GRADE_THRESHOLDS:
+        if score >= threshold:
+            grade = g
+            break
+
+    return score, round(confidence, 2), grade, round(r, 3)
+
+
+def _winsorize(vals: list[float], lo_pct: float = 0.05, hi_pct: float = 0.95) -> list[float]:
+    """5th~95th percentile 범위 밖 outlier 제거."""
+    if len(vals) < 10:
+        return vals
+    sv = sorted(vals)
+    n  = len(sv)
+    lo = sv[int(n * lo_pct)]
+    hi = sv[min(int(n * hi_pct), n - 1)]
+    return [v for v in vals if lo <= v <= hi]
+
+
+def _median(vals: list[float]) -> float | None:
+    if not vals:
+        return None
+    sv  = sorted(vals)
+    n   = len(sv)
+    mid = n // 2
+    return sv[mid] if n % 2 else (sv[mid - 1] + sv[mid]) / 2
+
+
+def _std(vals: list[float]) -> float:
+    if len(vals) < 2:
+        return 0.0
+    n = len(vals)
+    m = sum(vals) / n
+    return math.sqrt(sum((v - m) ** 2 for v in vals) / (n - 1))
+
+
 def compute_event_stats(sb, dry_run: bool) -> int:
     """
     scores_log → event_stats 집계 및 upsert.
 
-    집계 항목:
-      avg_5d_return  = AVG(future_return_5d)
-      avg_20d_return = AVG(future_return_20d)
-      std_5d         = STD(future_return_5d)
-      sample_size    = COUNT(*)
+    개선 사항:
+      1. Winsorize (5th~95th percentile): outlier 제거
+      2. n < MIN_SAMPLE(50) 필터: 통계적으로 무의미한 이벤트 제외
+      3. median 추가: avg 왜곡 보정
     """
     logger.info("\n  event_stats 집계 중...")
 
-    # scores_log 전체 (return 있는 것)
     resp = (
         sb.table("scores_log")
         .select("disclosure_id, future_return_5d, future_return_20d")
@@ -269,8 +343,8 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         for r in (dr.data or []):
             id_to_event[r["id"]] = r["event_type"]
 
-    # 이벤트별 집계
-    buckets: dict[str, list[float]] = defaultdict(list)
+    # 이벤트별 raw 버킷
+    buckets:   dict[str, list[float]] = defaultdict(list)
     buckets20: dict[str, list[float]] = defaultdict(list)
 
     for row in log_rows:
@@ -285,32 +359,66 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         if r20 is not None:
             buckets20[ev].append(float(r20))
 
-    def _std(vals: list[float]) -> float:
-        if len(vals) < 2:
-            return 0.0
-        n = len(vals)
-        m = sum(vals) / n
-        return math.sqrt(sum((v - m) ** 2 for v in vals) / (n - 1))
-
-    now_iso = datetime.now().isoformat()
+    now_iso    = datetime.now().isoformat()
     stats_rows = []
-    for ev, vals5 in buckets.items():
-        vals20 = buckets20.get(ev, [])
-        avg5   = sum(vals5) / len(vals5)
-        avg20  = sum(vals20) / len(vals20) if vals20 else None
+    skipped    = []
+
+    for ev, vals5_raw in buckets.items():
+        n_raw = len(vals5_raw)
+
+        # ① 최소 표본 필터
+        if n_raw < MIN_SAMPLE:
+            skipped.append(f"{ev}(n={n_raw})")
+            continue
+
+        # ② Winsorize (5~95%)
+        vals5  = _winsorize(vals5_raw)
+        vals20_raw = buckets20.get(ev, [])
+        vals20 = _winsorize(vals20_raw) if len(vals20_raw) >= 10 else vals20_raw
+
+        n_clean = len(vals5)
+        avg5    = sum(vals5) / n_clean
+        med5    = _median(vals5)
+        std5    = _std(vals5)
+
+        avg20 = sum(vals20) / len(vals20) if vals20 else None
+        med20 = _median(vals20) if vals20 else None
+
+        # Signal Score v2 (risk-adjusted)
+        sig_score, sig_conf, sig_grade, risk_adj = _compute_signal_v2(
+            median_5d=med5 or 0.0,
+            std_5d=std5,
+            n_clean=n_clean,
+        )
+
         stats_rows.append({
-            "event_type":      ev,
-            "avg_5d_return":   round(avg5, 4),
-            "avg_20d_return":  round(avg20, 4) if avg20 is not None else None,
-            "std_5d":          round(_std(vals5), 4),
-            "sample_size":     len(vals5),
-            "updated_at":      now_iso,
+            "event_type":        ev,
+            "avg_5d_return":     round(avg5,  4),
+            "avg_20d_return":    round(avg20, 4) if avg20 is not None else None,
+            "median_5d_return":  round(med5,  4) if med5  is not None else None,
+            "median_20d_return": round(med20, 4) if med20 is not None else None,
+            "std_5d":            round(std5,  4),
+            "sample_size":       n_raw,
+            "sample_size_clean": n_clean,
+            "signal_score":      sig_score,
+            "signal_confidence": sig_conf,
+            "signal_grade":      sig_grade,
+            "risk_adj_return":   risk_adj,
+            "updated_at":        now_iso,
         })
+
+    if skipped:
+        logger.info(f"  → n<{MIN_SAMPLE} 제외: {', '.join(skipped)}")
 
     logger.info(f"  → {len(stats_rows)}개 이벤트 유형 집계 완료")
     for r in stats_rows:
-        logger.info(f"    {r['event_type']:20s} n={r['sample_size']:4d}  "
-                    f"avg5d={r['avg_5d_return']:+.2f}%  std={r['std_5d']:.2f}")
+        med_str = f"{r['median_5d_return']:+.2f}%" if r["median_5d_return"] is not None else "N/A"
+        logger.info(
+            f"    {r['event_type']:20s} "
+            f"n={r['sample_size']:4d}(→{r['sample_size_clean']:4d})  "
+            f"avg5d={r['avg_5d_return']:+.2f}%  med5d={med_str}  std={r['std_5d']:.2f}  "
+            f"score={r['signal_score']}({r['signal_grade']})  conf={r['signal_confidence']:.2f}"
+        )
 
     if dry_run:
         logger.info("  [DRY] event_stats 저장 생략")
@@ -320,9 +428,9 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         sb.table("event_stats").upsert(
             stats_rows, on_conflict="event_type"
         ).execute()
-        logger.info(f"  ✅ event_stats {len(stats_rows)}건 upsert 완료")
+        logger.info(f"  [OK] event_stats {len(stats_rows)}건 upsert 완료")
     except Exception as e:
-        logger.error(f"  ❌ event_stats 저장 실패: {e}")
+        logger.error(f"  [ERR] event_stats 저장 실패: {e}")
 
     return len(stats_rows)
 

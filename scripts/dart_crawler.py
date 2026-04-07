@@ -73,6 +73,36 @@ def is_noise_corp(corp_name: str) -> bool:
     t = (corp_name or "").lower()
     return any(kw.lower() in t for kw in _NOISE_CORP_KEYWORDS)
 
+
+# ── 핵심 섹션 추출 (truncate 대신 사용) ──────────────────────────────────────
+_IMPORTANT_KEYWORDS = [
+    "매출", "영업이익", "당기순이익", "순이익",
+    "계약", "금액", "발행", "증자", "취득", "처분",
+    "손실", "감소", "증가", "%", "억원", "백만원", "KRW",
+    "보증", "채무", "주식수", "주당", "전환가",
+    "수주", "납품", "공급", "투자", "배당", "자본금",
+]
+
+def extract_key_sections(text: str) -> str:
+    """키워드 포함 줄 + 마크다운 테이블/헤딩만 추출 (truncate 금지)"""
+    if not text:
+        return text
+    lines = text.split("\n")
+    filtered = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(k in stripped for k in _IMPORTANT_KEYWORDS):
+            filtered.append(stripped)
+        elif stripped.startswith("|") or stripped.startswith("##"):
+            filtered.append(stripped)
+    result = "\n".join(filtered[:300])
+    # 키워드 매칭 결과가 너무 적으면 원본 앞부분 fallback
+    if len(result) < 200 and len(text) > 200:
+        return text[:6000]
+    return result
+
 def generate_hash_key(corp_code: str, rcept_no: str) -> str:
     """공시 hash key 생성"""
     return hashlib.sha256(f"{corp_code}_{rcept_no}".encode()).hexdigest()
@@ -92,11 +122,51 @@ def is_disclosure_processed(corp_code: str, rcept_no: str) -> bool:
         return False
 
 def _clean_html_text(raw_html):
-    """HTML에서 텍스트만 추출하는 공통 정제 함수"""
-    clean = re.sub(r'<(style|script|head)[^>]*>.*?</\1>', '', raw_html, flags=re.DOTALL | re.IGNORECASE)
-    clean = re.sub(r'<[^>]*>', '', clean)
+    """HTML → 투자 분석용 마크다운 텍스트 변환
+
+    테이블은 | 구분자로, 제목은 ## 으로 변환해 AI가 구조를 파악하기 쉽게 처리.
+    script/style 블록 제거 후 의미 있는 텍스트만 추출.
+    """
+    # 1) script/style/head 블록 전체 제거
+    clean = re.sub(r'<(script|style|head)[^>]*>.*?</\1>', '', raw_html, flags=re.DOTALL | re.IGNORECASE)
+
+    # 2) 테이블 → 마크다운 변환 (tr/td/th 구조)
+    def table_to_md(html):
+        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, flags=re.DOTALL | re.IGNORECASE)
+        md_rows = []
+        for row in rows:
+            cells = re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', row, flags=re.DOTALL | re.IGNORECASE)
+            cells = [re.sub(r'<[^>]+>', '', c).strip() for c in cells]
+            cells = [re.sub(r'\s+', ' ', c) for c in cells if c]
+            if cells:
+                md_rows.append('| ' + ' | '.join(cells) + ' |')
+        return '\n'.join(md_rows)
+
+    # 테이블 블록을 MD로 교체
+    clean = re.sub(
+        r'<table[^>]*>(.*?)</table>',
+        lambda m: '\n' + table_to_md(m.group(0)) + '\n',
+        clean, flags=re.DOTALL | re.IGNORECASE
+    )
+
+    # 3) 제목 태그 → ## 마크다운
+    clean = re.sub(r'<h[1-3][^>]*>(.*?)</h[1-3]>', lambda m: '\n## ' + re.sub(r'<[^>]+>', '', m.group(1)).strip() + '\n', clean, flags=re.DOTALL | re.IGNORECASE)
+
+    # 4) <br> / <p> → 줄바꿈
+    clean = re.sub(r'<br\s*/?>', '\n', clean, flags=re.IGNORECASE)
+    clean = re.sub(r'</p>', '\n', clean, flags=re.IGNORECASE)
+
+    # 5) 나머지 HTML 태그 제거
+    clean = re.sub(r'<[^>]+>', ' ', clean)
+
+    # 6) null 바이트 제거
     clean = clean.replace('\x00', '').replace('\u0000', '')
-    clean = re.sub(r'\s+', ' ', clean).strip()
+
+    # 7) 과도한 공백/줄바꿈 정리
+    clean = re.sub(r'[ \t]+', ' ', clean)
+    clean = re.sub(r'\n{3,}', '\n\n', clean)
+    clean = clean.strip()
+
     return clean
 
 
@@ -121,7 +191,7 @@ def _fetch_from_viewer(rcept_no):
             logger.warning(f"{rcept_no} dcmNo 추출 실패 - 메인 페이지 텍스트 시도")
             text = _clean_html_text(resp.text)
             if len(text) > 100:
-                return text[:8000]
+                return extract_key_sections(text)
             return None
 
         dcm_no = dcm_match.group(1)
@@ -141,7 +211,7 @@ def _fetch_from_viewer(rcept_no):
         text = _clean_html_text(resp2.text)
         if len(text) > 100:
             logger.info(f"{rcept_no} 뷰어 폴백 성공 ({len(text)}자)")
-            return text[:2500]
+            return extract_key_sections(text)
 
         return None
 
@@ -172,8 +242,16 @@ def get_clean_content(rcept_no, max_retries=2):
                         with zipfile.ZipFile(io.BytesIO(response.content)) as z:
                             xml_name = z.namelist()[0]
                             with z.open(xml_name) as f:
-                                raw_text = f.read().decode('utf-8', errors='ignore')
-                        return _clean_html_text(raw_text)[:8000]
+                                raw_bytes = f.read()
+                        # XML 선언부에서 인코딩 감지 (EUC-KR / UTF-8 등)
+                        enc_match = re.search(rb'encoding=["\']([^"\']+)["\']', raw_bytes[:500])
+                        encoding = enc_match.group(1).decode('ascii').lower() if enc_match else 'utf-8'
+                        if encoding in ('euc-kr', 'ks_c_5601-1987', 'ms949', 'cp949'):
+                            encoding = 'euc-kr'
+                        raw_text = raw_bytes.decode(encoding, errors='ignore')
+                        text = _clean_html_text(raw_text)
+                        logger.info(f"{rcept_no} ZIP 추출 성공 (인코딩: {encoding}, {len(text)}자)")
+                        return extract_key_sections(text)
                     except Exception as zip_err:
                         logger.error(f"ZIP 처리 중 오류 ({rcept_no}): {zip_err}")
                         return "CONTENT_NOT_AVAILABLE"

@@ -50,21 +50,21 @@ def load_env(env_file: str = ".env.local") -> None:
         for env_path in possible_paths:
             if env_path.exists():
                 load_dotenv(dotenv_path=env_path, override=override)
-                print(f"✅ 환경변수 로드 완료: {env_path} (override={override})")
+                print(f"[OK] env loaded: {env_path} (override={override})")
                 loaded = True
                 break
 
         if not loaded:
-            print(f"⚠️  {env_file} 파일을 찾을 수 없습니다. 다음 경로를 확인했습니다:")
+            print(f"[WARN] {env_file} not found. searched:")
             for p in possible_paths:
                 print(f"   - {p}")
             # 기본 .env 파일도 시도
             default_env = project_root / ".env"
             if default_env.exists():
                 load_dotenv(dotenv_path=default_env, override=True)
-                print(f"✅ 환경변수 로드 완료: {default_env}")
+                print(f"[OK] env loaded: {default_env}")
             else:
-                print("⚠️  환경변수 파일이 없습니다.")
+                print("[WARN] no env file found.")
 
     except ImportError:
         print("경고: python-dotenv가 설치되지 않았습니다.")

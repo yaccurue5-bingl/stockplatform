@@ -1,18 +1,54 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
+import { isSuperAdmin } from '@/lib/constants';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function GET(request: Request) {
   try {
+    // ── 세션 검증: 로그인 + 유료 플랜만 허용 ──
+    const cookieStore = await cookies();
+    const authClient = createServerClient(
+      supabaseUrl,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: () => {},
+        },
+      }
+    );
+
+    const { data: { session } } = await authClient.auth.getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const email = session.user.email ?? '';
+    if (!isSuperAdmin(email)) {
+      const { data: userData } = await authClient
+        .from('users')
+        .select('plan, subscription_status')
+        .eq('id', session.user.id)
+        .single() as { data: { plan: string | null; subscription_status: string | null } | null };
+
+      const isPaid = userData?.plan && userData.plan !== 'free' && userData?.subscription_status === 'active';
+      if (!isPaid) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // URL에서 파라미터 추출
     const { searchParams } = new URL(request.url);
     const limitParam = searchParams.get('limit');
     const stockParam = searchParams.get('stock');  // 특정 종목 필터
-    const limit = Math.min(parseInt(limitParam || '10', 10), 100);
+    const limit = Math.min(parseInt(limitParam || '50', 10), 500);
 
     console.log('🔍 [API] Fetching latest disclosures...', stockParam ? `for stock: ${stockParam}` : '');
 
@@ -33,9 +69,10 @@ export async function GET(request: Request) {
     }
 
     // 최신 공시 데이터 가져오기
+    const fetchLimit = stockParam ? 50 : Math.min(limit + 50, 550); // 스팩 필터링 여유분 추가
     const { data: rawDisclosures, error } = await query
       .order('updated_at', { ascending: false })
-      .limit(stockParam ? 50 : limit * 2);  // 특정 종목은 더 많이, 전체는 스팩 필터링용
+      .limit(fetchLimit);
 
     // 스팩/기업인수목적 종목 필터링 (특정 종목 필터가 없을 때만)
     const disclosures = stockParam
@@ -154,9 +191,37 @@ export async function GET(request: Request) {
       const sectorKr = sectorMap[item.stock_code] || null;
       const sectorEn = sectorKr ? (sectorEnMap[sectorKr] || 'Others') : null;
 
-      const translated = item.report_nm_en || null;
+      // report_nm_en이 없으면 한글 공시 제목 → 영문 매핑으로 fallback
+      const KR_REPORT_MAP: Record<string, string> = {
+        '감사보고서': 'Audit Report',
+        '사업보고서': 'Annual Business Report',
+        '반기보고서': 'Semi-Annual Report',
+        '분기보고서': 'Quarterly Report',
+        '주요사항보고서': 'Material Fact Report',
+        '주주총회소집공고': 'General Shareholders\' Meeting Notice',
+        '임시주주총회소집공고': 'Extraordinary Shareholders\' Meeting Notice',
+        '공개매수신고서': 'Tender Offer Statement',
+        '자기주식취득결정': 'Treasury Stock Acquisition',
+        '자기주식처분결정': 'Treasury Stock Disposal',
+        '유상증자결정': 'Rights Offering Decision',
+        '무상증자결정': 'Bonus Issue Decision',
+        '전환사채권발행결정': 'Convertible Bond Issuance',
+        '신주인수권부사채권발행결정': 'Bond with Warrant Issuance',
+        '단기차입금변동': 'Short-term Borrowing Change',
+        '영업정지': 'Business Suspension',
+        '합병결정': 'Merger Decision',
+        '분할결정': 'Spin-off Decision',
+        '주식교환결정': 'Stock Swap Decision',
+        '대규모내부거래': 'Large-scale Internal Transaction',
+        '최대주주변경': 'Largest Shareholder Change',
+        '임원ㆍ주요주주특정증권등소유상황보고서': 'Executive/Major Shareholder Holdings Report',
+      };
+      const reportNmKr = item.report_nm || '';
+      const mappedEn = Object.entries(KR_REPORT_MAP).find(([kr]) => reportNmKr.includes(kr))?.[1] || null;
+      const translated = item.report_nm_en || mappedEn;
       const transformed = {
         id: item.id,
+        rcept_no: safeString(item.rcept_no, ''),
         corp_name: safeString(item.corp_name, 'Unknown'),
         corp_name_en: corpNameEn,
         stock_code: safeString(item.stock_code, '000000'),

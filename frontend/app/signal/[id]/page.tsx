@@ -13,6 +13,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient } from '@/lib/supabase/server';
 import { TrendingUp, TrendingDown, Minus, Lock, ArrowLeft, ExternalLink } from 'lucide-react';
+import DataSourceNote from '@/components/DataSourceNote';
 
 export const revalidate = 3600;
 
@@ -59,7 +60,53 @@ interface SignalRow {
   financial_impact: string | null;
 }
 
+interface EventScore {
+  event: string;
+  score: number | null;
+  grade: string | null;
+  data_coverage: number | null;
+  historical_avg_return_5d: number | null;
+  sample_size: number | null;
+  risk_adj_factor: number | null;
+}
+
 // ── 데이터 페칭 ───────────────────────────────────────────────────────────────
+
+async function fetchEventScore(eventType: string): Promise<EventScore | null> {
+  try {
+    const sb = createServiceClient();
+    const { data: raw, error } = await sb
+      .from('event_stats')
+      .select(
+        'event_type, signal_score, signal_grade, signal_confidence, ' +
+        'median_5d_return, sample_size_clean, risk_adj_return'
+      )
+      .eq('event_type', eventType.toUpperCase())
+      .single();
+
+    if (error || !raw) return null;
+    const data = raw as unknown as {
+      event_type: string;
+      signal_score: number | null;
+      signal_grade: string | null;
+      signal_confidence: number | null;
+      median_5d_return: number | null;
+      sample_size_clean: number | null;
+      risk_adj_return: number | null;
+    };
+    return {
+      event:                    data.event_type,
+      score:                    data.signal_score,
+      grade:                    data.signal_grade,
+      data_coverage:            data.signal_confidence,
+      historical_avg_return_5d: data.median_5d_return,
+      sample_size:              data.sample_size_clean,
+      risk_adj_factor:          data.risk_adj_return,
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function fetchSignal(id: string): Promise<SignalRow | null> {
   const sb = createServiceClient();
@@ -189,6 +236,81 @@ function EventBadge({ eventType }: { eventType: string | null }) {
   );
 }
 
+const GRADE_STYLES: Record<string, { ring: string; text: string; bg: string; label: string }> = {
+  A: { ring: 'border-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'High Positive Signal' },
+  B: { ring: 'border-[#00D4A6]',   text: 'text-[#00D4A6]',   bg: 'bg-[#00D4A6]/10',   label: 'Moderate Signal' },
+  C: { ring: 'border-yellow-400',  text: 'text-yellow-400',  bg: 'bg-yellow-400/10',  label: 'Neutral' },
+  D: { ring: 'border-orange-400',  text: 'text-orange-400',  bg: 'bg-orange-400/10',  label: 'Weak Signal' },
+  F: { ring: 'border-red-400',     text: 'text-red-400',     bg: 'bg-red-400/10',     label: 'Low Signal' },
+};
+
+function SignalScoreCard({ score }: { score: EventScore }) {
+  const grade   = score.grade ?? 'C';
+  const style   = GRADE_STYLES[grade] ?? GRADE_STYLES['C'];
+  const pct     = score.score ?? 0;
+  const retStr  = score.historical_avg_return_5d !== null
+    ? `${score.historical_avg_return_5d >= 0 ? '+' : ''}${score.historical_avg_return_5d.toFixed(2)}%`
+    : '—';
+  const confPct = score.data_coverage !== null ? Math.round(score.data_coverage * 100) : null;
+
+  return (
+    <div className={`rounded-xl border ${style.ring} ${style.bg} p-5`}>
+      <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-4">
+        Signal Score
+      </p>
+
+      <div className="flex items-center gap-6">
+        {/* 큰 숫자 + 등급 */}
+        <div className="flex flex-col items-center gap-1 shrink-0">
+          <span className={`text-5xl font-black tabular-nums ${style.text}`}>{pct}</span>
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${style.ring} ${style.text}`}>
+            {grade} — {style.label}
+          </span>
+        </div>
+
+        {/* 세부 지표 */}
+        <div className="flex-1 space-y-2.5">
+          {/* 게이지 */}
+          <div>
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>Score</span>
+              <span>{pct} / 100</span>
+            </div>
+            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full ${style.text.replace('text-', 'bg-')}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Historical Avg Return + Data Coverage */}
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <p className="text-xs text-gray-500">Historical Avg Return (5d)</p>
+              <p className={`font-semibold tabular-nums ${style.text}`}>{retStr}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Data Coverage</p>
+              <p className="font-semibold text-white">
+                {confPct !== null ? `${confPct}%` : '—'}
+                {score.sample_size !== null && (
+                  <span className="text-xs text-gray-500 ml-1">n={score.sample_size}</span>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-600 mt-4">
+        Risk-adjusted indicator based on {score.sample_size ?? '—'} historical DART filings.
+        For informational purposes only — not investment advice.
+      </p>
+    </div>
+  );
+}
+
 function LockedSection({ title }: { title: string }) {
   return (
     <div className="relative rounded-xl border border-gray-800 bg-gray-900/50 p-5 overflow-hidden">
@@ -224,6 +346,9 @@ export default async function SignalPage({
   const keyNums    = parseKeyNumbers(signal.key_numbers);
   const publicNums = keyNums.slice(0, 2);   // 상위 2개만 공개
   const hasMore    = keyNums.length > 2;
+
+  // Signal Score (event_stats 조회)
+  const eventScore = signal.event_type ? await fetchEventScore(signal.event_type) : null;
 
   // per-signal JSON-LD
   const jsonLd = {
@@ -309,6 +434,11 @@ export default async function SignalPage({
           </div>
         </div>
 
+        {/* ── Signal Score ── */}
+        {eventScore?.score !== null && eventScore !== null && (
+          <SignalScoreCard score={eventScore} />
+        )}
+
         {/* ── Financial Impact (공개) ── */}
         {signal.financial_impact && (
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
@@ -347,11 +477,11 @@ export default async function SignalPage({
 
         {/* ── CTA ── */}
         <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
-          <p className="text-lg font-bold">Get Early Access to Korean Market Signals</p>
+          <p className="text-lg font-bold">Access Full Korean Market Signal Analytics</p>
           <div className="text-sm text-gray-400 space-y-1">
-            <p>✔ AI-detected high-impact DART filings</p>
-            <p>✔ Real-time quant-grade event signals</p>
-            <p>✔ Alpha before public news</p>
+            <p>✔ AI-parsed DART filing classification &amp; scoring</p>
+            <p>✔ Real-time event impact indicators</p>
+            <p>✔ Historical pattern data via REST API</p>
           </div>
           <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
             <Link
@@ -368,6 +498,18 @@ export default async function SignalPage({
             </Link>
           </div>
         </div>
+
+        {/* ── Disclaimer ── */}
+        <p className="text-xs text-gray-600 text-center leading-relaxed">
+          This content is for informational purposes only and does not constitute investment advice.
+          Past signal patterns do not guarantee future results. All data is sourced from public DART filings.
+        </p>
+
+        {/* ── Data Source Attribution ── */}
+        <DataSourceNote
+          source="DART"
+          reportName={signal.report_nm}
+        />
 
         {/* ── 관련 링크 (SEO internal linking) ── */}
         <div className="pt-2 border-t border-gray-800 flex flex-wrap gap-4 text-xs text-gray-500">

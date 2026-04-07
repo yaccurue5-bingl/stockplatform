@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Key, BarChart2, Database, BookOpen, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Key, BarChart2, Database, BookOpen, Bell, LogOut, Menu, X } from 'lucide-react';
 import { signOut, getSupabase } from '@/lib/supabase/client';
 import { useState, useEffect } from 'react';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { icon: Key,             label: 'API Key',   href: '/api-key' },
-  { icon: BarChart2,       label: 'Usage',     href: '/usage' },
+  { icon: LayoutDashboard, label: 'Dashboard',   href: '/dashboard' },
+  { icon: Bell,            label: 'Disclosures', href: '/disclosures' },
+  { icon: Key,             label: 'API Key',     href: '/api-key' },
+  { icon: BarChart2,       label: 'Usage',       href: '/usage' },
 ];
 
 const publicItems = [

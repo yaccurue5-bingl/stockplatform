@@ -1,17 +1,19 @@
 'use client';
 
-import { Suspense, useEffect, useState, useCallback, useRef, useTransition } from 'react';
+import { useEffect, useState, useCallback, useRef, useTransition } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import SearchDropdown from '@/components/SearchDropdown';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperAdmin } from '@/lib/constants';
 import SignalStrength from '@/components/disclosures/SignalStrength';
 import ShortPressure from '@/components/disclosures/ShortPressure';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
+import DataSourceNote from '@/components/DataSourceNote';
 
 interface Disclosure {
   id: string;
+  rcept_no?: string;
   corp_name: string;
   corp_name_en?: string;
   stock_code: string;
@@ -43,7 +45,6 @@ interface GroupedStock {
 
 function DisclosuresContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [groupedStocks, setGroupedStocks] = useState<GroupedStock[]>([]);
   const [filteredStocks, setFilteredStocks] = useState<GroupedStock[]>([]);
@@ -66,30 +67,28 @@ function DisclosuresContent() {
   // ── 접근 제어: super admin 또는 유료 plan 유저만 허용 ──
   useEffect(() => {
     const supabase = getSupabase();
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    const redirectTo = encodeURIComponent('/disclosures');
+
+    const checkAccess = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
       if (!session?.user) {
-        // 비로그인 → 로그인 페이지로 (완료 후 /disclosures 복귀)
-        const redirectTo = encodeURIComponent('/disclosures');
         router.replace(`/login?redirectTo=${redirectTo}`);
         return;
       }
 
       const email = session.user.email ?? '';
-
-      // super admin은 항상 허용
       if (isSuperAdmin(email)) {
         setAccessAllowed(true);
         return;
       }
 
-      // public.users 테이블에서 plan 확인
       const { data } = await supabase
         .from('users')
         .select('plan, subscription_status')
         .eq('id', session.user.id)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
-      // plan이 free이거나 없으면 pricing 페이지로
       const isPaid =
         data?.plan && data.plan !== 'free' && data?.subscription_status === 'active';
 
@@ -99,13 +98,35 @@ function DisclosuresContent() {
       }
 
       setAccessAllowed(true);
+    };
+
+    checkAccess();
+
+    // 세션 만료 시 즉시 로그인 페이지로
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_OUT') {
+          setAccessAllowed(false);
+          router.replace(`/login?redirectTo=${redirectTo}`);
+        }
+      }
     });
+
+    return () => subscription.unsubscribe();
   }, [router]);
 
-  // URL에서 파라미터 읽기 (hooks 전에 선언 필요)
-  const stockCodeParam    = searchParams.get('stock');
-  const disclosureParam   = searchParams.get('disclosure'); // 개별 공시 ID
-  const searchQueryParam  = searchParams.get('search');     // 검색어 파라미터
+  // URL 파라미터를 수동으로 관리 (useSearchParams 제거 → Suspense fallback 깜빡임 완전 차단)
+  const [stockCodeParam, setStockCodeParam]     = useState<string | null>(null);
+  const [disclosureParam, setDisclosureParam]   = useState<string | null>(null);
+  const [searchQueryParam, setSearchQueryParam] = useState<string | null>(null);
+
+  // 최초 마운트 시 URL에서 파라미터 읽기
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    setStockCodeParam(p.get('stock'));
+    setDisclosureParam(p.get('disclosure'));
+    setSearchQueryParam(p.get('search'));
+  }, []);
 
   // 서버 사이드 검색 함수
   const searchFromServer = useCallback(async (query: string) => {
@@ -201,6 +222,9 @@ function DisclosuresContent() {
 
   // stock 파라미터에 따라 데이터 로드
   // groupedStocksRef 사용으로 stale closure 완전 차단
+  // stockCodeParam === null  → ?stock 파라미터 없음 (목록 뷰)
+  // stockCodeParam === ''    → 빈 stock_code (무시)
+  // stockCodeParam === 'XXX' → 해당 종목 로드
   useEffect(() => {
     if (stockCodeParam) {
       const existing = groupedStocksRef.current.find(s => s.stock_code === stockCodeParam);
@@ -214,13 +238,17 @@ function DisclosuresContent() {
         return;
       }
       fetchDisclosures(stockCodeParam);
-    } else if (groupedStocksRef.current.length === 0) {
-      fetchDisclosures();
-    } else {
-      setSelectedStock(null);
-      setSelectedDisclosure(null);
-      setLoading(false);
+    } else if (stockCodeParam === null) {
+      // null = ?stock 파라미터 자체가 없음 → 목록 뷰
+      if (groupedStocksRef.current.length === 0) {
+        fetchDisclosures();
+      } else {
+        setSelectedStock(null);
+        setSelectedDisclosure(null);
+        setLoading(false);
+      }
     }
+    // stockCodeParam === '' → 빈 stock_code, 무시 (상태 유지)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stockCodeParam]);
 
@@ -233,12 +261,15 @@ function DisclosuresContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQueryParam, groupedStocks.length]);
 
-  // URL 기반 네비게이션 — startTransition으로 Suspense fallback 깜빡임 완전 차단
+  // URL 기반 네비게이션
   const navigateToStock = useCallback((stock: GroupedStock) => {
+    if (!stock.stock_code) return; // 빈 stock_code는 무시
     setSavedScrollPosition(window.scrollY);
-    // 상태를 먼저 업데이트해 즉각적인 화면 전환 → URL은 transition으로 조용히 업데이트
+    // 상태 즉시 업데이트 → 깜빡임 없이 화면 전환
     setSelectedStock(stock);
     setSelectedDisclosure(stock.disclosures[0] ?? null);
+    setStockCodeParam(stock.stock_code);
+    setDisclosureParam(null);
     startTransition(() => {
       router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
     });
@@ -246,6 +277,7 @@ function DisclosuresContent() {
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
     setSelectedDisclosure(disclosure);
+    setDisclosureParam(disclosure.id);
     const stock = selectedStockRef.current?.stock_code;
     if (stock) {
       startTransition(() => {
@@ -255,39 +287,29 @@ function DisclosuresContent() {
   }, [router, startTransition]);
 
   const navigateBack = useCallback(() => {
+    setSelectedStock(null);
+    setSelectedDisclosure(null);
+    setStockCodeParam(null);
+    setDisclosureParam(null);
     startTransition(() => {
       router.back();
     });
   }, [router, startTransition]);
 
-  // 브라우저 뒤로가기 처리 — URL 파라미터에 따라 뷰 상태 동기화
+  // 브라우저 뒤로가기 처리 — URL에서 param 상태 동기화 (useEffect가 나머지 처리)
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const stockCode    = params.get('stock');
       const disclosureId = params.get('disclosure');
 
+      setStockCodeParam(stockCode);
+      setDisclosureParam(disclosureId);
+
+      // stock이 없으면 목록 뷰로 즉시 전환 (useEffect는 null 판별하므로 여기서도 처리)
       if (!stockCode) {
-        // ?stock 없음 → 전체 목록 뷰
         setSelectedStock(null);
         setSelectedDisclosure(null);
-        return;
-      }
-
-      if (!disclosureId) {
-        // ?stock만 있음 → 종목 선택 뷰 (첫 번째 공시로 리셋)
-        const stock = selectedStockRef.current;
-        if (stock) {
-          setSelectedDisclosure(stock.disclosures[0] || null);
-        }
-        return;
-      }
-
-      // ?stock + ?disclosure 둘 다 있음 → 해당 공시 선택
-      const stock = selectedStockRef.current;
-      if (stock) {
-        const target = stock.disclosures.find(d => d.id === disclosureId);
-        if (target) setSelectedDisclosure(target);
       }
     };
 
@@ -309,7 +331,7 @@ function DisclosuresContent() {
       // stock 파라미터가 있으면 해당 종목만, 없으면 전체
       const url = stockCode
         ? `/api/disclosures/latest?stock=${stockCode}&limit=50`
-        : '/api/disclosures/latest?limit=100';
+        : '/api/disclosures/latest?limit=500';
 
       console.log(`🔍 [Disclosures] Fetching: ${url}`);
       const response = await fetch(url);
@@ -458,6 +480,13 @@ function DisclosuresContent() {
               >
                 ← Back
               </button>
+              <Link
+                href="/disclosures"
+                onClick={() => { setSelectedStock(null); setSelectedDisclosure(null); setStockCodeParam(null); }}
+                className="text-blue-400 hover:text-blue-300 text-sm transition"
+              >
+                All Disclosures
+              </Link>
               <span className="text-lg font-semibold">AI Disclosure Detail</span>
             </div>
             <div className="text-sm text-gray-400">
@@ -581,9 +610,16 @@ function DisclosuresContent() {
                     <button className="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
                       AI Analysis
                     </button>
-                    <button className="bg-gray-800 text-gray-400 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition">
-                      Original Text
-                    </button>
+                    {selectedDisclosure.rcept_no && (
+                      <a
+                        href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-gray-800 text-gray-400 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 hover:text-white transition flex items-center gap-1.5"
+                      >
+                        Original Text ↗
+                      </a>
+                    )}
                   </div>
 
                   {/* Key Takeaways */}
@@ -623,6 +659,12 @@ function DisclosuresContent() {
                       )}
                     </div>
                   </div>
+
+                  {/* Data Source Attribution */}
+                  <DataSourceNote
+                    source="DART"
+                    reportName={selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
+                  />
                 </div>
 
                 {/* Right Column */}
@@ -727,7 +769,7 @@ function DisclosuresContent() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredStocks.map((stock) => {
+            {filteredStocks.filter(stock => stock.stock_code).map((stock) => {
               const latestDisclosure = stock.disclosures[0];
               const disclosureCount = stock.disclosures.length;
 
@@ -795,15 +837,6 @@ function DisclosuresContent() {
   );
 }
 
-// Suspense 경계로 useSearchParams를 감싸서 클라이언트 사이드 렌더링 보장
 export default function DisclosuresPage() {
-  return (
-    <Suspense fallback={
-      <div className="bg-gray-950 text-white font-sans min-h-screen flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    }>
-      <DisclosuresContent />
-    </Suspense>
-  );
+  return <DisclosuresContent />;
 }

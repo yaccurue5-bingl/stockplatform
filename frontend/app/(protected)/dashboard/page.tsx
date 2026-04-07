@@ -2,7 +2,7 @@
 
 import AppShell from '@/components/app/AppShell';
 import MarketRadar from '@/components/landing/MarketRadar';
-import { Zap, TrendingUp, FileText, Clock } from 'lucide-react';
+import { Zap, TrendingUp, FileText, Bell } from 'lucide-react';
 
 const stats = [
   { label: 'API Calls Today',  value: '1,284',  sub: '+12% vs yesterday',           color: '#00D4A6' },
@@ -65,9 +65,10 @@ export default function DashboardPage() {
             <p className="text-sm font-semibold text-white mb-4">Quick Actions</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { icon: Zap,        label: 'Try API',     href: '/api-docs',  color: '#00D4A6' },
-                { icon: TrendingUp, label: 'View Usage',  href: '/usage',     color: '#4EA3FF' },
-                { icon: FileText,   label: 'Browse Data', href: '/datasets',  color: '#a78bfa' },
+                { icon: Bell,       label: 'Disclosures', href: '/disclosures', color: '#f59e0b' },
+                { icon: Zap,        label: 'Try API',     href: '/api-docs',    color: '#00D4A6' },
+                { icon: TrendingUp, label: 'View Usage',  href: '/usage',       color: '#4EA3FF' },
+                { icon: FileText,   label: 'Browse Data', href: '/datasets',    color: '#a78bfa' },
               ].map((a) => (
                 <a
                   key={a.label}

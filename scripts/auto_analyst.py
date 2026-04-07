@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 import time
@@ -124,6 +125,14 @@ def _compute_scores_inline(
             f"[score] 인라인 계산 실패 ({err}) — compute_base_score.py 안전망이 처리합니다"
         )
         return {}
+
+
+def validate_numbers(text: str) -> bool:
+    """AI 결과에 숫자가 2개 이상 포함되어 있는지 검증"""
+    if not text:
+        return False
+    numbers = re.findall(r'\d+[,\d]*\.?\d*\s*%?', text)
+    return len(numbers) >= 2
 
 
 class AIAnalyst:
@@ -298,7 +307,7 @@ SENTIMENT SCORE GUIDE (sentiment_score):
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.2,
-                max_completion_tokens=1200
+                max_completion_tokens=2400
             )
 
             return json.loads(response.choices[0].message.content)
@@ -340,14 +349,32 @@ def run(backfill: bool = False, limit: int = 50):
         logger.info("✅ 분석할 데이터가 없습니다.")
         return 0
 
+    # stock_code → corp_name_en 맵 (일괄 조회)
+    stock_codes = list({d['stock_code'] for d in res.data if d.get('stock_code')})
+    corp_name_en_map: dict = {}
+    if stock_codes:
+        try:
+            en_res = supabase.table("dart_corp_codes") \
+                .select("stock_code, corp_name_en") \
+                .in_("stock_code", stock_codes) \
+                .execute()
+            for row in (en_res.data or []):
+                if row.get("corp_name_en"):
+                    corp_name_en_map[row["stock_code"]] = row["corp_name_en"]
+        except Exception as e:
+            logger.warning(f"[corp_name_en] 조회 실패 (무시): {e}")
+
     for item in res.data:
 
         supabase.table("disclosure_insights").update({
             "analysis_status": "processing"
         }).eq("id", item['id']).execute()
 
+        # 영문 기업명 우선 사용 → AI가 한국어 번역에 토큰 낭비 방지
+        corp_name_for_ai = corp_name_en_map.get(item.get('stock_code', '')) or item['corp_name']
+
         result = analyst.analyze_content(
-            item['corp_name'],
+            corp_name_for_ai,
             item['report_nm'],
             item.get('content')
         )
@@ -365,8 +392,19 @@ def run(backfill: bool = False, limit: int = 50):
             # AI 분석 완료 직후 스코어 인라인 계산
             scores = _compute_scores_inline(item, result, sentiment_score)
 
+            # 숫자 검증: ai_summary + key_numbers 합쳐서 판단
+            ai_summary_text = result.get("ai_summary") or ""
+            key_numbers_text = " ".join(result.get("key_numbers") or [])
+            has_numbers = validate_numbers(ai_summary_text + " " + key_numbers_text)
+            content_available = item.get("content") and item.get("content") != "CONTENT_NOT_AVAILABLE"
+            # 본문이 있는데도 숫자가 없으면 low_quality
+            analysis_result_status = "completed" if (has_numbers or not content_available) else "low_quality"
+            if analysis_result_status == "low_quality":
+                logger.warning(f"  ⚠️ 숫자 부족 → low_quality: {item['corp_name']}")
+
             update_data = {
                 "headline": result.get("headline"),
+                "report_nm_en": result.get("report_nm") or None,  # Groq 번역 영문 공시 제목
                 "key_numbers": result.get("key_numbers"),
                 "event_type": result.get("event_type"),
                 "financial_impact": result.get("financial_impact"),
@@ -374,7 +412,7 @@ def run(backfill: bool = False, limit: int = 50):
                 "sentiment_score": sentiment_score,
                 "ai_summary": result.get("ai_summary"),
                 "risk_factors": result.get("risk_factors"),
-                "analysis_status": "completed",
+                "analysis_status": analysis_result_status,
                 "is_visible": bool(item.get("stock_code", "").strip()),
                 "updated_at": datetime.now().isoformat(),
                 **scores,   # base_score_raw, base_score, final_score, signal_tag
