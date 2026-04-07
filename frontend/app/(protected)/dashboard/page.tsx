@@ -2,7 +2,7 @@
 
 import AppShell from '@/components/app/AppShell';
 import MarketRadar from '@/components/landing/MarketRadar';
-import { Zap, TrendingUp, FileText, Bell } from 'lucide-react';
+import { Zap, TrendingUp, FileText, Bell, Clock } from 'lucide-react';
 
 const stats = [
   { label: 'API Calls Today',  value: '1,284',  sub: '+12% vs yesterday',           color: '#00D4A6' },
