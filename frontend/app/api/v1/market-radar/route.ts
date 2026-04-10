@@ -11,6 +11,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveApiKey, checkPlan, PLAN_HISTORY_DAYS } from '@/lib/v1/auth'
 import { makeCacheKey, cacheGet, cacheSet, TTL_MARKET_RADAR } from '@/lib/v1/cache'
+import { checkRateLimit } from '@/lib/v1/rateLimit'
+import { logApiCall } from '@/lib/v1/usage'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
@@ -20,6 +22,11 @@ export async function GET(req: NextRequest) {
 
   const planError = checkPlan(user, ['developer', 'pro'])
   if (planError) return planError
+
+  const rateLimitError = await checkRateLimit(user.id, user.plan)
+  if (rateLimitError) return rateLimitError
+
+  const _start = Date.now()
 
   // ── Params ──────────────────────────────────────────────────────────────────
   const p = req.nextUrl.searchParams
@@ -72,9 +79,12 @@ export async function GET(req: NextRequest) {
     }
 
     await cacheSet(cacheKey, result, TTL_MARKET_RADAR)
-    return NextResponse.json(result)
+    const res = NextResponse.json(result)
+    logApiCall({ userId: user.id, plan: user.plan, endpoint: '/api/v1/market-radar', statusCode: 200, latencyMs: Date.now() - _start }).catch(() => {})
+    return res
   } catch (e) {
     console.error('[v1/market-radar] DB error:', e)
+    logApiCall({ userId: user.id, plan: user.plan, endpoint: '/api/v1/market-radar', statusCode: 500, latencyMs: Date.now() - _start }).catch(() => {})
     return NextResponse.json({ error: 'Failed to fetch market radar.' }, { status: 500 })
   }
 }
