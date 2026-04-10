@@ -86,6 +86,8 @@ export default async function proxy(req: NextRequest) {
     '/auth/reset-password',    // 비밀번호 재설정 (recovery 토큰으로 접근)
     '/forgot-password',        // 비밀번호 찾기 (미인증 접근 허용)
     '/api/stripe/webhook',    // Stripe Webhook은 서명 검증으로 보호됨
+    '/api/paddle/webhook',    // Paddle Webhook은 서명 검증으로 보호됨
+    '/api/v1/',               // B2B REST API — X-API-Key 자체 인증 처리
     '/api/disclosures/latest', // 메인 페이지 공시 목록 API
     '/api/financials/',        // 재무 YoY API (공개)
     '/api/short/',             // 대차잔고 Short Pressure API (공개)
