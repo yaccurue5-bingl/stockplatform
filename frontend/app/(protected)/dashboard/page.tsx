@@ -1,30 +1,58 @@
-'use client';
-
 import AppShell from '@/components/app/AppShell';
 import MarketRadar from '@/components/landing/MarketRadar';
 import { Zap, TrendingUp, FileText, Bell, Clock } from 'lucide-react';
+import { createServiceClient, getUser } from '@/lib/supabase/server';
+import Link from 'next/link';
 
-const stats = [
-  { label: 'API Calls Today',  value: '1,284',  sub: '+12% vs yesterday',           color: '#00D4A6' },
-  { label: 'Monthly Usage',    value: '38,402', sub: '76% of 50,000 limit',         color: '#4EA3FF' },
-  { label: 'Active Endpoints', value: '4',      sub: 'events, signals, radar, co.', color: '#a78bfa' },
-  { label: 'Avg Latency',      value: '142ms',  sub: 'p95: 310ms',                  color: '#fb923c' },
-];
+// 플랜별 월 quota (free는 일 50건)
+const PLAN_QUOTA: Record<string, { monthly: number | null; dailyFree: number | null; label: string }> = {
+  free:      { monthly: null,   dailyFree: 50,    label: 'Free' },
+  developer: { monthly: 8000,   dailyFree: null,  label: 'Developer' },
+  pro:       { monthly: 80000,  dailyFree: null,  label: 'Pro' },
+};
 
-const recentActivity = [
-  { endpoint: 'GET /v1/events',         status: 200, ts: '14:31:02', ms: 138 },
-  { endpoint: 'GET /v1/sector-signals', status: 200, ts: '14:30:47', ms: 95  },
-  { endpoint: 'GET /v1/market-radar',   status: 200, ts: '14:29:12', ms: 201 },
-  { endpoint: 'GET /v1/company/005930', status: 200, ts: '14:28:55', ms: 119 },
-  { endpoint: 'GET /v1/events',         status: 429, ts: '14:27:30', ms: 12  },
-  { endpoint: 'GET /v1/sector-signals', status: 200, ts: '14:26:18', ms: 87  },
-];
+export default async function DashboardPage() {
+  // 실제 유저 + 플랜 조회
+  const user = await getUser();
+  let plan = 'free';
+  let userEmail = '';
 
-export default function DashboardPage() {
-  const usedPct = 76;
+  if (user) {
+    const sb = createServiceClient();
+    const { data: profile } = await sb
+      .from('users')
+      .select('plan, email')
+      .eq('id', user.id)
+      .single();
+    plan      = (profile?.plan ?? 'free').toLowerCase();
+    userEmail = profile?.email ?? user.email ?? '';
+  }
+
+  const quota = PLAN_QUOTA[plan] ?? PLAN_QUOTA.free;
+
+  // quota 표시용 (실제 usage tracking 미구현 → 0 표시)
+  const usedCalls  = 0;
+  const limitLabel = quota.monthly
+    ? `${quota.monthly.toLocaleString()} / month`
+    : `${quota.dailyFree} / day`;
+  const limitNum   = quota.monthly ?? (quota.dailyFree! * 30);
+  const usedPct    = limitNum > 0 ? Math.round((usedCalls / limitNum) * 100) : 0;
+
+  // 현재 월 계산
+  const now          = new Date();
+  const resetDate    = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const resetLabel   = resetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const stats = [
+    { label: 'API Calls Today',   value: '—',          sub: 'Usage tracking coming soon',  color: '#00D4A6' },
+    { label: 'Monthly Usage',     value: '—',           sub: `Limit: ${limitLabel}`,        color: '#4EA3FF' },
+    { label: 'Active Endpoints',  value: plan === 'free' ? '1' : plan === 'developer' ? '4' : '5+',
+                                                         sub: plan === 'free' ? 'Basic only' : 'All core endpoints', color: '#a78bfa' },
+    { label: 'Current Plan',      value: quota.label,   sub: limitLabel,                    color: '#fb923c' },
+  ];
 
   return (
-    <AppShell title="Dashboard" subtitle="Welcome back, smile">
+    <AppShell title="Dashboard" subtitle={`Welcome back${userEmail ? ', ' + userEmail.split('@')[0] : ''}`}>
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map((s) => (
@@ -48,22 +76,48 @@ export default function DashboardPage() {
           {/* Quota bar */}
           <div className="bg-[#0d1117] border border-gray-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-white">Monthly Quota</p>
-              <span className="text-xs text-gray-500">Developer Plan · resets Apr 1</span>
+              <p className="text-sm font-semibold text-white">
+                {quota.monthly ? 'Monthly Quota' : 'Daily Quota'}
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-[#00D4A6]/10 text-[#00D4A6] font-semibold">
+                  {quota.label} Plan
+                </span>
+                <span className="text-xs text-gray-500">
+                  resets {quota.monthly ? resetLabel : 'daily'}
+                </span>
+              </div>
             </div>
             <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden mb-2">
-              <div className="h-full rounded-full bg-[#00D4A6]" style={{ width: `${usedPct}%` }} />
+              <div
+                className="h-full rounded-full bg-[#00D4A6]"
+                style={{ width: `${usedPct}%` }}
+              />
             </div>
             <div className="flex justify-between text-xs text-gray-500">
-              <span>38,402 used</span>
-              <span>50,000 limit</span>
+              <span>{usedCalls.toLocaleString()} used</span>
+              <span>{limitLabel}</span>
             </div>
+            {plan === 'free' && (
+              <div className="mt-3 text-xs text-gray-600">
+                <Link href="/pricing" className="text-[#00D4A6] hover:underline">
+                  Upgrade to Developer → 8,000 req/month
+                </Link>
+              </div>
+            )}
+            {plan === 'developer' && (
+              <div className="mt-3 text-xs text-gray-600">
+                <Link href="/pricing" className="text-[#00D4A6] hover:underline">
+                  Upgrade to Pro → 80,000 req/month + bulk endpoints
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Quick actions */}
           <div className="bg-[#0d1117] border border-gray-800 rounded-xl p-5">
             <p className="text-sm font-semibold text-white mb-4">Quick Actions</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               {[
                 { icon: Bell,       label: 'Disclosures', href: '/disclosures', color: '#f59e0b' },
                 { icon: Zap,        label: 'Try API',     href: '/api-docs',    color: '#00D4A6' },
@@ -86,41 +140,19 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent API Activity */}
+      {/* Recent API Activity — placeholder until usage tracking implemented */}
       <div className="bg-[#0d1117] border border-gray-800 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <Clock size={14} className="text-gray-500" />
             <p className="text-sm font-semibold text-white">Recent API Activity</p>
           </div>
-          <a href="/usage" className="text-xs text-[#00D4A6] hover:underline">View all →</a>
+          <Link href="/usage" className="text-xs text-[#00D4A6] hover:underline">View all →</Link>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-gray-500 border-b border-gray-800/60">
-              <th className="text-left px-5 py-3 font-medium">Endpoint</th>
-              <th className="text-left px-5 py-3 font-medium">Status</th>
-              <th className="text-left px-5 py-3 font-medium">Time</th>
-              <th className="text-right px-5 py-3 font-medium">Latency</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentActivity.map((row, i) => (
-              <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20 transition">
-                <td className="px-5 py-3 font-mono text-xs text-gray-300">{row.endpoint}</td>
-                <td className="px-5 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                    row.status === 200 ? 'bg-[#00D4A6]/10 text-[#00D4A6]' : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    {row.status}
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-xs text-gray-500">{row.ts}</td>
-                <td className="px-5 py-3 text-xs text-gray-400 text-right">{row.ms}ms</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="px-5 py-10 text-center text-gray-600 text-sm">
+          <p>Usage log tracking is coming soon.</p>
+          <p className="text-xs mt-1">Your API calls are being processed — detailed logs will appear here.</p>
+        </div>
       </div>
     </AppShell>
   );
