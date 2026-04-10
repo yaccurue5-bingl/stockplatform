@@ -13,6 +13,7 @@ import { resolveApiKey, checkPlan, PLAN_HISTORY_DAYS } from '@/lib/v1/auth'
 import { makeCacheKey, cacheGet, cacheSet, TTL_MARKET_RADAR } from '@/lib/v1/cache'
 import { checkRateLimit } from '@/lib/v1/rateLimit'
 import { logApiCall } from '@/lib/v1/usage'
+import { formatResponse } from '@/lib/v1/format'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export async function GET(req: NextRequest) {
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
   // ── Cache ───────────────────────────────────────────────────────────────────
   const cacheKey = makeCacheKey('v1:market-radar', { plan, dtFrom, dtTo, limit })
   const cached   = await cacheGet<object>(cacheKey)
-  if (cached) return NextResponse.json(cached)
+  if (cached) return formatResponse(req, cached as Record<string, unknown>)
 
   // ── Supabase ────────────────────────────────────────────────────────────────
   try {
@@ -79,12 +80,12 @@ export async function GET(req: NextRequest) {
     }
 
     await cacheSet(cacheKey, result, TTL_MARKET_RADAR)
-    const res = NextResponse.json(result)
+    const res = formatResponse(req, result)
     logApiCall({ userId: user.id, plan: user.plan, endpoint: '/api/v1/market-radar', statusCode: 200, latencyMs: Date.now() - _start }).catch(() => {})
     return res
   } catch (e) {
     console.error('[v1/market-radar] DB error:', e)
     logApiCall({ userId: user.id, plan: user.plan, endpoint: '/api/v1/market-radar', statusCode: 500, latencyMs: Date.now() - _start }).catch(() => {})
-    return NextResponse.json({ error: 'Failed to fetch market radar.' }, { status: 500 })
+    return formatResponse(req, { error: 'Failed to fetch market radar.' }, 500)
   }
 }
