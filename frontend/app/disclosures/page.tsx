@@ -381,8 +381,20 @@ function DisclosuresContent() {
           }
         }
 
-        setGroupedStocks(grouped);
-        setFilteredStocks(grouped);
+        // 특정 종목 조회 시: 전체 목록을 교체하지 않고 해당 종목만 merge
+        if (stockCode) {
+          setGroupedStocks(prev => {
+            const without = prev.filter(s => s.stock_code !== stockCode);
+            return [...without, ...grouped];
+          });
+          setFilteredStocks(prev => {
+            const without = prev.filter(s => s.stock_code !== stockCode);
+            return [...without, ...grouped];
+          });
+        } else {
+          setGroupedStocks(grouped);
+          setFilteredStocks(grouped);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch disclosures:', error);
@@ -480,13 +492,20 @@ function DisclosuresContent() {
               >
                 ← Back
               </button>
-              <Link
-                href="/disclosures"
-                onClick={() => { setSelectedStock(null); setSelectedDisclosure(null); setStockCodeParam(null); }}
+              <button
+                onClick={() => {
+                  setSelectedStock(null);
+                  setSelectedDisclosure(null);
+                  setStockCodeParam(null);
+                  setDisclosureParam(null);
+                  startTransition(() => {
+                    router.replace('/disclosures');
+                  });
+                }}
                 className="text-blue-400 hover:text-blue-300 text-sm transition"
               >
                 All Disclosures
-              </Link>
+              </button>
               <span className="text-lg font-semibold">AI Disclosure Detail</span>
             </div>
             <div className="text-sm text-gray-400">
