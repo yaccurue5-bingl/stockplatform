@@ -14,6 +14,8 @@ import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
 import DataSourceNote from '@/components/DataSourceNote';
+import SectorContextCard from '@/components/SectorContextCard';
+import { fetchSectorContext } from '@/lib/fetchSectorContext';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -109,6 +111,7 @@ interface DisclosureRow {
   financial_impact: string | null;
   analysis_status: string | null;
   is_visible: boolean | null;
+  sector: string | null;
 }
 
 async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
@@ -117,7 +120,7 @@ async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
     .from('disclosure_insights')
     .select(
       'id, corp_name, stock_code, rcept_dt, report_nm, report_nm_en, ' +
-      'headline, event_type, sentiment_score, ' +
+      'headline, event_type, sentiment_score, sector, ' +
       'ai_summary, key_numbers, risk_factors, financial_impact, ' +
       'analysis_status, is_visible'
     )
@@ -178,6 +181,8 @@ export default async function DisclosureDetailPage({
 
   const [disclosure, user] = await Promise.all([fetchDisclosure(id), getUser()]);
   if (!disclosure) notFound();
+
+  const sectorContext = disclosure.sector ? await fetchSectorContext(disclosure.sector) : null;
 
   const isLoggedIn = !!user;
 
@@ -261,6 +266,9 @@ export default async function DisclosureDetailPage({
           stockCode={disclosure.stock_code ?? ''}
           eventType={disclosure.event_type ?? null}
         />
+
+        {/* ── Sector Context ── */}
+        {sectorContext && <SectorContextCard data={sectorContext} />}
 
         {/* ── 로그인 유저: 전체 공개 ── */}
         {isLoggedIn ? (
