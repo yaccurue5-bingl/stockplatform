@@ -14,6 +14,8 @@ import Link from 'next/link';
 import { createServiceClient } from '@/lib/supabase/server';
 import { TrendingUp, TrendingDown, Minus, Lock, ArrowLeft, ExternalLink } from 'lucide-react';
 import DataSourceNote from '@/components/DataSourceNote';
+import SectorContextCard from '@/components/SectorContextCard';
+import { fetchSectorContext } from '@/lib/fetchSectorContext';
 
 export const revalidate = 3600;
 
@@ -58,6 +60,7 @@ interface SignalRow {
   key_numbers: unknown;
   risk_factors: string | null;
   financial_impact: string | null;
+  sector: string | null;
 }
 
 interface EventScore {
@@ -114,7 +117,7 @@ async function fetchSignal(id: string): Promise<SignalRow | null> {
     .from('disclosure_insights')
     .select(
       'id, corp_name, stock_code, rcept_dt, report_nm, ' +
-      'headline, event_type, sentiment_score, ' +
+      'headline, event_type, sentiment_score, sector, ' +
       'ai_summary, key_numbers, risk_factors, financial_impact'
     )
     .eq('id', id)
@@ -350,6 +353,9 @@ export default async function SignalPage({
   // Signal Score (event_stats 조회)
   const eventScore = signal.event_type ? await fetchEventScore(signal.event_type) : null;
 
+  // Sector Context
+  const sectorContext = signal.sector ? await fetchSectorContext(signal.sector) : null;
+
   // per-signal JSON-LD
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -438,6 +444,9 @@ export default async function SignalPage({
         {eventScore?.score !== null && eventScore !== null && (
           <SignalScoreCard score={eventScore} />
         )}
+
+        {/* ── Sector Context ── */}
+        {sectorContext && <SectorContextCard data={sectorContext} />}
 
         {/* ── Financial Impact (공개) ── */}
         {signal.financial_impact && (
