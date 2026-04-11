@@ -121,7 +121,6 @@ async function fetchSignal(id: string): Promise<SignalRow | null> {
       'ai_summary, key_numbers, risk_factors, financial_impact'
     )
     .eq('id', id)
-    .eq('is_visible', true)
     .eq('analysis_status', 'completed')
     .single();
 
