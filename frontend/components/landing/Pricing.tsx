@@ -39,6 +39,7 @@ const plans = [
     isPaid: true,
     planKey: 'developer' as PlanKey,
     features: [
+      'Build and test Korean market strategies',
       '10,000 API requests / month',
       'Access to all core endpoints',
       'Corporate Events API',
@@ -58,6 +59,7 @@ const plans = [
     isPaid: true,
     planKey: 'pro' as PlanKey,
     features: [
+      'Institution-grade Korean market intelligence',
       '100,000 API requests / month',
       'Full API access',
       'Company Intelligence API',
@@ -123,13 +125,6 @@ export default function Pricing() {
                 : 'bg-[#121821] border-gray-800'}
             `}
           >
-            {p.highlight && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="bg-[#00D4A6] text-[#0B0F14] text-xs font-bold px-3 py-1 rounded-full">
-                  MOST POPULAR
-                </span>
-              </div>
-            )}
 
             <div>
               <p className="text-gray-400 text-sm mb-1">{p.name}</p>

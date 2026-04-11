@@ -37,13 +37,14 @@ const PLANS = [
     name:     'Developer',
     price:    '$29',
     period:   '/ month',
-    badge:    'Most Popular',
+    badge:    null,
     quota:    '8,000 requests / month',
     color:    'border-[#00D4A6]',
     btnClass: 'bg-[#00D4A6] hover:bg-[#00bfa0] text-black',
     btnLabel: 'Subscribe',
     btnHref:  '/signup?plan=developer',
     features: [
+      'Build and test Korean market strategies',
       'Real-time signals',
       'All core endpoints',
       '3-day history window',
@@ -68,6 +69,7 @@ const PLANS = [
     btnLabel: 'Subscribe',
     btnHref:  '/signup?plan=pro',
     features: [
+      'Institution-grade Korean market intelligence',
       'Everything in Developer',
       'Bulk endpoints (batch)',
       'Full historical backfill (30d)',
