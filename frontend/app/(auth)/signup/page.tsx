@@ -302,11 +302,11 @@ export default function SignupPage() {
         {/* Terms */}
         <p className="text-xs text-center text-gray-500">
           By creating an account, you agree to our{' '}
-          <a href="#" className="underline hover:text-gray-700">
+          <a href="/terms" className="underline hover:text-gray-700">
             Terms of Service
           </a>{' '}
           and{' '}
-          <a href="#" className="underline hover:text-gray-700">
+          <a href="/privacy" className="underline hover:text-gray-700">
             Privacy Policy
           </a>
         </p>

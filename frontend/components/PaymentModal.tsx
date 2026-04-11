@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
 import type { Paddle } from '@paddle/paddle-js';
 
-const PADDLE_CLIENT_TOKEN = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || 'test_bc7f362776f7ee51f3d70a12ef8';
+const PADDLE_CLIENT_TOKEN = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? '';
 
-// ✅ Paddle 상품 ID — 플랜별 분리
+// ✅ Paddle 상품 ID — 플랜별 분리 (env에서 주입)
 const PLAN_CONFIG = {
   developer: {
-    priceId: 'pri_01kkr1y9x2m1vj7jkxgser2k5c',
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER ?? '',
     name: 'Developer Plan',
     price: '$49',
     period: 'per month',
@@ -28,7 +28,7 @@ const PLAN_CONFIG = {
     badgeClass: 'bg-[#00D4A6] text-[#0B0F14]',
   },
   pro: {
-    priceId: 'pri_01kk8jf8118g3s9d2ajqk7pbbe',
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO ?? '',
     name: 'Pro Plan',
     price: '$199',
     period: 'per month',
