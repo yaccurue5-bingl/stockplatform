@@ -265,24 +265,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     };
 
     // --- 3-5. 화면 캡처/녹화 감지 ---
-    // PrintScreen: 짧은 blur→focus 사이클(300ms 이내) 유발
-    let captureBlurTime: number | null = null;
-
-    const handleWindowBlur = () => {
-      captureBlurTime = Date.now();
-    };
-
-    const handleWindowFocus = () => {
-      if (captureBlurTime !== null) {
-        const elapsed = Date.now() - captureBlurTime;
-        if (elapsed < 300) {
-          handleScreenCapture();
-        }
-        captureBlurTime = null;
-      }
-    };
-
     // Screen Capture API (Chrome 94+): 화면 공유/녹화 감지
+    // NOTE: blur→focus 300ms 감지는 제거 — Google Translate 팝업 닫기 등
+    //       브라우저 이벤트와 구분 불가능하여 오탐 발생
     // getDisplayMedia를 사용 중이면 navigator.mediaDevices로 감지
     let displayStream: MediaStream | null = null;
     const origGetDisplayMedia = navigator.mediaDevices?.getDisplayMedia?.bind(navigator.mediaDevices);
@@ -310,8 +295,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     document.addEventListener('dragstart', blockDragStart);
     document.addEventListener('copy', blockCopy);
     document.addEventListener('cut', blockCopy);
-    window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
       document.removeEventListener('contextmenu', blockContextMenu);
@@ -320,8 +303,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       document.removeEventListener('dragstart', blockDragStart);
       document.removeEventListener('copy', blockCopy);
       document.removeEventListener('cut', blockCopy);
-      window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
       // 화면 공유 스트림 종료
       if (displayStream) {
         displayStream.getTracks().forEach(track => track.stop());

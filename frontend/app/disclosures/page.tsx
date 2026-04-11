@@ -10,6 +10,7 @@ import SignalStrength from '@/components/disclosures/SignalStrength';
 import ShortPressure from '@/components/disclosures/ShortPressure';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
 import DataSourceNote from '@/components/DataSourceNote';
+import { generateTicker } from '@/lib/generateTicker';
 
 interface Disclosure {
   id: string;
@@ -381,8 +382,20 @@ function DisclosuresContent() {
           }
         }
 
-        setGroupedStocks(grouped);
-        setFilteredStocks(grouped);
+        // 특정 종목 조회 시: 전체 목록을 교체하지 않고 해당 종목만 merge
+        if (stockCode) {
+          setGroupedStocks(prev => {
+            const without = prev.filter(s => s.stock_code !== stockCode);
+            return [...without, ...grouped];
+          });
+          setFilteredStocks(prev => {
+            const without = prev.filter(s => s.stock_code !== stockCode);
+            return [...without, ...grouped];
+          });
+        } else {
+          setGroupedStocks(grouped);
+          setFilteredStocks(grouped);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch disclosures:', error);
@@ -391,10 +404,6 @@ function DisclosuresContent() {
     }
   }
 
-  const getCompanyInitials = (name: string) => {
-    if (!name) return '??';
-    return name.substring(0, 2).toUpperCase();
-  };
 
   const getImpactColor = (importance: string, hasHigh: boolean = false) => {
     if (hasHigh) return 'bg-red-900/30 text-red-400';
@@ -480,13 +489,20 @@ function DisclosuresContent() {
               >
                 ← Back
               </button>
-              <Link
-                href="/disclosures"
-                onClick={() => { setSelectedStock(null); setSelectedDisclosure(null); setStockCodeParam(null); }}
+              <button
+                onClick={() => {
+                  setSelectedStock(null);
+                  setSelectedDisclosure(null);
+                  setStockCodeParam(null);
+                  setDisclosureParam(null);
+                  startTransition(() => {
+                    router.replace('/disclosures');
+                  });
+                }}
                 className="text-blue-400 hover:text-blue-300 text-sm transition"
               >
                 All Disclosures
-              </Link>
+              </button>
               <span className="text-lg font-semibold">AI Disclosure Detail</span>
             </div>
             <div className="text-sm text-gray-400">
@@ -554,8 +570,8 @@ function DisclosuresContent() {
             <div className="p-6">
               {/* Company Header */}
               <div className="flex items-start gap-4 mb-6">
-                <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center text-2xl font-bold flex-shrink-0">
-                  AI
+                <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center text-sm font-bold tracking-tight flex-shrink-0">
+                  {generateTicker(selectedStock.corp_name_en)}
                 </div>
                 <div className="flex-1">
                   <h1 className="text-2xl font-bold mb-2">
@@ -782,8 +798,8 @@ function DisclosuresContent() {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white ${stock.hasHighImpact ? 'bg-orange-600' : 'bg-blue-600'}`}>
-                        {getCompanyInitials(stock.corp_name)}
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xs tracking-tight text-white ${stock.hasHighImpact ? 'bg-orange-600' : 'bg-blue-600'}`}>
+                        {generateTicker(stock.corp_name_en)}
                       </div>
                       <div>
                         {/* 영문명 우선, 한글명 아래 배치 */}

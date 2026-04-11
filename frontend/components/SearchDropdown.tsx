@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { generateTicker } from '@/lib/generateTicker';
 
 interface SearchResult {
   stock_code: string;
@@ -256,8 +257,8 @@ export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, p
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xs">
-                        {result.corp_name.substring(0, 2)}
+                      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-[9px] tracking-tight">
+                        {generateTicker(result.corp_name_en ?? result.corp_name)}
                       </div>
                       <div>
                         <div className="font-medium text-white text-sm">{result.corp_name}</div>

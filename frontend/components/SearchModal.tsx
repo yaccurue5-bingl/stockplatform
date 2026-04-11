@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { generateTicker } from '@/lib/generateTicker';
 
 interface SearchResult {
   stock_code: string;
@@ -154,8 +155,8 @@ export default function SearchModal({ isOpen, onClose, onSelectStock, isSuperUse
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm">
-                        {result.corp_name.substring(0, 2)}
+                      <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-xs tracking-tight">
+                        {generateTicker(result.corp_name_en ?? result.corp_name)}
                       </div>
                       <div>
                         <div className="font-medium text-white">{result.corp_name}</div>

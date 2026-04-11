@@ -3,6 +3,7 @@ import Section from './ui/Section';
 import Card from './ui/Card';
 import { Zap } from 'lucide-react';
 import { createServiceClient } from '@/lib/supabase/server';
+import { generateTicker } from '@/lib/generateTicker';
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
@@ -101,9 +102,9 @@ export default async function LiveEvents() {
           >
           <Card hover className="flex items-center justify-between px-6 py-5 cursor-pointer">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
-                <span className="text-xs font-bold text-gray-300">
-                  {e.company.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
+              <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                <span className="text-[10px] font-bold text-gray-300 tracking-tight">
+                  {generateTicker(e.company)}
                 </span>
               </div>
               <div>

@@ -16,6 +16,7 @@ import { TrendingUp, TrendingDown, Minus, Lock, ArrowLeft, ExternalLink } from '
 import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
+import { generateTicker } from '@/lib/generateTicker';
 
 export const revalidate = 3600;
 
@@ -50,6 +51,7 @@ const EVENT_COLORS: Record<string, string> = {
 interface SignalRow {
   id: string;
   corp_name: string | null;
+  corp_name_en: string | null;
   stock_code: string | null;
   rcept_dt: string;
   report_nm: string;
@@ -116,7 +118,7 @@ async function fetchSignal(id: string): Promise<SignalRow | null> {
   const { data, error } = await sb
     .from('disclosure_insights')
     .select(
-      'id, corp_name, stock_code, rcept_dt, report_nm, ' +
+      'id, corp_name, corp_name_en, stock_code, rcept_dt, report_nm, ' +
       'headline, event_type, sentiment_score, sector, ' +
       'ai_summary, key_numbers, risk_factors, financial_impact'
     )
@@ -425,7 +427,7 @@ export default async function SignalPage({
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center shrink-0">
                 <span className="text-xs font-bold text-gray-300">
-                  {(signal.corp_name ?? '?').slice(0, 2).toUpperCase()}
+                  {generateTicker(signal.corp_name_en ?? signal.corp_name)}
                 </span>
               </div>
               <div>
