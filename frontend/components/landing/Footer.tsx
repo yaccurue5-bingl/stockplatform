@@ -9,12 +9,12 @@ const cols = [
   {
     title: 'Company',
     links: ['About', 'Blog', 'Contact'],
-    hrefs: ['#', '#', '#'],
+    hrefs: ['#', '#', 'mailto:support@k-marketinsight.com'],
   },
   {
     title: 'Legal',
-    links: ['Terms', 'Privacy'],
-    hrefs: ['/terms', '/privacy'],
+    links: ['Terms', 'Privacy', 'Refund Policy'],
+    hrefs: ['/terms', '/privacy', '/refund-policy'],
   },
 ];
 
