@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
     // ② recent events — disclosure_insights
     let evQuery = sb
       .from('disclosure_insights')
-      .select('stock_code, corp_name, event_type, rcept_dt, final_score, signal_tag')
+      .select('stock_code, corp_name, corp_name_en, event_type, rcept_dt, final_score, signal_tag')
       .gte('rcept_dt', dtFromStr)
       .lte('rcept_dt', dtToStr)
       .not('event_type', 'is', null)
@@ -92,9 +92,9 @@ export async function GET(req: NextRequest) {
     const { data: evData, error: evErr } = await evQuery.limit(limit)
     if (evErr) throw evErr
 
-    const recentEvents = (evData ?? []).map(row => ({
+    const recentEvents = (evData ?? []).map((row: any) => ({
       stock_code:       row.stock_code,
-      corp_name:        row.corp_name,
+      corp_name:        (row.corp_name_en as string | null) || row.corp_name,
       event_type:       row.event_type,
       disclosure_date:  row.rcept_dt,
       final_score:      row.final_score,
