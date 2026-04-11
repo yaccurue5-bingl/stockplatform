@@ -61,6 +61,7 @@ function DisclosuresContent() {
   const [totalCount, setTotalCount] = useState(0);
   const PAGE_SIZE = 15;
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const isBackNavRef = useRef(false); // Back 버튼 클릭 시 스크롤 복원 플래그
   const searchContainerRef = useRef<HTMLDivElement>(null);
   // popstate / useEffect stale closure 방지용 ref
   const selectedStockRef   = useRef<GroupedStock | null>(null);
@@ -226,6 +227,17 @@ function DisclosuresContent() {
   useEffect(() => { selectedStockRef.current = selectedStock; }, [selectedStock]);
   useEffect(() => { groupedStocksRef.current = groupedStocks; }, [groupedStocks]);
 
+  // Back 버튼 후 목록 뷰로 돌아왔을 때 스크롤 위치 복원
+  useEffect(() => {
+    if (!selectedStock && !loading && isBackNavRef.current) {
+      isBackNavRef.current = false;
+      const pos = savedScrollPosition;
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: pos, behavior: 'instant' });
+      });
+    }
+  }, [selectedStock, loading, savedScrollPosition]);
+
   // 페이지 변경 시 새 데이터 로드 (목록 뷰에서만)
   useEffect(() => {
     if (stockCodeParam === null && !searchQuery && accessAllowed) {
@@ -302,11 +314,12 @@ function DisclosuresContent() {
   }, [router, startTransition]);
 
   const navigateBack = useCallback(() => {
+    isBackNavRef.current = true; // 스크롤 복원 트리거
     setSelectedStock(null);
     setSelectedDisclosure(null);
     setStockCodeParam(null);
     setDisclosureParam(null);
-    setCurrentPage(1);
+    // currentPage 리셋 안 함 → 이전에 보던 페이지 유지
     startTransition(() => {
       router.back();
     });
@@ -528,20 +541,6 @@ function DisclosuresContent() {
                 className="text-gray-400 hover:text-white transition"
               >
                 ← Back
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedStock(null);
-                  setSelectedDisclosure(null);
-                  setStockCodeParam(null);
-                  setDisclosureParam(null);
-                  startTransition(() => {
-                    router.replace('/disclosures');
-                  });
-                }}
-                className="text-blue-400 hover:text-blue-300 text-sm transition"
-              >
-                All Disclosures
               </button>
               <span className="text-lg font-semibold">AI Disclosure Detail</span>
             </div>
