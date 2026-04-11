@@ -49,6 +49,18 @@ export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // -----------------------------------
+  // 0. B2B API Key 요청 — 세션 인증 완전 우회
+  //    X-API-Key 헤더 또는 ?api_key= 파라미터가 있으면
+  //    /api/v1/* 라우트가 자체적으로 인증을 처리하므로 바로 통과.
+  // -----------------------------------
+  const hasApiKey =
+    req.headers.get('x-api-key') ||
+    req.nextUrl.searchParams.get('api_key');
+  if (hasApiKey && pathname.startsWith('/api/v1')) {
+    return supabaseResponse;
+  }
+
+  // -----------------------------------
   // 1. Cron Job 보안 (Authorization 체크)
   // -----------------------------------
   if (pathname.startsWith('/api/cron/')) {
