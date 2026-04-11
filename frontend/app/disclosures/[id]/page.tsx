@@ -215,7 +215,7 @@ export default async function DisclosureDetailPage({
             className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
           >
             <ArrowLeft size={15} />
-            All Disclosures
+            Back
           </Link>
         </div>
       </div>
