@@ -19,7 +19,7 @@ import { formatResponse } from '@/lib/v1/format'
 import { createServiceClient } from '@/lib/supabase/server'
 
 const DEV_COLUMNS =
-  'id, rcept_no, corp_name, stock_code, report_nm, rcept_dt, ' +
+  'id, rcept_no, corp_name, corp_name_en, stock_code, report_nm, report_nm_en, rcept_dt, ' +
   'sentiment_score, short_term_impact_score, event_type, ai_summary, ' +
   'base_score, final_score, signal_tag'
 
@@ -113,9 +113,19 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query.limit(limit)
     if (error) throw error
 
+    const rows = (data ?? []).map((row: any) => ({
+      ...row,
+      corp_name:   row.corp_name_en  || row.corp_name,
+      report_name: row.report_nm_en  || row.report_nm,
+      // remove raw Korean / _en fields from output
+      corp_name_en:  undefined,
+      report_nm:     undefined,
+      report_nm_en:  undefined,
+    }))
+
     const result = {
-      data:      data ?? [],
-      total:     (data ?? []).length,
+      data:      rows,
+      total:     rows.length,
       date_from: dtFrom,
       date_to:   dtTo,
     }
