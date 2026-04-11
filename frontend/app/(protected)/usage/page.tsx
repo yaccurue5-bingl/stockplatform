@@ -1,63 +1,108 @@
-'use client';
-
 import AppShell from '@/components/app/AppShell';
-import {
-  LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-} from 'recharts';
+import { createServiceClient, getUser } from '@/lib/supabase/server';
+import Link from 'next/link';
 
-const dailyData = [
-  { day: 'Mar 1',  calls: 820  },
-  { day: 'Mar 2',  calls: 940  },
-  { day: 'Mar 3',  calls: 760  },
-  { day: 'Mar 4',  calls: 1100 },
-  { day: 'Mar 5',  calls: 1280 },
-  { day: 'Mar 6',  calls: 1050 },
-  { day: 'Mar 7',  calls: 890  },
-  { day: 'Mar 8',  calls: 1320 },
-  { day: 'Mar 9',  calls: 1480 },
-  { day: 'Mar 10', calls: 1390 },
-  { day: 'Mar 11', calls: 1620 },
-  { day: 'Mar 12', calls: 1540 },
-  { day: 'Mar 13', calls: 1710 },
-  { day: 'Mar 14', calls: 1284 },
-];
-
-const endpointData = [
-  { name: '/v1/events',         calls: 18420 },
-  { name: '/v1/sector-signals', calls: 10830 },
-  { name: '/v1/market-radar',   calls: 6210  },
-  { name: '/v1/company',        calls: 2942  },
-];
-
-const summaryStats = [
-  { label: 'Total This Month', value: '38,402', color: '#00D4A6' },
-  { label: 'Today',            value: '1,284',  color: '#4EA3FF' },
-  { label: 'Avg / Day',        value: '2,743',  color: '#a78bfa' },
-  { label: 'Error Rate',       value: '0.3%',   color: '#fb923c' },
-];
-
-const tooltipStyle = {
-  contentStyle: {
-    background: '#121821',
-    border: '1px solid #374151',
-    borderRadius: '8px',
-    fontSize: '11px',
-  },
-  itemStyle: { color: '#00D4A6' },
-  labelStyle: { color: '#9ca3af' },
+const PLAN_QUOTA: Record<string, { window: 'daily' | 'monthly'; limit: number; label: string }> = {
+  free:      { window: 'daily',   limit: 50,     label: 'Free' },
+  developer: { window: 'monthly', limit: 8_000,  label: 'Developer' },
+  pro:       { window: 'monthly', limit: 80_000, label: 'Pro' },
 };
 
-export default function UsagePage() {
-  const used = 38402;
-  const limit = 50000;
-  const pct = Math.round((used / limit) * 100);
+function fmtNum(n: number) {
+  return n.toLocaleString('en-US');
+}
+
+export default async function UsagePage() {
+  const user = await getUser();
+  let plan = 'free';
+  let userId = '';
+
+  if (user) {
+    const sb = createServiceClient();
+    const { data: profile } = await sb
+      .from('users')
+      .select('plan')
+      .eq('id', user.id)
+      .single();
+    plan   = (profile?.plan ?? 'free').toLowerCase();
+    userId = user.id;
+  }
+
+  const quota    = PLAN_QUOTA[plan] ?? PLAN_QUOTA.free;
+  const now      = new Date();
+  const today    = now.toISOString().slice(0, 10);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString().slice(0, 10);
+  const resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const resetLabel = resetDate.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  });
+  const monthLabel = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // ── 실제 usage 조회 ───────────────────────────────────────────────────────
+  let usedToday   = 0;
+  let usedMonth   = 0;
+  let recentLogs: Array<{ endpoint: string; status_code: number; latency_ms: number; created_at: string }> = [];
+  let endpointBreakdown: Record<string, number> = {};
+  let dailyBreakdown: Array<{ date: string; calls: number }> = [];
+
+  if (userId) {
+    const sb = createServiceClient();
+
+    const [dailyRes, logRes] = await Promise.all([
+      // 날짜별 집계
+      (sb as any).from('api_usage_daily')
+        .select('date, call_count')
+        .eq('user_id', userId)
+        .gte('date', monthStart)
+        .lte('date', today)
+        .order('date', { ascending: false }),
+
+      // 최근 로그 20건
+      (sb as any).from('api_usage_log')
+        .select('endpoint, status_code, latency_ms, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ]);
+
+    const dailyRows: Array<{ date: string; call_count: number }> = dailyRes.data ?? [];
+    usedMonth = dailyRows.reduce((s, r) => s + (r.call_count ?? 0), 0);
+    usedToday = dailyRows.find(r => r.date === today)?.call_count ?? 0;
+
+    dailyBreakdown = dailyRows
+      .slice(0, 14)
+      .reverse()
+      .map(r => ({ date: r.date.slice(5), calls: r.call_count }));
+
+    recentLogs = ((logRes.data ?? []) as unknown) as typeof recentLogs;
+
+    // 엔드포인트별 집계
+    for (const row of recentLogs) {
+      endpointBreakdown[row.endpoint] = (endpointBreakdown[row.endpoint] ?? 0) + 1;
+    }
+  }
+
+  const usedInWindow = quota.window === 'daily' ? usedToday : usedMonth;
+  const pct          = quota.limit > 0 ? Math.min(100, Math.round((usedInWindow / quota.limit) * 100)) : 0;
+  const avgPerDay    = dailyBreakdown.length > 0
+    ? Math.round(dailyBreakdown.reduce((s, r) => s + r.calls, 0) / dailyBreakdown.length)
+    : 0;
+  const errorCount   = recentLogs.filter(r => r.status_code >= 400).length;
+  const errorRate    = recentLogs.length > 0
+    ? ((errorCount / recentLogs.length) * 100).toFixed(1) + '%'
+    : '—';
 
   return (
-    <AppShell title="Usage" subtitle="API call statistics for March 2026">
+    <AppShell title="Usage" subtitle={`API call analytics — ${monthLabel}`}>
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {summaryStats.map((s) => (
+        {[
+          { label: 'Total This Month', value: fmtNum(usedMonth),  color: '#00D4A6' },
+          { label: 'Today',            value: fmtNum(usedToday),  color: '#4EA3FF' },
+          { label: 'Avg / Day',        value: avgPerDay > 0 ? fmtNum(avgPerDay) : '—', color: '#a78bfa' },
+          { label: 'Error Rate (log)', value: errorRate,          color: '#fb923c' },
+        ].map((s) => (
           <div key={s.label} className="bg-[#0d1117] border border-gray-800 rounded-xl p-5">
             <p className="text-xs text-gray-500 mb-2">{s.label}</p>
             <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
@@ -68,8 +113,17 @@ export default function UsagePage() {
       {/* Quota bar */}
       <div className="bg-[#0d1117] border border-gray-800 rounded-xl p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-white">Monthly Quota</p>
-          <span className="text-xs font-semibold text-[#00D4A6]">{pct}% used</span>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-white">
+              {quota.window === 'daily' ? 'Daily Quota' : 'Monthly Quota'}
+            </p>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-[#00D4A6]/10 text-[#00D4A6] font-semibold">
+              {quota.label}
+            </span>
+          </div>
+          <span className="text-xs font-semibold" style={{ color: pct > 90 ? '#f87171' : pct > 70 ? '#fb923c' : '#6b7280' }}>
+            {pct}% used
+          </span>
         </div>
         <div className="w-full h-3 bg-gray-800 rounded-full overflow-hidden mb-2">
           <div
@@ -81,126 +135,132 @@ export default function UsagePage() {
           />
         </div>
         <div className="flex justify-between text-xs text-gray-500">
-          <span>{used.toLocaleString()} calls used</span>
-          <span>{limit.toLocaleString()} limit · resets Apr 1</span>
+          <span>{fmtNum(usedInWindow)} used</span>
+          <span>
+            {fmtNum(quota.limit)} limit ·
+            resets {quota.window === 'daily' ? 'daily' : resetLabel}
+          </span>
         </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid lg:grid-cols-3 gap-6 mb-6">
-        {/* Daily line chart */}
-        <div className="lg:col-span-2 bg-[#0d1117] border border-gray-800 rounded-xl p-5">
-          <p className="text-sm font-semibold text-white mb-4">Daily API Calls</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={dailyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
-              <XAxis
-                dataKey="day"
-                tick={{ fontSize: 10, fill: '#6b7280' }}
-                tickLine={false}
-                axisLine={false}
-                interval={1}
-              />
-              <YAxis
-                tick={{ fontSize: 10, fill: '#6b7280' }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <Tooltip
-                {...tooltipStyle}
-                formatter={(v) => [`${Number(v).toLocaleString()}`, 'Calls']}
-              />
-              <Line
-                type="monotone"
-                dataKey="calls"
-                stroke="#00D4A6"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: '#00D4A6' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Endpoint bar chart */}
-        <div className="lg:col-span-1 bg-[#0d1117] border border-gray-800 rounded-xl p-5">
-          <p className="text-sm font-semibold text-white mb-4">By Endpoint</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart
-              data={endpointData}
-              layout="vertical"
-              margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
+        {plan !== 'pro' && (
+          <div className="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between">
+            <p className="text-xs text-gray-600">
+              {plan === 'free'
+                ? 'Upgrade for higher limits and real-time signals'
+                : 'Upgrade to Pro for 80,000 req/month + bulk endpoints'}
+            </p>
+            <Link
+              href="/pricing"
+              className="text-xs px-3 py-1 rounded-full bg-[#00D4A6]/10 text-[#00D4A6] hover:bg-[#00D4A6]/20 transition font-medium"
             >
-              <XAxis
-                type="number"
-                tick={{ fontSize: 10, fill: '#6b7280' }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                tick={{ fontSize: 9, fill: '#9ca3af' }}
-                tickLine={false}
-                axisLine={false}
-                width={110}
-              />
-              <Tooltip
-                {...tooltipStyle}
-                formatter={(v) => [`${Number(v).toLocaleString()}`, 'Calls']}
-              />
-              <Bar dataKey="calls" fill="#4EA3FF" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+              Upgrade →
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Daily breakdown + endpoint breakdown */}
+      <div className="grid lg:grid-cols-3 gap-6 mb-6">
+        {/* Daily bars (simple CSS) */}
+        <div className="lg:col-span-2 bg-[#0d1117] border border-gray-800 rounded-xl p-5">
+          <p className="text-sm font-semibold text-white mb-4">Daily Calls (last 14 days)</p>
+          {dailyBreakdown.length === 0 ? (
+            <p className="text-xs text-gray-600 py-8 text-center">No API calls recorded yet.</p>
+          ) : (
+            <div className="flex items-end gap-1 h-32">
+              {dailyBreakdown.map((d) => {
+                const maxCalls = Math.max(...dailyBreakdown.map(r => r.calls), 1);
+                const heightPct = Math.max(4, Math.round((d.calls / maxCalls) * 100));
+                return (
+                  <div key={d.date} className="flex-1 flex flex-col items-center gap-1 group">
+                    <span className="text-[9px] text-gray-600 opacity-0 group-hover:opacity-100 transition">
+                      {d.calls}
+                    </span>
+                    <div
+                      className="w-full rounded-t bg-[#00D4A6]/60 hover:bg-[#00D4A6] transition"
+                      style={{ height: `${heightPct}%` }}
+                    />
+                    <span className="text-[9px] text-gray-600 rotate-45 origin-left">{d.date}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Endpoint breakdown */}
+        <div className="bg-[#0d1117] border border-gray-800 rounded-xl p-5">
+          <p className="text-sm font-semibold text-white mb-4">By Endpoint (recent 20)</p>
+          {Object.keys(endpointBreakdown).length === 0 ? (
+            <p className="text-xs text-gray-600 py-8 text-center">No data yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(endpointBreakdown)
+                .sort((a, b) => b[1] - a[1])
+                .map(([ep, count]) => {
+                  const max = Math.max(...Object.values(endpointBreakdown));
+                  return (
+                    <div key={ep}>
+                      <div className="flex justify-between text-xs text-gray-400 mb-1">
+                        <span className="font-mono truncate">{ep}</span>
+                        <span>{count}</span>
+                      </div>
+                      <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#4EA3FF] rounded-full"
+                          style={{ width: `${Math.round((count / max) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Recent log table */}
+      {/* Recent log */}
       <div className="bg-[#0d1117] border border-gray-800 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-800">
-          <p className="text-sm font-semibold text-white">Request Log</p>
+          <p className="text-sm font-semibold text-white">Request Log (last 20)</p>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-gray-500 border-b border-gray-800">
-              <th className="text-left px-5 py-3 font-medium">Endpoint</th>
-              <th className="text-left px-5 py-3 font-medium">Method</th>
-              <th className="text-left px-5 py-3 font-medium">Status</th>
-              <th className="text-left px-5 py-3 font-medium">Time (KST)</th>
-              <th className="text-right px-5 py-3 font-medium">Latency</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { ep: '/v1/events',         method: 'GET', status: 200, ts: '2026-03-14 14:31:02', ms: 138 },
-              { ep: '/v1/sector-signals', method: 'GET', status: 200, ts: '2026-03-14 14:30:47', ms: 95  },
-              { ep: '/v1/market-radar',   method: 'GET', status: 200, ts: '2026-03-14 14:29:12', ms: 201 },
-              { ep: '/v1/company/005930', method: 'GET', status: 200, ts: '2026-03-14 14:28:55', ms: 119 },
-              { ep: '/v1/events',         method: 'GET', status: 429, ts: '2026-03-14 14:27:30', ms: 12  },
-              { ep: '/v1/sector-signals', method: 'GET', status: 200, ts: '2026-03-14 14:26:18', ms: 87  },
-              { ep: '/v1/company/000660', method: 'GET', status: 200, ts: '2026-03-14 14:25:03', ms: 143 },
-              { ep: '/v1/market-radar',   method: 'GET', status: 200, ts: '2026-03-14 14:23:41', ms: 178 },
-            ].map((row, i) => (
-              <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20 transition">
-                <td className="px-5 py-3 font-mono text-xs text-gray-300">{row.ep}</td>
-                <td className="px-5 py-3 text-xs text-gray-500">{row.method}</td>
-                <td className="px-5 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                    row.status === 200
-                      ? 'bg-[#00D4A6]/10 text-[#00D4A6]'
-                      : row.status === 429
-                      ? 'bg-yellow-500/10 text-yellow-400'
-                      : 'bg-red-500/10 text-red-400'
-                  }`}>
-                    {row.status}
-                  </span>
-                </td>
-                <td className="px-5 py-3 text-xs text-gray-500">{row.ts}</td>
-                <td className="px-5 py-3 text-xs text-gray-400 text-right">{row.ms}ms</td>
+        {recentLogs.length === 0 ? (
+          <div className="px-5 py-10 text-center text-gray-600 text-sm">
+            No API calls recorded yet. Make your first request using your API key.
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-gray-500 border-b border-gray-800">
+                <th className="text-left px-5 py-3 font-medium">Endpoint</th>
+                <th className="text-left px-5 py-3 font-medium">Status</th>
+                <th className="text-left px-5 py-3 font-medium">Time (UTC)</th>
+                <th className="text-right px-5 py-3 font-medium">Latency</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {recentLogs.map((row, i) => (
+                <tr key={i} className="border-b border-gray-800/40 hover:bg-gray-800/20 transition">
+                  <td className="px-5 py-3 font-mono text-xs text-gray-300">{row.endpoint}</td>
+                  <td className="px-5 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      row.status_code === 200  ? 'bg-[#00D4A6]/10 text-[#00D4A6]'
+                      : row.status_code === 429 ? 'bg-yellow-500/10 text-yellow-400'
+                      : 'bg-red-500/10 text-red-400'
+                    }`}>
+                      {row.status_code}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-xs text-gray-500">
+                    {new Date(row.created_at).toISOString().replace('T', ' ').slice(0, 19)}
+                  </td>
+                  <td className="px-5 py-3 text-xs text-gray-400 text-right">
+                    {row.latency_ms != null ? `${row.latency_ms}ms` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </AppShell>
   );

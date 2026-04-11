@@ -3,209 +3,212 @@ import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
 
 export const metadata: Metadata = {
-  title: 'Pricing - K-MarketInsight',
-  description: 'Get instant access to AI-powered market analysis reports',
+  title: 'Pricing — K-MarketInsight',
+  description: 'Transparent pricing for Korean market signal analytics. Free, Developer, and Pro plans.',
 };
+
+const PLANS = [
+  {
+    id:       'free',
+    name:     'Free',
+    price:    '$0',
+    period:   '',
+    badge:    null,
+    quota:    '50 requests / day',
+    color:    'border-gray-700',
+    btnClass: 'bg-gray-800 hover:bg-gray-700 text-white',
+    btnLabel: 'Get Started',
+    btnHref:  '/signup',
+    features: [
+      'Basic endpoints',
+      'Delayed data (T+1)',
+      'Public DART filing access',
+      'Signal Score (event-type level)',
+    ],
+    locked: [
+      'Real-time signals',
+      'Bulk / batch endpoints',
+      'Historical backfill',
+      'Priority latency',
+    ],
+  },
+  {
+    id:       'developer',
+    name:     'Developer',
+    price:    '$29',
+    period:   '/ month',
+    badge:    'Most Popular',
+    quota:    '8,000 requests / month',
+    color:    'border-[#00D4A6]',
+    btnClass: 'bg-[#00D4A6] hover:bg-[#00bfa0] text-black',
+    btnLabel: 'Subscribe',
+    btnHref:  '/signup?plan=developer',
+    features: [
+      'Real-time signals',
+      'All core endpoints',
+      '3-day history window',
+      'Signal Score + grade',
+      'Event impact analytics',
+    ],
+    locked: [
+      'Bulk / batch endpoints',
+      'Full historical backfill',
+      'Priority latency',
+    ],
+  },
+  {
+    id:       'pro',
+    name:     'Pro',
+    price:    '$99',
+    period:   '/ month',
+    badge:    null,
+    quota:    '80,000 requests / month',
+    color:    'border-purple-500',
+    btnClass: 'bg-purple-600 hover:bg-purple-500 text-white',
+    btnLabel: 'Subscribe',
+    btnHref:  '/signup?plan=pro',
+    features: [
+      'Everything in Developer',
+      'Bulk endpoints (batch)',
+      'Full historical backfill (30d)',
+      'Higher rate limit',
+      'Priority latency',
+      'Dedicated support',
+    ],
+    locked: [],
+  },
+];
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-blue-900">
+    <div className="min-h-screen bg-[#0D1117] text-white">
       {/* Header */}
       <header className="border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <Link href="/" className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">K</span>
-              </div>
-              <h1 className="text-2xl font-bold text-white">K-MarketInsight</h1>
-            </Link>
-            <div className="flex gap-4">
-              <Link href="/login" className="px-4 py-2 text-gray-300 hover:text-white transition-colors">
-                Sign In
-              </Link>
-              <Link href="/signup" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                Get Started
-              </Link>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-[#00D4A6] rounded-md flex items-center justify-center">
+              <span className="text-black font-black text-sm">K</span>
             </div>
+            <span className="font-bold text-white">K-MarketInsight</span>
+          </Link>
+          <div className="flex gap-4 items-center">
+            <Link href="/login" className="text-sm text-gray-400 hover:text-white transition">Sign In</Link>
+            <Link href="/signup" className="px-4 py-2 bg-[#00D4A6] text-black text-sm font-semibold rounded-full hover:bg-[#00bfa0] transition">
+              Get Started
+            </Link>
           </div>
         </div>
       </header>
 
-      {/* Pricing Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl font-bold text-white mb-4">
-            AI-Powered Market Analysis
-          </h2>
-          <p className="text-xl text-gray-400">
-            Get instant access to professional-grade insights
-          </p>
-        </div>
+      {/* Hero */}
+      <section className="max-w-5xl mx-auto px-4 pt-20 pb-12 text-center">
+        <p className="text-xs font-semibold uppercase tracking-widest text-[#00D4A6] mb-3">Pricing</p>
+        <h1 className="text-4xl sm:text-5xl font-black mb-4">
+          Korean Market Signal Analytics
+        </h1>
+        <p className="text-gray-400 text-lg max-w-xl mx-auto">
+          Data intelligence SaaS for DART filings — transparent, usage-based pricing.
+          No hidden fees.
+        </p>
+      </section>
 
-        <div className="max-w-2xl mx-auto">
-          {/* Main Pricing Card */}
-          <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 backdrop-blur-sm border-2 border-blue-500 rounded-2xl p-10 relative hover:border-blue-400 transition-colors">
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-              <span className="px-4 py-1 bg-blue-600 text-white text-sm font-bold rounded-full">
-                INSTANT ACCESS
-              </span>
-            </div>
-
-            <div className="text-center mb-8">
-              <h3 className="text-3xl font-bold text-white mb-4">AI Analysis Reports</h3>
-              <div className="text-6xl font-bold text-white mb-2">$19.99</div>
-              <p className="text-blue-200 text-lg">per month</p>
-            </div>
-
-            <div className="bg-blue-950/30 rounded-xl p-6 mb-8">
-              <h4 className="text-white font-semibold mb-3">Product Summary</h4>
-              <p className="text-blue-100 text-sm leading-relaxed">
-                Get instant access to AI-powered market analysis reports designed to help you make faster, smarter decisions.
-              </p>
-              <ul className="mt-4 space-y-2 text-blue-100 text-sm">
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  AI-driven insights and structured analysis
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  On-demand digital reports
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  Instant access after payment
-                </li>
-                <li className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  No physical delivery required
-                </li>
-              </ul>
-            </div>
-
-            <ul className="space-y-4 mb-8">
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">Real-Time Market Analysis</div>
-                  <div className="text-sm text-blue-200">AI-powered insights on Korean stocks (KOSPI & KOSDAQ)</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">Detailed Stock Analysis</div>
-                  <div className="text-sm text-blue-200">Deep dive into company financials and disclosures</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">Sentiment Analysis & Predictions</div>
-                  <div className="text-sm text-blue-200">AI-driven market sentiment and trend forecasting</div>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <svg className="w-6 h-6 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div>
-                  <div className="text-white font-medium">English Translation</div>
-                  <div className="text-sm text-blue-200">Korean disclosures translated to English instantly</div>
-                </div>
-              </li>
-            </ul>
-
-            {/* Refund Notice */}
-            <div className="bg-green-900/20 border border-green-600/50 rounded-lg p-4 mb-6">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <div className="text-sm">
-                  <div className="text-green-200 font-semibold mb-1">14-Day Money-Back Guarantee</div>
-                  <p className="text-green-100">
-                    <strong>No questions asked. Full refund within 14 days of purchase.</strong>
-                  </p>
-
-                </div>
-              </div>
-            </div>
-
-            <Link
-              href="/signup"
-              className="block w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-lg text-center transition-colors shadow-lg"
+      {/* Plan Cards */}
+      <section className="max-w-5xl mx-auto px-4 pb-20">
+        <div className="grid md:grid-cols-3 gap-6">
+          {PLANS.map((plan) => (
+            <div
+              key={plan.id}
+              className={`relative rounded-2xl border-2 ${plan.color} bg-gray-900/50 p-7 flex flex-col`}
             >
-              Subscribe - $19.99/month
-            </Link>
+              {plan.badge && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                  <span className="px-3 py-1 bg-[#00D4A6] text-black text-xs font-bold rounded-full">
+                    {plan.badge}
+                  </span>
+                </div>
+              )}
 
-            <p className="text-center text-sm text-blue-200 mt-4">
-              Secure payment processed by Paddle
-            </p>
-          </div>
+              <div className="mb-6">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-1">{plan.name}</p>
+                <div className="flex items-end gap-1">
+                  <span className="text-4xl font-black">{plan.price}</span>
+                  {plan.period && <span className="text-gray-500 text-sm mb-1">{plan.period}</span>}
+                </div>
+                <p className="text-xs text-gray-500 mt-2 font-medium">{plan.quota}</p>
+              </div>
+
+              <ul className="space-y-2.5 mb-6 flex-1">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-gray-300">
+                    <span className="text-[#00D4A6] mt-0.5 shrink-0">✓</span>
+                    {f}
+                  </li>
+                ))}
+                {plan.locked.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-gray-600 line-through">
+                    <span className="text-gray-700 mt-0.5 shrink-0">✗</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <Link
+                href={plan.btnHref}
+                className={`block w-full py-3 rounded-full text-sm font-semibold text-center transition ${plan.btnClass}`}
+              >
+                {plan.btnLabel}
+              </Link>
+            </div>
+          ))}
         </div>
+
+        {/* Comparison note */}
+        <p className="text-center text-xs text-gray-600 mt-8">
+          All prices in USD · Monthly billing · Cancel anytime ·{' '}
+          <Link href="/refund-policy" className="text-gray-500 hover:text-gray-300 underline">14-day refund policy</Link>
+        </p>
 
         {/* FAQ */}
-        <div className="mt-20 max-w-3xl mx-auto">
-          <h3 className="text-3xl font-bold text-white text-center mb-10">
-            Frequently Asked Questions
-          </h3>
-
-          <div className="space-y-6">
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
-              <h4 className="text-lg font-bold text-white mb-2">
-                What payment methods do you accept?
-              </h4>
-              <p className="text-gray-400">
-                We accept all major credit cards (Visa, Mastercard, American Express) through our payment processor Paddle.
-              </p>
-            </div>
-
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
-              <h4 className="text-lg font-bold text-white mb-2">
-                Is this a subscription?
-              </h4>
-              <p className="text-gray-400">
-                Yes, this is a monthly subscription at $19.99/month. You can cancel anytime.
-              </p>
-            </div>
-
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
-              <h4 className="text-lg font-bold text-white mb-2">
-                What's your refund policy?
-              </h4>
-              <p className="text-gray-400 mb-3">
-                We offer a 14-day money-back guarantee, no questions asked. You can request a full refund within 14 days of your purchase for any reason.
-              </p>
-              <p className="text-gray-400">
-                To request a refund, please contact <a href="https://www.paddle.com/help" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">Paddle Help Center</a> (our payment processor). See our <Link href="/refund-policy" className="text-blue-400 hover:text-blue-300 underline">Refund Policy</Link> for full details.
-              </p>
-            </div>
-
-            <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
-              <h4 className="text-lg font-bold text-white mb-2">
-                When do I get access after payment?
-              </h4>
-              <p className="text-gray-400">
-                You get immediate access to paid AI analysis content right after successful payment. All content is delivered digitally.
-              </p>
-            </div>
+        <div className="mt-20 max-w-2xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-8">FAQ</h2>
+          <div className="space-y-4">
+            {[
+              {
+                q: 'What counts as a request?',
+                a: 'Each call to any /api/v1/* endpoint (events, sector-signals, market-radar, company, etc.) counts as 1 request.',
+              },
+              {
+                q: 'What happens if I exceed the quota?',
+                a: 'API calls return HTTP 429 until the next billing cycle. Free plan resets daily; paid plans reset monthly.',
+              },
+              {
+                q: 'Is there a free trial for paid plans?',
+                a: 'We offer a 14-day money-back guarantee. Subscribe, evaluate, and request a full refund within 14 days if it\'s not a fit.',
+              },
+              {
+                q: 'What is "delayed data" on the Free plan?',
+                a: 'Free plan data is offset by approximately T+1 business day. Developer and Pro plans deliver signals as they are processed from DART.',
+              },
+              {
+                q: 'What is the data source?',
+                a: 'All signal data is derived from public DART (Data Analysis, Retrieval and Transfer) filings. This is informational only and does not constitute investment advice.',
+              },
+            ].map(({ q, a }) => (
+              <details key={q} className="group bg-gray-900/50 border border-gray-800 rounded-xl p-5">
+                <summary className="text-sm font-semibold text-white cursor-pointer list-none flex justify-between items-center">
+                  {q}
+                  <span className="text-gray-500 group-open:rotate-180 transition-transform">▾</span>
+                </summary>
+                <p className="text-sm text-gray-400 mt-3 leading-relaxed">{a}</p>
+              </details>
+            ))}
           </div>
         </div>
+
+        {/* Legal */}
+        <p className="text-center text-xs text-gray-700 mt-12">
+          This service provides data analytics only. Content is for informational purposes and does not constitute investment advice.
+        </p>
       </section>
 
       <Footer />

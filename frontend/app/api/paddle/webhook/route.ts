@@ -140,10 +140,21 @@ async function resolveUserId(event: any): Promise<string | null> {
 }
 
 // 구독 플랜 ID → plan 문자열 매핑
+// 환경변수 우선: PADDLE_PRICE_ID_PRO, PADDLE_PRICE_ID_DEVELOPER
+// 폴백: price ID 문자열 포함 검사
 function resolvePlan(planId: string): string {
   const id = (planId || '').toLowerCase();
-  if (id.includes('pro')) return 'pro';
+
+  const proPriceId  = (process.env.PADDLE_PRICE_ID_PRO       || '').toLowerCase();
+  const devPriceId  = (process.env.PADDLE_PRICE_ID_DEVELOPER  || '').toLowerCase();
+
+  if (proPriceId  && id === proPriceId)  return 'pro';
+  if (devPriceId  && id === devPriceId)  return 'developer';
+
+  // 폴백: 이름 기반 매칭
+  if (id.includes('pro'))                        return 'pro';
   if (id.includes('developer') || id.includes('dev')) return 'developer';
+
   return 'developer'; // 기본값
 }
 
@@ -255,45 +266,57 @@ async function handleSubscriptionCanceled(event: any) {
 
 // 결제 성공 처리
 async function handlePaymentSucceeded(event: any) {
-  const { subscription_id, amount, currency } = event.data || event;
+  const data = event.data || event;
+  const subscription_id = data.subscription_id || data.id;
+  const amount   = data.amount   || data.total;
+  const currency = data.currency || 'USD';
 
   console.log(`💰 Payment succeeded: ${amount} ${currency} for ${subscription_id}`);
 
+  const userId  = await resolveUserId(event);
   const supabase = getSupabaseClient();
-  // 결제 이력 저장
+
   const { error } = await supabase.from('payments').insert({
+    user_id:                userId,
     paddle_subscription_id: subscription_id,
     amount,
     currency,
-    status: 'succeeded',
-    paid_at: new Date().toISOString(),
+    status:   'succeeded',
+    paid_at:  new Date().toISOString(),
     created_at: new Date().toISOString(),
   });
+  if (error) console.error('❌ Failed to save payment:', error);
 
-  if (error) {
-    console.error('❌ Failed to save payment:', error);
+  // 결제 성공 시 구독 status → active 재확인
+  if (subscription_id) {
+    await supabase
+      .from('subscriptions')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('paddle_subscription_id', subscription_id);
   }
 }
 
 // 결제 실패 처리
 async function handlePaymentFailed(event: any) {
-  const { subscription_id, amount, currency } = event.data || event;
+  const data = event.data || event;
+  const subscription_id = data.subscription_id || data.id;
+  const amount   = data.amount   || data.total;
+  const currency = data.currency || 'USD';
 
   console.log(`❌ Payment failed: ${amount} ${currency} for ${subscription_id}`);
 
+  const userId  = await resolveUserId(event);
   const supabase = getSupabaseClient();
-  // 결제 실패 이력 저장
+
   const { error } = await supabase.from('payments').insert({
+    user_id:                userId,
     paddle_subscription_id: subscription_id,
     amount,
     currency,
     status: 'failed',
     created_at: new Date().toISOString(),
   });
-
-  if (error) {
-    console.error('❌ Failed to save payment failure:', error);
-  }
+  if (error) console.error('❌ Failed to save payment failure:', error);
 
   // 구독 상태를 past_due로 변경
   const { error: subscriptionError } = await supabase

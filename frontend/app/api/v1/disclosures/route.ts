@@ -13,6 +13,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveApiKey, checkPlan, PLAN_HISTORY_DAYS } from '@/lib/v1/auth'
 import { makeCacheKey, cacheGet, cacheSet, TTL_DISCLOSURES } from '@/lib/v1/cache'
+import { checkRateLimit } from '@/lib/v1/rateLimit'
+import { logApiCall } from '@/lib/v1/usage'
+import { formatResponse } from '@/lib/v1/format'
 import { createServiceClient } from '@/lib/supabase/server'
 
 const DEV_COLUMNS =
@@ -32,6 +35,11 @@ export async function GET(req: NextRequest) {
 
   const planError = checkPlan(user, ['developer', 'pro'])
   if (planError) return planError
+
+  const rateLimitError = await checkRateLimit(user.id, user.plan)
+  if (rateLimitError) return rateLimitError
+
+  const _start = Date.now()
 
   // ── Params ──────────────────────────────────────────────────────────────────
   const p = req.nextUrl.searchParams
@@ -80,7 +88,7 @@ export async function GET(req: NextRequest) {
     stockCode, sentiment, eventType, sortBy, limit,
   })
   const cached = await cacheGet<object>(cacheKey)
-  if (cached) return NextResponse.json(cached)
+  if (cached) return formatResponse(req, cached as Record<string, unknown>)
 
   // ── Supabase ────────────────────────────────────────────────────────────────
   try {
@@ -113,9 +121,12 @@ export async function GET(req: NextRequest) {
     }
 
     await cacheSet(cacheKey, result, TTL_DISCLOSURES)
-    return NextResponse.json(result)
+    const res = formatResponse(req, result)
+    logApiCall({ userId: user.id, plan: user.plan, endpoint: '/api/v1/disclosures', statusCode: 200, latencyMs: Date.now() - _start }).catch(() => {})
+    return res
   } catch (e) {
     console.error('[v1/disclosures] DB error:', e)
-    return NextResponse.json({ error: 'Failed to fetch disclosures.' }, { status: 500 })
+    logApiCall({ userId: user.id, plan: user.plan, endpoint: '/api/v1/disclosures', statusCode: 500, latencyMs: Date.now() - _start }).catch(() => {})
+    return formatResponse(req, { error: 'Failed to fetch disclosures.' }, 500)
   }
 }
