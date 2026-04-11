@@ -16,6 +16,7 @@ import FinancialRatios from '@/components/disclosures/FinancialRatios';
 import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
+import { generateTicker } from '@/lib/generateTicker';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -98,6 +99,7 @@ export async function generateMetadata({
 interface DisclosureRow {
   id: string;
   corp_name: string | null;
+  corp_name_en: string | null;
   stock_code: string | null;
   rcept_dt: string;
   report_nm: string;
@@ -119,7 +121,7 @@ async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
   const { data, error } = await sb
     .from('disclosure_insights')
     .select(
-      'id, corp_name, stock_code, rcept_dt, report_nm, report_nm_en, ' +
+      'id, corp_name, corp_name_en, stock_code, rcept_dt, report_nm, report_nm_en, ' +
       'headline, event_type, sentiment_score, sector, ' +
       'ai_summary, key_numbers, risk_factors, financial_impact, ' +
       'analysis_status, is_visible'
@@ -239,7 +241,7 @@ export default async function DisclosureDetailPage({
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
                 <span className="text-xs font-bold text-gray-300">
-                  {(disclosure.corp_name ?? '').split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
+                  {generateTicker(disclosure.corp_name_en ?? disclosure.corp_name)}
                 </span>
               </div>
               <div>

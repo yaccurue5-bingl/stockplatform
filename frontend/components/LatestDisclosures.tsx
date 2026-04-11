@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { generateTicker } from '@/lib/generateTicker';
 
 interface Disclosure {
   id: string;
@@ -45,10 +46,6 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
     }
   };
 
-  const getCompanyInitials = (name: string) => {
-    if (!name) return '??';
-    return name.substring(0, 2).toUpperCase();
-  };
 
   const getImpactColor = (importance: string) => {
     switch (importance) {
@@ -98,8 +95,8 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
           >
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold ${isCritical ? 'bg-orange-600' : 'bg-blue-700'} text-white`}>
-                  {getCompanyInitials(disclosure.corp_name)}
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xs tracking-tight ${isCritical ? 'bg-orange-600' : 'bg-blue-700'} text-white`}>
+                  {generateTicker(disclosure.corp_name_en)}
                 </div>
                 <div>
                   {/* 영문명 우선, 한글명 아래 배치 */}
