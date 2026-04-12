@@ -68,10 +68,6 @@ export default function PrivacyPage() {
                 <span className="text-blue-400">•</span>
                 <a href="https://dart.fss.or.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">DART (https://dart.fss.or.kr)</a>
               </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                <a href="https://global.krx.co.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">KRX (https://global.krx.co.kr)</a>
-              </li>
             </ul>
           </div>
 

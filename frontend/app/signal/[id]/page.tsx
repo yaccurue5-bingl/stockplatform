@@ -433,7 +433,7 @@ export default async function SignalPage({
               <div>
                 <p className="text-sm font-semibold">{signal.corp_name}</p>
                 {signal.stock_code && (
-                  <p className="text-xs text-gray-500">KRX: {signal.stock_code}</p>
+                  <p className="text-xs text-gray-500">{signal.stock_code}</p>
                 )}
               </div>
             </div>

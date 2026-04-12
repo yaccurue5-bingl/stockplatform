@@ -7,10 +7,10 @@ import type { Paddle } from '@paddle/paddle-js';
 
 const PADDLE_CLIENT_TOKEN = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? '';
 
-// ✅ Paddle 상품 ID — 플랜별 분리 (env에서 주입)
+// ✅ Paddle 상품 ID — 서버 API에서 주입 (PADDLE_PRICE_ID_* 서버 전용 env 사용)
 const PLAN_CONFIG = {
   developer: {
-    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER ?? '',
+    priceId: '', // fetchPriceIds()로 런타임 주입
     name: 'Developer Plan',
     price: '$49',
     period: 'per month',
@@ -28,7 +28,7 @@ const PLAN_CONFIG = {
     badgeClass: 'bg-[#00D4A6] text-[#0B0F14]',
   },
   pro: {
-    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO ?? '',
+    priceId: '', // fetchPriceIds()로 런타임 주입
     name: 'Pro Plan',
     price: '$199',
     period: 'per month',
@@ -64,8 +64,20 @@ export default function PaymentModal({ isOpen, onClose, userEmail, userId, planT
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const paddleInitialized = useRef(false);
+  const [priceIds, setPriceIds] = useState<{ developer: string; pro: string }>({ developer: '', pro: '' });
 
-  const plan = PLAN_CONFIG[planType];
+  // 서버에서 Paddle price ID 가져오기 (PADDLE_PRICE_ID_* 서버 전용 env)
+  useEffect(() => {
+    fetch('/api/paddle/config')
+      .then(r => r.json())
+      .then(data => setPriceIds({ developer: data.developerPriceId, pro: data.proPriceId }))
+      .catch(() => {});
+  }, []);
+
+  const plan = {
+    ...PLAN_CONFIG[planType],
+    priceId: planType === 'developer' ? priceIds.developer : priceIds.pro,
+  };
 
   // Paddle은 최초 1회만 초기화 (re-initialization 방지)
   useEffect(() => {

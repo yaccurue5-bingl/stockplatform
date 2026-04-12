@@ -43,10 +43,6 @@ export default function TermsPage() {
                 <span className="text-blue-400">•</span>
                 <a href="https://dart.fss.or.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">DART (Financial Supervisory Service)</a>
               </li>
-              <li className="flex items-start gap-2">
-                <span className="text-blue-400">•</span>
-                <a href="https://global.krx.co.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">KRX (Korea Exchange)</a>
-              </li>
             </ul>
             <p className="text-blue-200 text-sm italic">
               The Service is provided for informational and educational purposes only and does not constitute investment advice.
