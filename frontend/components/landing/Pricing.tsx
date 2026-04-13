@@ -17,7 +17,7 @@ const plans = [
     period: '/month',
     desc: 'For individual developers and testing',
     highlight: false,
-    cta: 'START FREE',
+    cta: 'Start Free',
     ctaStyle: 'border border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white',
     isPaid: false,
     planKey: null as PlanKey | null,
@@ -32,9 +32,9 @@ const plans = [
     name: 'Developer',
     price: '$49',
     period: '/month',
-    desc: 'For startups, fintech apps, and independent researchers',
+    desc: 'Best for individual investors and developers',
     highlight: true,
-    cta: 'UPGRADE',
+    cta: 'Start Building',
     ctaStyle: 'bg-[#00D4A6] text-[#0B0F14] font-bold hover:bg-[#00bfa0]',
     isPaid: true,
     planKey: 'developer' as PlanKey,
@@ -52,9 +52,9 @@ const plans = [
     name: 'Pro',
     price: '$199',
     period: '/month',
-    desc: 'For funds, trading platforms, and data teams',
+    desc: 'For funds, trading teams, and data platforms',
     highlight: false,
-    cta: 'PRO PLAN',
+    cta: 'Upgrade to Pro',
     ctaStyle: 'border border-[#4EA3FF]/40 text-[#4EA3FF] hover:border-[#4EA3FF] hover:bg-[#4EA3FF]/5',
     isPaid: true,
     planKey: 'pro' as PlanKey,
@@ -110,8 +110,8 @@ export default function Pricing() {
   return (
     <Section className="bg-[#0B0F14]" id="pricing">
       <div className="text-center mb-14">
-        <h2 className="text-3xl font-bold text-white mb-3">Simple Pricing</h2>
-        <p className="text-gray-400">Start free, scale as your usage grows. No hidden fees.</p>
+        <h2 className="text-3xl font-bold text-white mb-3">Access Institutional-Grade Korean Market Intelligence</h2>
+        <p className="text-gray-400">Start free, scale as your edge grows. No hidden fees.</p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 items-stretch">

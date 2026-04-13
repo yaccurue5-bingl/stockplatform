@@ -5,26 +5,26 @@ import { BarChart2, PieChart, Cpu, BookOpen } from 'lucide-react';
 const cases = [
   {
     Icon: BarChart2,
-    title: 'Quant Funds',
-    desc: 'Event-driven alpha signals from structured corporate disclosures and real-time DART feeds.',
+    title: 'Save Hours of Manual Research',
+    desc: 'Stop reading through Korean PDFs. Get structured, English-language summaries of every filing the moment it drops.',
     accent: '#00D4A6',
   },
   {
-    Icon: PieChart,
-    title: 'ETF Providers',
-    desc: 'Sector allocation models powered by 18-sector classification and momentum indicators.',
+    Icon: Cpu,
+    title: 'Catch Critical Events Faster',
+    desc: 'Capital raises, M&A announcements, earnings surprises — flagged and scored before the market fully prices them in.',
     accent: '#4EA3FF',
   },
   {
-    Icon: Cpu,
-    title: 'Fintech Apps',
-    desc: 'Embed live market intelligence APIs directly into your financial applications.',
+    Icon: PieChart,
+    title: 'Understand the Real Impact',
+    desc: 'Not just the headline — investor-focused analysis tells you what it means for the stock, with a clear Buy / Neutral / Sell signal.',
     accent: '#a78bfa',
   },
   {
     Icon: BookOpen,
-    title: 'Research Platforms',
-    desc: 'Access structured event history and sentiment signals for deep-dive corporate analysis.',
+    title: 'Trust the Source',
+    desc: 'Every signal links back to the original DART filing. Raw government data, AI-interpreted for speed and clarity.',
     accent: '#fb923c',
   },
 ];
@@ -33,8 +33,8 @@ export default function UseCases() {
   return (
     <Section className="bg-[#0D1117]" id="use-cases">
       <div className="text-center mb-14">
-        <h2 className="text-3xl font-bold text-white mb-3">Use Cases</h2>
-        <p className="text-gray-400">Trusted by quant funds, fintechs, ETF providers, and research platforms.</p>
+        <h2 className="text-3xl font-bold text-white mb-3">Built for Speed, Clarity, and Edge</h2>
+        <p className="text-gray-400">Everything you need to act on Korean market intelligence — fast.</p>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">

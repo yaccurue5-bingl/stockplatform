@@ -92,8 +92,11 @@ export default async function LiveEvents() {
         <Zap size={16} className="text-[#00D4A6]" />
         <span className="text-xs text-[#00D4A6] font-semibold uppercase tracking-widest">Real-time</span>
       </div>
-      <h2 className="text-3xl font-bold text-white mb-2">Live Corporate Events</h2>
-      <p className="text-gray-400 mb-10">AI-classified signals from DART disclosures, updated in real-time.</p>
+      <h2 className="text-3xl font-bold text-white mb-2">See What You&apos;re Missing</h2>
+      <p className="text-gray-400 mb-2">Real-time signals from official Korean corporate filings.</p>
+      <p className="text-xs text-gray-600 mb-10">
+        Source: Financial Supervisory Service (DART) · Original filings available for verification
+      </p>
 
       <div className="flex flex-col gap-3">
         {displayEvents.map((e) => (
