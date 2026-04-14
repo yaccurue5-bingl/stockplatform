@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import EventLandingPage from '@/components/landing/EventLandingPage';
 import type { EventLandingConfig } from '@/components/landing/EventLandingPage';
+import { fetchEventTableRows } from '@/lib/fetchEventTableRows';
 
 export const metadata: Metadata = {
   title: 'Korea Contract Signals API | K-Market Insight',
@@ -84,15 +85,9 @@ const cfg: EventLandingConfig = {
     },
   ],
 
-  tableTitle: 'Sample Contract Signal Output',
-  tableHeaders: ['Company', 'Date', 'Counterparty Type', 'Deal / Revenue', 'Impact Score', 'Signal'],
-  tableRows: [
-    ['Defense Co A', '2026-03-19', 'Government', '42%', '88', 'BULLISH'],
-    ['Auto Parts B', '2026-03-18', 'Chaebol', '18%', '72', 'BULLISH'],
-    ['IT Services C', '2026-03-17', 'Foreign', '9%', '61', 'BULLISH'],
-    ['Small Mfg D', '2026-03-14', 'Domestic', '3%', '44', '—'],
-    ['Materials Co E', '2026-03-13', 'Government', '27%', '80', 'BULLISH'],
-  ],
+  tableTitle: 'Live Contract Signal Output',
+  tableHeaders: ['Company', 'Date', 'Impact Score', 'Signal'],
+  tableRows: [], // runtime에 실데이터로 교체됨 (Counterparty Type, Deal/Revenue % — deprecated, hidden)
 
   useCases: [
     {
@@ -110,6 +105,7 @@ const cfg: EventLandingConfig = {
   ],
 };
 
-export default function KoreaContractSignalsPage() {
-  return <EventLandingPage cfg={cfg} />;
+export default async function KoreaContractSignalsPage() {
+  const tableRows = await fetchEventTableRows('CONTRACT', 5);
+  return <EventLandingPage cfg={{ ...cfg, tableRows }} />;
 }
