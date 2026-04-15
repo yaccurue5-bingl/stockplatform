@@ -36,7 +36,8 @@ export default function Navbar() {
         .select('plan')
         .eq('id', userId)
         .maybeSingle();
-      const raw = (data?.plan ?? 'free') as string;
+      const row = data as { plan?: string | null } | null;
+      const raw = row?.plan ?? 'free';
       const plan: PlanType = raw === 'pro' ? 'pro' : raw === 'developer' ? 'developer' : 'free';
       setUserPlan(plan);
     } catch {
