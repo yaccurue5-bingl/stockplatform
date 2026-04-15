@@ -859,37 +859,43 @@ export type Database = {
       }
       subscriptions: {
         Row: {
-          cancel_at_period_end: boolean | null
-          created_at: string | null
-          current_period_end: string | null
-          current_period_start: string | null
           id: string
+          user_id: string | null
+          paddle_subscription_id: string | null
+          paddle_customer_id: string | null
+          paddle_plan_id: string | null
           plan_type: string
           status: string
+          next_billing_date: string | null
+          canceled_at: string | null
+          created_at: string | null
           updated_at: string | null
-          user_id: string | null
         }
         Insert: {
-          cancel_at_period_end?: boolean | null
-          created_at?: string | null
-          current_period_end?: string | null
-          current_period_start?: string | null
           id?: string
+          user_id?: string | null
+          paddle_subscription_id?: string | null
+          paddle_customer_id?: string | null
+          paddle_plan_id?: string | null
           plan_type?: string
           status?: string
+          next_billing_date?: string | null
+          canceled_at?: string | null
+          created_at?: string | null
           updated_at?: string | null
-          user_id?: string | null
         }
         Update: {
-          cancel_at_period_end?: boolean | null
-          created_at?: string | null
-          current_period_end?: string | null
-          current_period_start?: string | null
           id?: string
+          user_id?: string | null
+          paddle_subscription_id?: string | null
+          paddle_customer_id?: string | null
+          paddle_plan_id?: string | null
           plan_type?: string
           status?: string
+          next_billing_date?: string | null
+          canceled_at?: string | null
+          created_at?: string | null
           updated_at?: string | null
-          user_id?: string | null
         }
         Relationships: []
       }
