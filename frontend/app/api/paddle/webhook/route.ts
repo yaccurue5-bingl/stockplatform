@@ -169,6 +169,7 @@ function resolvePlan(planId: string): string {
 async function handleSubscriptionCreated(event: any) {
   const data = event.data || event;
   const subscriptionId = data.id || data.subscription_id;
+  const customerId = data.customer_id || null;          // Paddle Customer ID (ctm_xxx)
   const planId = data.items?.[0]?.price?.id || data.subscription_plan_id || '';
   const status = data.status || 'active';
   const nextBillDate = data.next_billed_at || data.next_bill_date || null;
@@ -180,21 +181,22 @@ async function handleSubscriptionCreated(event: any) {
   }
 
   const plan = resolvePlan(planId);
-  console.log(`✅ Subscription created: ${subscriptionId} → user=${userId} plan=${plan}`);
+  console.log(`✅ Subscription created: ${subscriptionId} → user=${userId} plan=${plan} customer=${customerId}`);
 
   const supabase = getSupabaseClient();
 
-  // 1. subscriptions 테이블 upsert
+  // 1. subscriptions 테이블 upsert (paddle_customer_id 포함)
   const { error: subError } = await supabase.from('subscriptions').upsert({
     user_id: userId,
     paddle_subscription_id: subscriptionId,
+    paddle_customer_id: customerId,
     paddle_plan_id: planId,
     plan_type: plan,
     status,
     next_billing_date: nextBillDate,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  });
+  }, { onConflict: 'paddle_subscription_id' });
   if (subError) console.error('❌ subscriptions upsert 실패:', subError);
 
   // 2. users 테이블: plan + subscription_status + api_key 생성
