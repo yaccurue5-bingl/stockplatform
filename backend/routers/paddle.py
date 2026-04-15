@@ -77,6 +77,26 @@ def get_supabase_client():
         return None
 
 
+def _plan_type_from_plan_id(plan_id: str | None) -> str:
+    """Paddle price ID → plan_type 문자열 매핑"""
+    if not plan_id:
+        return "developer"
+    pro_price_id = (
+        os.environ.get("PADDLE_PRICE_ID_PRO")
+        or os.environ.get("NEXT_PUBLIC_PADDLE_PRICE_ID_PRO", "")
+    )
+    dev_price_id = (
+        os.environ.get("PADDLE_PRICE_ID_DEVELOPER")
+        or os.environ.get("NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER", "")
+    )
+    if pro_price_id and plan_id == pro_price_id:
+        return "pro"
+    if dev_price_id and plan_id == dev_price_id:
+        return "developer"
+    # fallback: pro인지 이름으로 추정
+    return "pro" if "pro" in plan_id.lower() else "developer"
+
+
 async def handle_subscription_created(event: dict):
     data = event.get("data", event)
     # custom_data 가 null 로 올 수 있으므로 `or {}` 로 None 방어
@@ -87,23 +107,34 @@ async def handle_subscription_created(event: dict):
     plan_id = data.get("subscription_plan_id") or (items[0].get("price") or {}).get("id")
     status = data.get("status", "active")
     next_bill_date = data.get("next_bill_date") or data.get("next_billed_at")
+    plan_type = _plan_type_from_plan_id(plan_id)
 
-    logger.info("[OK] Subscription created: %s for user %s", subscription_id, user_id)
+    logger.info("[OK] Subscription created: %s for user %s (plan=%s)", subscription_id, user_id, plan_type)
 
     supabase = get_supabase_client()
     if supabase and user_id:
-        supabase.table("subscriptions").upsert({
-            "user_id": user_id,
-            "paddle_subscription_id": subscription_id,
-            "paddle_plan_id": plan_id,
-            "status": status,
-            "next_billing_date": next_bill_date,
-        }).execute()
+        try:
+            supabase.table("subscriptions").upsert(
+                {
+                    "user_id": user_id,
+                    "paddle_subscription_id": subscription_id,
+                    "paddle_plan_id": plan_id,
+                    "plan_type": plan_type,
+                    "status": status,
+                    "next_billing_date": next_bill_date,
+                },
+                on_conflict="paddle_subscription_id",
+            ).execute()
+        except Exception as e:
+            logger.error("[ERROR] subscriptions upsert failed: %s", e)
 
-        supabase.table("users").update({
-            "plan": "pro",
-            "subscription_status": "active",
-        }).eq("id", user_id).execute()
+        try:
+            supabase.table("users").update({
+                "plan": plan_type,
+                "subscription_status": "active",
+            }).eq("id", user_id).execute()
+        except Exception as e:
+            logger.error("[ERROR] users update failed: %s", e)
 
 
 async def handle_subscription_updated(event: dict):
@@ -116,10 +147,13 @@ async def handle_subscription_updated(event: dict):
 
     supabase = get_supabase_client()
     if supabase and subscription_id:
-        supabase.table("subscriptions").update({
-            "status": status,
-            "next_billing_date": next_bill_date,
-        }).eq("paddle_subscription_id", subscription_id).execute()
+        try:
+            supabase.table("subscriptions").update({
+                "status": status,
+                "next_billing_date": next_bill_date,
+            }).eq("paddle_subscription_id", subscription_id).execute()
+        except Exception as e:
+            logger.error("[ERROR] subscriptions update failed: %s", e)
 
 
 async def handle_subscription_canceled(event: dict):
@@ -132,15 +166,18 @@ async def handle_subscription_canceled(event: dict):
 
     supabase = get_supabase_client()
     if supabase:
-        if subscription_id:
-            supabase.table("subscriptions").update({
-                "status": "canceled",
-            }).eq("paddle_subscription_id", subscription_id).execute()
-        if user_id:
-            supabase.table("users").update({
-                "plan": "free",
-                "subscription_status": "canceled",
-            }).eq("id", user_id).execute()
+        try:
+            if subscription_id:
+                supabase.table("subscriptions").update({
+                    "status": "canceled",
+                }).eq("paddle_subscription_id", subscription_id).execute()
+            if user_id:
+                supabase.table("users").update({
+                    "plan": "free",
+                    "subscription_status": "canceled",
+                }).eq("id", user_id).execute()
+        except Exception as e:
+            logger.error("[ERROR] subscription cancel update failed: %s", e)
 
 
 async def handle_payment_succeeded(event: dict):
@@ -153,12 +190,15 @@ async def handle_payment_succeeded(event: dict):
 
     supabase = get_supabase_client()
     if supabase and subscription_id:
-        supabase.table("payments").insert({
-            "paddle_subscription_id": subscription_id,
-            "amount": amount,
-            "currency": currency,
-            "status": "succeeded",
-        }).execute()
+        try:
+            supabase.table("payments").insert({
+                "paddle_subscription_id": subscription_id,
+                "amount": amount,
+                "currency": currency,
+                "status": "succeeded",
+            }).execute()
+        except Exception as e:
+            logger.error("[ERROR] payments insert failed: %s", e)
 
 
 async def handle_payment_failed(event: dict):
@@ -169,9 +209,12 @@ async def handle_payment_failed(event: dict):
 
     supabase = get_supabase_client()
     if supabase and subscription_id:
-        supabase.table("subscriptions").update({
-            "status": "past_due",
-        }).eq("paddle_subscription_id", subscription_id).execute()
+        try:
+            supabase.table("subscriptions").update({
+                "status": "past_due",
+            }).eq("paddle_subscription_id", subscription_id).execute()
+        except Exception as e:
+            logger.error("[ERROR] subscriptions past_due update failed: %s", e)
 
 
 @router.post("/paddle-webhook")

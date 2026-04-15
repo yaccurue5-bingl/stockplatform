@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Section from './ui/Section';
 import Card from './ui/Card';
 import { Zap } from 'lucide-react';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { generateTicker } from '@/lib/generateTicker';
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
@@ -82,7 +82,9 @@ async function fetchLatestEvents() {
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
 
 export default async function LiveEvents() {
-  const events = (await fetchLatestEvents()) ?? FALLBACK_EVENTS;
+  const [events, user] = await Promise.all([fetchLatestEvents(), getUser()]);
+  const isLoggedIn = !!user;
+  const displayEvents = events ?? FALLBACK_EVENTS;
 
   return (
     <Section className="bg-[#0D1117]" id="events">
@@ -90,14 +92,23 @@ export default async function LiveEvents() {
         <Zap size={16} className="text-[#00D4A6]" />
         <span className="text-xs text-[#00D4A6] font-semibold uppercase tracking-widest">Real-time</span>
       </div>
-      <h2 className="text-3xl font-bold text-white mb-2">Live Corporate Events</h2>
-      <p className="text-gray-400 mb-10">AI-classified signals from DART disclosures, updated in real-time.</p>
+      <h2 className="text-3xl font-bold text-white mb-2">See What You&apos;re Missing</h2>
+      <p className="text-gray-400 mb-2">Real-time signals from official Korean corporate filings.</p>
+      <p className="text-xs text-gray-600 mb-10">
+        Source: Financial Supervisory Service (DART) · Original filings available for verification
+      </p>
 
       <div className="flex flex-col gap-3">
-        {events.map((e) => (
+        {displayEvents.map((e) => (
           <Link
             key={e.id || `${e.company}-${e.ticker}`}
-            href={e.id ? `/disclosures/${e.id}` : '/disclosures'}
+            href={
+              isLoggedIn && e.ticker
+                ? `/disclosures?stock=${e.ticker}`
+                : e.id
+                ? `/disclosures/${e.id}`
+                : '/disclosures'
+            }
             className="block"
           >
           <Card hover className="flex items-center justify-between px-6 py-5 cursor-pointer">

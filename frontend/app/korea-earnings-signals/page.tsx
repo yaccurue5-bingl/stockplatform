@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import EventLandingPage from '@/components/landing/EventLandingPage';
 import type { EventLandingConfig } from '@/components/landing/EventLandingPage';
+import { fetchEventTableRows } from '@/lib/fetchEventTableRows';
 
 export const metadata: Metadata = {
   title: 'Korea Earnings Signals API | K-Market Insight',
@@ -84,15 +85,9 @@ const cfg: EventLandingConfig = {
     },
   ],
 
-  tableTitle: 'Sample Earnings Signal Output',
-  tableHeaders: ['Company', 'Date', 'Sentiment', 'Impact Score', 'Signal', 'Event Type'],
-  tableRows: [
-    ['Samsung Electronics', '2026-03-19', 'POSITIVE', '78', 'BULLISH', 'EARNINGS'],
-    ['Kakao Corp', '2026-03-18', 'NEUTRAL', '42', '—', 'EARNINGS'],
-    ['Hyundai Motor', '2026-03-17', 'NEGATIVE', '31', 'BEARISH', 'EARNINGS'],
-    ['NAVER Corp', '2026-03-14', 'POSITIVE', '65', 'BULLISH', 'EARNINGS'],
-    ['LG Electronics', '2026-03-13', 'NEUTRAL', '50', '—', 'EARNINGS'],
-  ],
+  tableTitle: 'Live Earnings Signal Output',
+  tableHeaders: ['Company', 'Date', 'Sentiment', 'Impact Score', 'Signal'],
+  tableRows: [], // runtime에 실데이터로 교체됨
 
   useCases: [
     {
@@ -110,6 +105,7 @@ const cfg: EventLandingConfig = {
   ],
 };
 
-export default function KoreaEarningsSignalsPage() {
-  return <EventLandingPage cfg={cfg} />;
+export default async function KoreaEarningsSignalsPage() {
+  const tableRows = await fetchEventTableRows('EARNINGS', 5);
+  return <EventLandingPage cfg={{ ...cfg, tableRows }} />;
 }

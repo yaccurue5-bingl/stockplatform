@@ -21,8 +21,14 @@ function verifyPaddleWebhook(requestBody: string, signatureHeader: string): bool
   const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    console.warn('⚠️ PADDLE_WEBHOOK_SECRET is not set - skipping verification (sandbox mode)');
-    return true; // 샌드박스 테스트 시 검증 스킵
+    // 라이브 모드에서는 시크릿 없으면 검증 실패 처리
+    const isLocal = process.env.NODE_ENV === 'development';
+    if (isLocal) {
+      console.warn('⚠️ PADDLE_WEBHOOK_SECRET not set — skipping (dev only)');
+      return true;
+    }
+    console.error('❌ PADDLE_WEBHOOK_SECRET is not configured');
+    return false;
   }
 
   try {
@@ -145,14 +151,18 @@ async function resolveUserId(event: any): Promise<string | null> {
 function resolvePlan(planId: string): string {
   const id = (planId || '').toLowerCase();
 
-  const proPriceId  = (process.env.PADDLE_PRICE_ID_PRO       || '').toLowerCase();
-  const devPriceId  = (process.env.PADDLE_PRICE_ID_DEVELOPER  || '').toLowerCase();
+  // PADDLE_PRICE_ID_* (server-only) or NEXT_PUBLIC_PADDLE_PRICE_ID_* (both)
+  const proPriceId  = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO       || '').toLowerCase();
+  const devPriceId  = (process.env.PADDLE_PRICE_ID_DEVELOPER || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER || '').toLowerCase();
+  const testPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test || '').toLowerCase();
 
   if (proPriceId  && id === proPriceId)  return 'pro';
   if (devPriceId  && id === devPriceId)  return 'developer';
+  // test 상품 → developer로 매핑 (users.plan CHECK 제약 준수)
+  if (testPriceId && id === testPriceId) return 'developer';
 
   // 폴백: 이름 기반 매칭
-  if (id.includes('pro'))                        return 'pro';
+  if (id.includes('pro'))                          return 'pro';
   if (id.includes('developer') || id.includes('dev')) return 'developer';
 
   return 'developer'; // 기본값
@@ -162,6 +172,7 @@ function resolvePlan(planId: string): string {
 async function handleSubscriptionCreated(event: any) {
   const data = event.data || event;
   const subscriptionId = data.id || data.subscription_id;
+  const customerId = data.customer_id || null;          // Paddle Customer ID (ctm_xxx)
   const planId = data.items?.[0]?.price?.id || data.subscription_plan_id || '';
   const status = data.status || 'active';
   const nextBillDate = data.next_billed_at || data.next_bill_date || null;
@@ -173,21 +184,22 @@ async function handleSubscriptionCreated(event: any) {
   }
 
   const plan = resolvePlan(planId);
-  console.log(`✅ Subscription created: ${subscriptionId} → user=${userId} plan=${plan}`);
+  console.log(`✅ Subscription created: ${subscriptionId} → user=${userId} plan=${plan} customer=${customerId}`);
 
   const supabase = getSupabaseClient();
 
-  // 1. subscriptions 테이블 upsert
+  // 1. subscriptions 테이블 upsert (paddle_customer_id 포함)
   const { error: subError } = await supabase.from('subscriptions').upsert({
     user_id: userId,
     paddle_subscription_id: subscriptionId,
+    paddle_customer_id: customerId,
     paddle_plan_id: planId,
     plan_type: plan,
     status,
     next_billing_date: nextBillDate,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  });
+  }, { onConflict: 'paddle_subscription_id' });
   if (subError) console.error('❌ subscriptions upsert 실패:', subError);
 
   // 2. users 테이블: plan + subscription_status + api_key 생성

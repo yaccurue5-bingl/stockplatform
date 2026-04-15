@@ -7,9 +7,110 @@ import { isSuperAdmin } from '@/lib/constants';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+// 공시 데이터를 프론트엔드 형식으로 변환
+function transformDisclosure(item: any, corpNameEnMap: Record<string, string>, sectorMap: Record<string, string>, sectorEnMap: Record<string, string>) {
+  const safeString = (value: any, defaultValue: string = ''): string =>
+    value != null ? String(value) : defaultValue;
+
+  const sentimentScore = typeof item.sentiment_score === 'number' ? item.sentiment_score : 0;
+  const sentiment = sentimentScore >= 0.3 ? 'POSITIVE' : sentimentScore <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
+  const impactScore = typeof item.short_term_impact_score === 'number' ? item.short_term_impact_score : 3;
+  const importance = impactScore >= 4 ? 'HIGH' : impactScore >= 2 ? 'MEDIUM' : 'LOW';
+  const corpNameEn = corpNameEnMap[item.stock_code] || null;
+  const sectorKr = sectorMap[item.stock_code] || null;
+  const sectorEn = sectorKr ? (sectorEnMap[sectorKr] || 'Others') : null;
+
+  const KR_REPORT_MAP: Record<string, string> = {
+    '감사보고서': 'Audit Report',
+    '사업보고서': 'Annual Business Report',
+    '반기보고서': 'Semi-Annual Report',
+    '분기보고서': 'Quarterly Report',
+    '주요사항보고서': 'Material Fact Report',
+    '주주총회소집공고': "General Shareholders' Meeting Notice",
+    '임시주주총회소집공고': "Extraordinary Shareholders' Meeting Notice",
+    '공개매수신고서': 'Tender Offer Statement',
+    '자기주식취득결정': 'Treasury Stock Acquisition',
+    '자기주식처분결정': 'Treasury Stock Disposal',
+    '유상증자결정': 'Rights Offering Decision',
+    '무상증자결정': 'Bonus Issue Decision',
+    '전환사채권발행결정': 'Convertible Bond Issuance',
+    '신주인수권부사채권발행결정': 'Bond with Warrant Issuance',
+    '단기차입금변동': 'Short-term Borrowing Change',
+    '영업정지': 'Business Suspension',
+    '합병결정': 'Merger Decision',
+    '분할결정': 'Spin-off Decision',
+    '주식교환결정': 'Stock Swap Decision',
+    '대규모내부거래': 'Large-scale Internal Transaction',
+    '최대주주변경': 'Largest Shareholder Change',
+    '임원ㆍ주요주주특정증권등소유상황보고서': 'Executive/Major Shareholder Holdings Report',
+  };
+  const reportNmKr = item.report_nm || '';
+  const mappedEn = Object.entries(KR_REPORT_MAP).find(([kr]) => reportNmKr.includes(kr))?.[1] || null;
+  const translated = item.report_nm_en || mappedEn;
+
+  return {
+    id: item.id,
+    rcept_no: safeString(item.rcept_no, ''),
+    corp_name: safeString(item.corp_name, 'Unknown'),
+    corp_name_en: corpNameEn,
+    stock_code: safeString(item.stock_code, '000000'),
+    market: safeString(item.market, 'KOSPI'),
+    report_name: translated ?? safeString(item.report_nm, 'Disclosure Report'),
+    report_name_ko: safeString(item.report_nm, ''),
+    summary: safeString(item.ai_summary),
+    sentiment,
+    sentiment_score: sentimentScore,
+    importance,
+    updated_at: safeString(item.updated_at, new Date().toISOString()),
+    sector: sectorKr,
+    sector_en: sectorEn,
+    detailed_analysis: safeString(item.financial_impact || item.ai_summary),
+    risk_factors: item.risk_factors ? [item.risk_factors] : [],
+  };
+}
+
+// 주어진 stock_code 목록에 대한 corp_name_en, sector, sector_en 조회
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function enrichStockCodes(supabase: any, stockCodes: string[]) {
+  let corpNameEnMap: Record<string, string> = {};
+  let sectorMap: Record<string, string> = {};
+  let sectorEnMap: Record<string, string> = {};
+
+  if (stockCodes.length === 0) return { corpNameEnMap, sectorMap, sectorEnMap };
+
+  const [corpData, companiesData] = await Promise.all([
+    supabase.from('dart_corp_codes').select('stock_code, corp_name_en').in('stock_code', stockCodes),
+    supabase.from('companies').select('stock_code, sector').in('stock_code', stockCodes),
+  ]);
+
+  if (corpData.data) {
+    corpData.data.forEach((item: any) => {
+      if (item.corp_name_en) corpNameEnMap[item.stock_code] = item.corp_name_en;
+    });
+  }
+  if (companiesData.data) {
+    companiesData.data.forEach((item: any) => {
+      if (item.sector) sectorMap[item.stock_code] = item.sector;
+    });
+  }
+
+  const uniqueSectors = [...new Set(Object.values(sectorMap).filter(Boolean))];
+  if (uniqueSectors.length > 0) {
+    const { data: sectorsData } = await supabase
+      .from('sectors').select('name, sector_en').in('name', uniqueSectors);
+    if (sectorsData) {
+      sectorsData.forEach((item: any) => {
+        if (item.sector_en) sectorEnMap[item.name] = item.sector_en;
+      });
+    }
+  }
+
+  return { corpNameEnMap, sectorMap, sectorEnMap };
+}
+
 export async function GET(request: Request) {
   try {
-    // ── 세션 검증: 로그인 + 유료 플랜만 허용 ──
+    // ── 세션 검증 ──
     const cookieStore = await cookies();
     const authClient = createServerClient(
       supabaseUrl,
@@ -23,7 +124,6 @@ export async function GET(request: Request) {
     );
 
     const { data: { session } } = await authClient.auth.getSession();
-
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -43,226 +143,96 @@ export async function GET(request: Request) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // URL에서 파라미터 추출
     const { searchParams } = new URL(request.url);
-    const limitParam = searchParams.get('limit');
-    const stockParam = searchParams.get('stock');  // 특정 종목 필터
-    const limit = Math.min(parseInt(limitParam || '50', 10), 500);
+    const stockParam = searchParams.get('stock');
 
-    console.log('🔍 [API] Fetching latest disclosures...', stockParam ? `for stock: ${stockParam}` : '');
+    // ── 특정 종목 조회 (기존 동작 유지) ──
+    if (stockParam) {
+      const { data: rawDisclosures, error } = await supabase
+        .from('disclosure_insights')
+        .select('*')
+        .eq('analysis_status', 'completed')
+        .eq('is_visible', true)
+        .eq('stock_code', stockParam)
+        .order('updated_at', { ascending: false })
+        .limit(50);
 
-    // 스팩/기업인수목적 종목 제외 키워드
+      if (error) return NextResponse.json([]);
+
+      const stockCodes = [...new Set((rawDisclosures || []).map((d: any) => d.stock_code).filter(Boolean))];
+      const { corpNameEnMap, sectorMap, sectorEnMap } = await enrichStockCodes(supabase, stockCodes);
+
+      const transformed = (rawDisclosures || []).map((item: any) =>
+        transformDisclosure(item, corpNameEnMap, sectorMap, sectorEnMap)
+      );
+
+      return NextResponse.json(transformed);
+    }
+
+    // ── 전체 목록 조회: 서버사이드 페이지네이션 ──
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const pageSize = Math.min(50, Math.max(5, parseInt(searchParams.get('pageSize') || '15', 10)));
+
     const SPAC_KEYWORDS = ['스팩', '기업인수목적', '인수목적', 'SPAC'];
 
-    // 쿼리 빌더 시작
-    let query = supabase
+    // Step 1: stock_code + corp_name + updated_at만 가볍게 조회해서 회사 목록 구성
+    // (전체 데이터 없이 가볍게 중복 제거 + 페이지 계산)
+    const { data: allRows, error: allRowsError } = await supabase
+      .from('disclosure_insights')
+      .select('stock_code, corp_name, updated_at')
+      .eq('analysis_status', 'completed')
+      .eq('is_visible', true)
+      .order('updated_at', { ascending: false })
+      .limit(5000);
+
+    if (allRowsError) return NextResponse.json({ disclosures: [], total: 0, page, pageSize, totalPages: 0 });
+
+    // 중복 제거 + SPAC 필터 → 회사 순서 리스트
+    const seen = new Set<string>();
+    const orderedCompanies: string[] = [];
+    for (const row of allRows || []) {
+      if (!row.stock_code) continue;
+      if (SPAC_KEYWORDS.some(kw => (row.corp_name || '').includes(kw))) continue;
+      if (!seen.has(row.stock_code)) {
+        seen.add(row.stock_code);
+        orderedCompanies.push(row.stock_code);
+      }
+    }
+
+    const total = orderedCompanies.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const pageStockCodes = orderedCompanies.slice((page - 1) * pageSize, page * pageSize);
+
+    if (pageStockCodes.length === 0) {
+      return NextResponse.json({ disclosures: [], total, page, pageSize, totalPages });
+    }
+
+    // Step 2: 해당 페이지 회사들의 전체 공시 데이터 조회
+    const { data: rawDisclosures, error: discError } = await supabase
       .from('disclosure_insights')
       .select('*')
       .eq('analysis_status', 'completed')
-      .eq('is_visible', true);
-
-    // 특정 종목 필터 적용
-    if (stockParam) {
-      query = query.eq('stock_code', stockParam);
-      console.log(`🎯 [API] Filtering by stock_code: ${stockParam}`);
-    }
-
-    // 최신 공시 데이터 가져오기
-    const fetchLimit = stockParam ? 50 : Math.min(limit + 50, 550); // 스팩 필터링 여유분 추가
-    const { data: rawDisclosures, error } = await query
+      .eq('is_visible', true)
+      .in('stock_code', pageStockCodes)
       .order('updated_at', { ascending: false })
-      .limit(fetchLimit);
+      .limit(pageSize * 20);
 
-    // 스팩/기업인수목적 종목 필터링 (특정 종목 필터가 없을 때만)
-    const disclosures = stockParam
-      ? (rawDisclosures || [])  // 특정 종목 검색 시 스팩 필터 생략
-      : (rawDisclosures || []).filter((item: any) => {
-          const corpName = item.corp_name || '';
-          return !SPAC_KEYWORDS.some(keyword => corpName.includes(keyword));
-        }).slice(0, limit);
+    if (discError) return NextResponse.json({ disclosures: [], total, page, pageSize, totalPages });
 
-    // 영문 기업명 및 섹터 조회를 위한 stock_code 목록 추출
-    const stockCodes = [...new Set((disclosures || []).map((d: any) => d.stock_code).filter(Boolean))];
+    // Step 3: 메타 데이터 보강 (corp_name_en, sector)
+    const { corpNameEnMap, sectorMap, sectorEnMap } = await enrichStockCodes(supabase, pageStockCodes);
 
-    // dart_corp_codes에서 영문명 조회
-    let corpNameEnMap: Record<string, string> = {};
-    // companies에서 섹터 조회
-    let sectorMap: Record<string, string> = {};
-    // sectors에서 섹터 영문명 조회
-    let sectorEnMap: Record<string, string> = {};
+    // Step 4: 변환
+    const transformed = (rawDisclosures || []).map((item: any) =>
+      transformDisclosure(item, corpNameEnMap, sectorMap, sectorEnMap)
+    );
 
-    if (stockCodes.length > 0) {
-      // 영문 기업명 조회
-      const { data: corpData } = await supabase
-        .from('dart_corp_codes')
-        .select('stock_code, corp_name_en')
-        .in('stock_code', stockCodes);
+    console.log(`✅ [API] Page ${page}/${totalPages} — ${pageStockCodes.length} companies, ${transformed.length} disclosures`);
 
-      if (corpData) {
-        corpData.forEach((item: any) => {
-          if (item.corp_name_en) {
-            corpNameEnMap[item.stock_code] = item.corp_name_en;
-          }
-        });
-      }
+    return NextResponse.json({ disclosures: transformed, total, page, pageSize, totalPages });
 
-      // companies 테이블에서 섹터 조회
-      const { data: companiesData } = await supabase
-        .from('companies')
-        .select('stock_code, sector')
-        .in('stock_code', stockCodes);
-
-      if (companiesData) {
-        companiesData.forEach((item: any) => {
-          if (item.sector) {
-            sectorMap[item.stock_code] = item.sector;
-          }
-        });
-      }
-
-      // 고유 섹터명 추출 후 영문명 조회
-      const uniqueSectors = [...new Set(Object.values(sectorMap).filter(Boolean))];
-      if (uniqueSectors.length > 0) {
-        const { data: sectorsData } = await supabase
-          .from('sectors')
-          .select('name, sector_en')
-          .in('name', uniqueSectors);
-
-        if (sectorsData) {
-          sectorsData.forEach((item: any) => {
-            if (item.sector_en) {
-              sectorEnMap[item.name] = item.sector_en;
-            }
-          });
-        }
-      }
-    }
-
-    if (error) {
-      console.error('❌ [API] Error fetching disclosures:', error);
-      return NextResponse.json([]);
-    }
-
-    console.log(`✅ [API] Found ${disclosures?.length || 0} completed disclosures`);
-
-    // 데이터 구조 로깅 (첫 번째 항목만)
-    if (disclosures && disclosures.length > 0) {
-      const firstItem = disclosures[0];
-      const safeReportNm = firstItem.report_nm || '';
-      console.log('📊 [API] First disclosure raw data:', {
-        id: firstItem.id,
-        corp_name: firstItem.corp_name || 'N/A',
-        stock_code: firstItem.stock_code || 'N/A',
-        report_nm: safeReportNm.substring(0, Math.min(50, safeReportNm.length)),
-        analysis_status: firstItem.analysis_status,
-        sentiment_score: firstItem.sentiment_score ?? 'N/A',
-        short_term_impact_score: firstItem.short_term_impact_score ?? 'N/A',
-        has_ai_summary: !!firstItem.ai_summary,
-        updated_at: firstItem.updated_at || 'N/A',
-      });
-    } else {
-      console.warn('⚠️ [API] No disclosures found with analysis_status=completed');
-    }
-
-    // ✅ 프론트엔드가 기대하는 형식으로 데이터 변환
-    // Groq와 Sonnet 분석 결과를 하나의 객체로 합치기
-    // ⚠️ 모든 필드에 null 안전 처리 적용
-    const transformedDisclosures = (disclosures || []).map((item: any) => {
-      // Null-safe 문자열 추출 헬퍼
-      const safeString = (value: any, defaultValue: string = ''): string => {
-        return value != null ? String(value) : defaultValue;
-      };
-
-      // sentiment_score → sentiment 문자열 파생
-      const sentimentScore = typeof item.sentiment_score === 'number' ? item.sentiment_score : 0;
-      const sentiment = sentimentScore >= 0.3 ? 'POSITIVE' : sentimentScore <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
-
-      // short_term_impact_score → importance 문자열 파생
-      const impactScore = typeof item.short_term_impact_score === 'number' ? item.short_term_impact_score : 3;
-      const importance = impactScore >= 4 ? 'HIGH' : impactScore >= 2 ? 'MEDIUM' : 'LOW';
-
-      const summary = safeString(item.ai_summary);
-
-      // 영문 기업명 조회
-      const corpNameEn = corpNameEnMap[item.stock_code] || null;
-
-      // 섹터 정보 조회
-      const sectorKr = sectorMap[item.stock_code] || null;
-      const sectorEn = sectorKr ? (sectorEnMap[sectorKr] || 'Others') : null;
-
-      // report_nm_en이 없으면 한글 공시 제목 → 영문 매핑으로 fallback
-      const KR_REPORT_MAP: Record<string, string> = {
-        '감사보고서': 'Audit Report',
-        '사업보고서': 'Annual Business Report',
-        '반기보고서': 'Semi-Annual Report',
-        '분기보고서': 'Quarterly Report',
-        '주요사항보고서': 'Material Fact Report',
-        '주주총회소집공고': 'General Shareholders\' Meeting Notice',
-        '임시주주총회소집공고': 'Extraordinary Shareholders\' Meeting Notice',
-        '공개매수신고서': 'Tender Offer Statement',
-        '자기주식취득결정': 'Treasury Stock Acquisition',
-        '자기주식처분결정': 'Treasury Stock Disposal',
-        '유상증자결정': 'Rights Offering Decision',
-        '무상증자결정': 'Bonus Issue Decision',
-        '전환사채권발행결정': 'Convertible Bond Issuance',
-        '신주인수권부사채권발행결정': 'Bond with Warrant Issuance',
-        '단기차입금변동': 'Short-term Borrowing Change',
-        '영업정지': 'Business Suspension',
-        '합병결정': 'Merger Decision',
-        '분할결정': 'Spin-off Decision',
-        '주식교환결정': 'Stock Swap Decision',
-        '대규모내부거래': 'Large-scale Internal Transaction',
-        '최대주주변경': 'Largest Shareholder Change',
-        '임원ㆍ주요주주특정증권등소유상황보고서': 'Executive/Major Shareholder Holdings Report',
-      };
-      const reportNmKr = item.report_nm || '';
-      const mappedEn = Object.entries(KR_REPORT_MAP).find(([kr]) => reportNmKr.includes(kr))?.[1] || null;
-      const translated = item.report_nm_en || mappedEn;
-      const transformed = {
-        id: item.id,
-        rcept_no: safeString(item.rcept_no, ''),
-        corp_name: safeString(item.corp_name, 'Unknown'),
-        corp_name_en: corpNameEn,
-        stock_code: safeString(item.stock_code, '000000'),
-        market: safeString(item.market, 'KOSPI'),
-        report_name: translated ?? safeString(item.report_nm, 'Disclosure Report'),
-        report_name_ko: safeString(item.report_nm, ''),
-        summary: summary,
-        sentiment,
-        sentiment_score: sentimentScore,
-        importance,
-        updated_at: safeString(item.updated_at, new Date().toISOString()),
-
-        // 섹터 정보
-        sector: sectorKr,
-        sector_en: sectorEn,
-
-        // 추가 정보 (상세 페이지용)
-        detailed_analysis: safeString(item.financial_impact || item.ai_summary),
-        risk_factors: item.risk_factors ? [item.risk_factors] : [],
-      };
-
-      return transformed;
-    });
-
-    console.log('📦 [API] Transformed data structure:', {
-      total_count: transformedDisclosures.length,
-      first_item_preview: transformedDisclosures[0] ? {
-        id: transformedDisclosures[0].id,
-        corp_name: transformedDisclosures[0].corp_name,
-        has_summary: !!transformedDisclosures[0].summary,
-        summary_length: (transformedDisclosures[0].summary || '').length,
-        summary_preview: (transformedDisclosures[0].summary || '').substring(0, 100),
-        sentiment: transformedDisclosures[0].sentiment,
-        sentiment_score: transformedDisclosures[0].sentiment_score,
-        importance: transformedDisclosures[0].importance,
-      } : null,
-    });
-
-    return NextResponse.json(transformedDisclosures);
   } catch (error) {
     console.error('❌ [API] Unexpected error:', error);
-    return NextResponse.json([]);
+    return NextResponse.json({ disclosures: [], total: 0, page: 1, pageSize: 15, totalPages: 0 });
   }
 }

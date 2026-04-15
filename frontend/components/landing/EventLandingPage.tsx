@@ -134,7 +134,7 @@ export default function EventLandingPage({ cfg }: { cfg: EventLandingConfig }) {
       <section className="py-20 px-4">
         <div className="max-w-[1200px] mx-auto">
           <h2 className="text-2xl font-bold text-white mb-2">{cfg.tableTitle}</h2>
-          <p className="text-gray-500 text-sm mb-8">Sample structured output from our API</p>
+          <p className="text-gray-500 text-sm mb-8">Live structured output from our API · Updated in real-time</p>
           <div className="overflow-x-auto rounded-xl border border-gray-800">
             <table className="w-full text-sm">
               <thead>

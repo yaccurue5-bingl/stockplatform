@@ -42,8 +42,12 @@ export default function DataProducts() {
   return (
     <Section className="bg-[#0B0F14]" id="datasets">
       <div className="text-center mb-14">
-        <h2 className="text-3xl font-bold text-white mb-3">Data Products</h2>
-        <p className="text-gray-400 max-w-xl mx-auto">Four structured datasets built on Korean market intelligence.</p>
+        <h2 className="text-3xl font-bold text-white mb-3">We Turn Raw Filings into Actionable Signals</h2>
+        <p className="text-gray-400 max-w-2xl mx-auto">
+          K-MarketInsight processes official filings from DART and converts them into clear English summaries,
+          investor-focused impact analysis, and quantified signal strength.
+        </p>
+        <p className="text-[#00D4A6] font-semibold mt-3">Not just summaries — but decision-ready insights.</p>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">

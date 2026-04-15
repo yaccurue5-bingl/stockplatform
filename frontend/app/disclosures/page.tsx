@@ -55,7 +55,13 @@ function DisclosuresContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  // 페이지네이션 상태
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const PAGE_SIZE = 15;
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const isBackNavRef = useRef(false); // Back 버튼 클릭 시 스크롤 복원 플래그
   const searchContainerRef = useRef<HTMLDivElement>(null);
   // popstate / useEffect stale closure 방지용 ref
   const selectedStockRef   = useRef<GroupedStock | null>(null);
@@ -221,6 +227,26 @@ function DisclosuresContent() {
   useEffect(() => { selectedStockRef.current = selectedStock; }, [selectedStock]);
   useEffect(() => { groupedStocksRef.current = groupedStocks; }, [groupedStocks]);
 
+  // Back 버튼 후 목록 뷰로 돌아왔을 때 스크롤 위치 복원
+  useEffect(() => {
+    if (!selectedStock && !loading && isBackNavRef.current) {
+      isBackNavRef.current = false;
+      const pos = savedScrollPosition;
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: pos, behavior: 'instant' });
+      });
+    }
+  }, [selectedStock, loading, savedScrollPosition]);
+
+  // 페이지 변경 시 새 데이터 로드 (목록 뷰에서만)
+  useEffect(() => {
+    if (stockCodeParam === null && !searchQuery && accessAllowed) {
+      fetchDisclosures(undefined, currentPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
+
   // stock 파라미터에 따라 데이터 로드
   // groupedStocksRef 사용으로 stale closure 완전 차단
   // stockCodeParam === null  → ?stock 파라미터 없음 (목록 뷰)
@@ -242,7 +268,7 @@ function DisclosuresContent() {
     } else if (stockCodeParam === null) {
       // null = ?stock 파라미터 자체가 없음 → 목록 뷰
       if (groupedStocksRef.current.length === 0) {
-        fetchDisclosures();
+        fetchDisclosures(undefined, currentPage);
       } else {
         setSelectedStock(null);
         setSelectedDisclosure(null);
@@ -288,10 +314,12 @@ function DisclosuresContent() {
   }, [router, startTransition]);
 
   const navigateBack = useCallback(() => {
+    isBackNavRef.current = true; // 스크롤 복원 트리거
     setSelectedStock(null);
     setSelectedDisclosure(null);
     setStockCodeParam(null);
     setDisclosureParam(null);
+    // currentPage 리셋 안 함 → 이전에 보던 페이지 유지
     startTransition(() => {
       router.back();
     });
@@ -327,32 +355,27 @@ function DisclosuresContent() {
     );
   }
 
-  async function fetchDisclosures(stockCode?: string) {
+  async function fetchDisclosures(stockCode?: string, page: number = 1) {
     try {
-      // stock 파라미터가 있으면 해당 종목만, 없으면 전체
-      const url = stockCode
-        ? `/api/disclosures/latest?stock=${stockCode}&limit=50`
-        : '/api/disclosures/latest?limit=500';
+      setLoading(true);
 
-      console.log(`🔍 [Disclosures] Fetching: ${url}`);
-      const response = await fetch(url);
+      // ── 특정 종목 조회 ──
+      if (stockCode) {
+        const url = `/api/disclosures/latest?stock=${stockCode}`;
+        console.log(`🔍 [Disclosures] Fetching stock: ${url}`);
+        const response = await fetch(url);
+        if (!response.ok) return;
 
-      if (response.ok) {
         const data: Disclosure[] = await response.json();
-        console.log(`✅ [Disclosures] Got ${data.length} disclosures`);
+        console.log(`✅ [Disclosures] Got ${data.length} disclosures for ${stockCode}`);
 
-        // 종목별로 그룹화
         const stockMap = new Map<string, GroupedStock>();
-
         data.forEach((disclosure) => {
           const key = disclosure.stock_code || disclosure.corp_name;
-
           if (stockMap.has(key)) {
             const existing = stockMap.get(key)!;
             existing.disclosures.push(disclosure);
-            if (disclosure.importance === 'HIGH') {
-              existing.hasHighImpact = true;
-            }
+            if (disclosure.importance === 'HIGH') existing.hasHighImpact = true;
           } else {
             stockMap.set(key, {
               stock_code: disclosure.stock_code,
@@ -367,36 +390,66 @@ function DisclosuresContent() {
         });
 
         const grouped = Array.from(stockMap.values());
-
-        // stock 파라미터가 있으면 해당 종목을 바로 선택
-        if (stockCode && grouped.length > 0) {
-          const targetStock = grouped.find(s => s.stock_code === stockCode);
-          if (targetStock) {
-            console.log(`🎯 [Disclosures] Auto-selecting stock: ${stockCode}`);
-            setSelectedStock(targetStock);
-            // disclosure 파라미터가 있으면 해당 공시 선택, 없으면 첫 번째
-            const targetDisclosure = disclosureParam
-              ? targetStock.disclosures.find(d => d.id === disclosureParam)
-              : null;
-            setSelectedDisclosure(targetDisclosure ?? targetStock.disclosures[0] ?? null);
-          }
+        const targetStock = grouped.find(s => s.stock_code === stockCode);
+        if (targetStock) {
+          setSelectedStock(targetStock);
+          const targetDisclosure = disclosureParam
+            ? targetStock.disclosures.find(d => d.id === disclosureParam)
+            : null;
+          setSelectedDisclosure(targetDisclosure ?? targetStock.disclosures[0] ?? null);
         }
 
-        // 특정 종목 조회 시: 전체 목록을 교체하지 않고 해당 종목만 merge
-        if (stockCode) {
-          setGroupedStocks(prev => {
-            const without = prev.filter(s => s.stock_code !== stockCode);
-            return [...without, ...grouped];
-          });
-          setFilteredStocks(prev => {
-            const without = prev.filter(s => s.stock_code !== stockCode);
-            return [...without, ...grouped];
-          });
-        } else {
-          setGroupedStocks(grouped);
-          setFilteredStocks(grouped);
-        }
+        // 해당 종목만 merge
+        setGroupedStocks(prev => {
+          const without = prev.filter(s => s.stock_code !== stockCode);
+          return [...without, ...grouped];
+        });
+        setFilteredStocks(prev => {
+          const without = prev.filter(s => s.stock_code !== stockCode);
+          return [...without, ...grouped];
+        });
+        return;
       }
+
+      // ── 전체 목록 조회 (페이지네이션) ──
+      const url = `/api/disclosures/latest?page=${page}&pageSize=${PAGE_SIZE}`;
+      console.log(`🔍 [Disclosures] Fetching page ${page}: ${url}`);
+      const response = await fetch(url);
+      if (!response.ok) return;
+
+      const result = await response.json();
+      const data: Disclosure[] = result.disclosures ?? [];
+      console.log(`✅ [Disclosures] Got ${data.length} disclosures (page ${page}/${result.totalPages})`);
+
+      // 페이지네이션 상태 업데이트
+      setTotalCount(result.total ?? 0);
+      setTotalPages(result.totalPages ?? 1);
+
+      // 종목별 그룹화
+      const stockMap = new Map<string, GroupedStock>();
+      data.forEach((disclosure) => {
+        const key = disclosure.stock_code || disclosure.corp_name;
+        if (stockMap.has(key)) {
+          const existing = stockMap.get(key)!;
+          existing.disclosures.push(disclosure);
+          if (disclosure.importance === 'HIGH') existing.hasHighImpact = true;
+        } else {
+          stockMap.set(key, {
+            stock_code: disclosure.stock_code,
+            corp_name: disclosure.corp_name,
+            corp_name_en: disclosure.corp_name_en,
+            market: disclosure.market,
+            disclosures: [disclosure],
+            latestImportance: disclosure.importance,
+            hasHighImpact: disclosure.importance === 'HIGH',
+          });
+        }
+      });
+
+      const grouped = Array.from(stockMap.values());
+      setGroupedStocks(grouped);
+      setFilteredStocks(grouped);
+
     } catch (error) {
       console.error('Failed to fetch disclosures:', error);
     } finally {
@@ -488,20 +541,6 @@ function DisclosuresContent() {
                 className="text-gray-400 hover:text-white transition"
               >
                 ← Back
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedStock(null);
-                  setSelectedDisclosure(null);
-                  setStockCodeParam(null);
-                  setDisclosureParam(null);
-                  startTransition(() => {
-                    router.replace('/disclosures');
-                  });
-                }}
-                className="text-blue-400 hover:text-blue-300 text-sm transition"
-              >
-                All Disclosures
               </button>
               <span className="text-lg font-semibold">AI Disclosure Detail</span>
             </div>
@@ -759,7 +798,7 @@ function DisclosuresContent() {
             ) : searchQuery ? (
               `${filteredStocks.length} results for "${searchQuery}"`
             ) : (
-              `${filteredStocks.length} companies with recent announcements`
+              `${totalCount > 0 ? `${totalCount} companies` : `${filteredStocks.length} companies`} with recent announcements`
             )}
           </p>
         </div>
@@ -846,6 +885,66 @@ function DisclosuresContent() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* 페이지네이션 (검색 중이 아닐 때만, 전체 목록 뷰에서만) */}
+        {!searchQuery && !loading && totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1.5 mt-10 pb-4">
+            {/* 이전 버튼 */}
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 rounded-lg text-sm font-medium transition
+                bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white
+                disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              ← Prev
+            </button>
+
+            {/* 페이지 번호들 */}
+            {(() => {
+              const pages: (number | 'ellipsis')[] = [];
+              if (totalPages <= 7) {
+                for (let i = 1; i <= totalPages; i++) pages.push(i);
+              } else {
+                pages.push(1);
+                if (currentPage > 3) pages.push('ellipsis');
+                for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+                  pages.push(i);
+                }
+                if (currentPage < totalPages - 2) pages.push('ellipsis');
+                pages.push(totalPages);
+              }
+              return pages.map((p, idx) =>
+                p === 'ellipsis' ? (
+                  <span key={`e-${idx}`} className="px-2 text-gray-600 text-sm">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    className={`w-9 h-9 rounded-lg text-sm font-medium transition ${
+                      p === currentPage
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              );
+            })()}
+
+            {/* 다음 버튼 */}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 rounded-lg text-sm font-medium transition
+                bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white
+                disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Next →
+            </button>
           </div>
         )}
       </main>

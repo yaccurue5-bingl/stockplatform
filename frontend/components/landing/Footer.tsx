@@ -9,12 +9,12 @@ const cols = [
   {
     title: 'Company',
     links: ['About', 'Blog', 'Contact'],
-    hrefs: ['#', '#', '#'],
+    hrefs: ['#', '#', 'mailto:support@k-marketinsight.com'],
   },
   {
     title: 'Legal',
-    links: ['Terms', 'Privacy'],
-    hrefs: ['/terms', '/privacy'],
+    links: ['Terms', 'Privacy', 'Refund Policy'],
+    hrefs: ['/terms', '/privacy', '/refund-policy'],
   },
 ];
 
@@ -75,7 +75,7 @@ export default function Footer() {
               <a href="https://www.moef.go.kr" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-400">
                 Ministry of Economy and Finance (기획재정부)
               </a>
-              . AI-generated analysis only — raw government data is not redistributed. Not investment advice.
+              . AI-assisted analysis for informational purposes only. Not financial advice.
             </p>
           </div>
         </div>

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
+import { getUser } from '@/lib/supabase/server';
+import TestPlanCard from '@/components/TestPlanCard';
 
 export const metadata: Metadata = {
   title: 'Pricing — K-MarketInsight',
@@ -35,10 +37,10 @@ const PLANS = [
   {
     id:       'developer',
     name:     'Developer',
-    price:    '$29',
+    price:    '$49',
     period:   '/ month',
     badge:    null,
-    quota:    '8,000 requests / month',
+    quota:    '10,000 requests / month',
     color:    'border-[#00D4A6]',
     btnClass: 'bg-[#00D4A6] hover:bg-[#00bfa0] text-black',
     btnLabel: 'Subscribe',
@@ -60,10 +62,10 @@ const PLANS = [
   {
     id:       'pro',
     name:     'Pro',
-    price:    '$99',
+    price:    '$199',
     period:   '/ month',
     badge:    null,
-    quota:    '80,000 requests / month',
+    quota:    '100,000 requests / month',
     color:    'border-purple-500',
     btnClass: 'bg-purple-600 hover:bg-purple-500 text-white',
     btnLabel: 'Subscribe',
@@ -81,7 +83,10 @@ const PLANS = [
   },
 ];
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const hasTestPlan = !!process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test;
+  const user = hasTestPlan ? await getUser() : null;
+
   return (
     <div className="min-h-screen bg-[#0D1117] text-white">
       {/* Header */}
@@ -163,6 +168,14 @@ export default function PricingPage() {
             </div>
           ))}
         </div>
+
+        {/* ⚠️ 테스트 카드 — NEXT_PUBLIC_PADDLE_PRICE_ID_test 있을 때만 표시 */}
+        {hasTestPlan && (
+          <TestPlanCard
+            userEmail={user?.email ?? null}
+            userId={user?.id ?? null}
+          />
+        )}
 
         {/* Comparison note */}
         <p className="text-center text-xs text-gray-600 mt-8">

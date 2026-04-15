@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import EventLandingPage from '@/components/landing/EventLandingPage';
 import type { EventLandingConfig } from '@/components/landing/EventLandingPage';
+import { fetchEventTableRows } from '@/lib/fetchEventTableRows';
 
 export const metadata: Metadata = {
   title: 'Korea Dilution Filings API | K-Market Insight',
@@ -84,15 +85,9 @@ const cfg: EventLandingConfig = {
     },
   ],
 
-  tableTitle: 'Sample Dilution Filing Output',
-  tableHeaders: ['Company', 'Date', 'Type', 'Dilution %', 'Impact Score', 'Signal'],
-  tableRows: [
-    ['BioTech Co A', '2026-03-19', 'CB', '8.2%', '22', 'BEARISH'],
-    ['Small Cap B', '2026-03-18', 'Rights', '15.4%', '18', 'BEARISH'],
-    ['Mid Cap C', '2026-03-17', 'BW', '3.1%', '45', '—'],
-    ['Tech Startup D', '2026-03-14', 'Private', '5.7%', '30', 'BEARISH'],
-    ['Growth Co E', '2026-03-13', 'CB', '2.3%', '55', '—'],
-  ],
+  tableTitle: 'Live Dilution Filing Output',
+  tableHeaders: ['Company', 'Date', 'Type', 'Impact Score', 'Signal'],
+  tableRows: [], // runtime에 실데이터로 교체됨 (Dilution % — deprecated, hidden)
 
   useCases: [
     {
@@ -110,6 +105,7 @@ const cfg: EventLandingConfig = {
   ],
 };
 
-export default function KoreaDilutionFilingsPage() {
-  return <EventLandingPage cfg={cfg} />;
+export default async function KoreaDilutionFilingsPage() {
+  const tableRows = await fetchEventTableRows('DILUTION', 5);
+  return <EventLandingPage cfg={{ ...cfg, tableRows }} />;
 }

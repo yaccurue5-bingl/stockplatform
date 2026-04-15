@@ -1,0 +1,71 @@
+'use client';
+
+import { useState } from 'react';
+import { ExternalLink } from 'lucide-react';
+
+/**
+ * Paddle Customer Portal 버튼 + 취소 링크.
+ * 둘 다 같은 포털 URL을 열고, 포털 안에서 플랜 변경/취소 가능.
+ */
+async function openPortal(
+  setLoading: (v: boolean) => void,
+  setError: (v: string) => void,
+) {
+  setLoading(true);
+  setError('');
+  try {
+    const res = await fetch('/api/subscription/portal', { method: 'POST' });
+    const json = await res.json();
+    if (!res.ok || !json.url) {
+      setError(json.error || 'Failed to open billing portal. Please try again.');
+      return;
+    }
+    window.open(json.url, '_blank', 'noopener,noreferrer');
+  } catch {
+    setError('Network error. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+}
+
+export default function ManageBillingButton() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  return (
+    <div className="flex flex-col items-end gap-2">
+      {/* 기본 버튼: 결제 수단 변경, 인보이스 조회 등 */}
+      <button
+        onClick={() => openPortal(setLoading, setError)}
+        disabled={loading}
+        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-sm text-gray-300 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? (
+          <>
+            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Opening...
+          </>
+        ) : (
+          <>
+            Manage Billing
+            <ExternalLink size={13} />
+          </>
+        )}
+      </button>
+
+      {/* 취소 링크: 같은 포털, 텍스트만 다름 */}
+      <button
+        onClick={() => openPortal(setLoading, setError)}
+        disabled={loading}
+        className="text-xs text-gray-600 hover:text-red-400 transition disabled:opacity-50"
+      >
+        Cancel subscription
+      </button>
+
+      {error && <p className="text-xs text-red-400 text-right">{error}</p>}
+    </div>
+  );
+}

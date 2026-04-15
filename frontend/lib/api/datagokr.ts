@@ -29,6 +29,18 @@ const COMPANY_BASE_URL =
 const DEFAULT_NUM_ROWS = 100;
 const DEFAULT_PAGE_NO = 1;
 const DEFAULT_RESULT_TYPE = 'json';
+const DATAGOKR_TIMEOUT_MS = 15_000; // 15초: data.go.kr은 DART보다 응답이 느림
+
+/** fetch + AbortController 타임아웃 래퍼 */
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = DATAGOKR_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ===== Helper Functions =====
 
@@ -93,14 +105,20 @@ export async function fetchCompanyAffiliates(
 
   try {
     const url = buildUrl(endpoint, queryParams);
-    const response = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      console.warn(`data.go.kr affiliates HTTP ${response.status} — 빈 배열 반환`);
+      return [];
+    }
     const data: DataGoKrResponse<CompanyAffiliateItem> = await response.json();
     if (!isSuccessResponse(data)) return [];
     return parseResponse(data);
   } catch (error) {
-    console.error('Failed to fetch affiliates:', error);
-    throw error;
+    const isTimeout = error instanceof Error && error.name === 'AbortError';
+    console.error(isTimeout
+      ? `⏱ data.go.kr affiliates timeout — 점검 중일 수 있습니다. 빈 배열 반환.`
+      : `data.go.kr affiliates error: ${error}`);
+    return [];
   }
 }
 
@@ -121,14 +139,20 @@ export async function fetchConsSubsCompanies(
 
   try {
     const url = buildUrl(endpoint, queryParams);
-    const response = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      console.warn(`data.go.kr subsidiaries HTTP ${response.status} — 빈 배열 반환`);
+      return [];
+    }
     const data: DataGoKrResponse<ConsSubsCompItem> = await response.json();
     if (!isSuccessResponse(data)) return [];
     return parseResponse(data);
   } catch (error) {
-    console.error('Failed to fetch subsidiaries:', error);
-    throw error;
+    const isTimeout = error instanceof Error && error.name === 'AbortError';
+    console.error(isTimeout
+      ? `⏱ data.go.kr subsidiaries timeout — 점검 중일 수 있습니다. 빈 배열 반환.`
+      : `data.go.kr subsidiaries error: ${error}`);
+    return [];
   }
 }
 
@@ -149,14 +173,20 @@ export async function fetchCorpOutline(
 
   try {
     const url = buildUrl(endpoint, queryParams);
-    const response = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      console.warn(`data.go.kr corp outline HTTP ${response.status} — 빈 배열 반환`);
+      return [];
+    }
     const data: DataGoKrResponse<CorpOutlineItem> = await response.json();
     if (!isSuccessResponse(data)) return [];
     return parseResponse(data);
   } catch (error) {
-    console.error('Failed to fetch company outline:', error);
-    throw error;
+    const isTimeout = error instanceof Error && error.name === 'AbortError';
+    console.error(isTimeout
+      ? `⏱ data.go.kr corp outline timeout — 점검 중일 수 있습니다. 빈 배열 반환.`
+      : `data.go.kr corp outline error: ${error}`);
+    return [];
   }
 }
 

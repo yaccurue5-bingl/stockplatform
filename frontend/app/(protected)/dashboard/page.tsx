@@ -3,6 +3,7 @@ import MarketRadar from '@/components/landing/MarketRadar';
 import { Zap, TrendingUp, FileText, Bell, Clock } from 'lucide-react';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import Link from 'next/link';
+import ManageBillingButton from '@/components/ManageBillingButton';
 
 // 플랜별 월 quota (free는 일 50건)
 const PLAN_QUOTA: Record<string, { monthly: number | null; dailyFree: number | null; label: string }> = {
@@ -17,15 +18,25 @@ export default async function DashboardPage() {
   let plan = 'free';
   let userEmail = '';
 
+  let hasActiveSub = false;
+  let nextBillingDate: string | null = null;
+
   if (user) {
     const sb = createServiceClient();
-    const { data: profile } = await sb
-      .from('users')
-      .select('plan, email')
-      .eq('id', user.id)
-      .single();
-    plan      = (profile?.plan ?? 'free').toLowerCase();
-    userEmail = profile?.email ?? user.email ?? '';
+    const [profileRes, subRes] = await Promise.all([
+      sb.from('users').select('plan, email').eq('id', user.id).single(),
+      sb.from('subscriptions')
+        .select('status, plan_type, next_billing_date')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'past_due'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    plan             = (profileRes.data?.plan ?? 'free').toLowerCase();
+    userEmail        = profileRes.data?.email ?? user.email ?? '';
+    hasActiveSub     = !!subRes.data;
+    nextBillingDate  = subRes.data?.next_billing_date ?? null;
   }
 
   const quota = PLAN_QUOTA[plan] ?? PLAN_QUOTA.free;
@@ -113,6 +124,23 @@ export default async function DashboardPage() {
               </div>
             )}
           </div>
+
+          {/* 구독 관리 (유료 플랜만) */}
+          {hasActiveSub && (
+            <div className="bg-[#0d1117] border border-gray-800 rounded-xl p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white capitalize">{quota.label} Plan</p>
+                  {nextBillingDate && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Next billing: {new Date(nextBillingDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+                <ManageBillingButton />
+              </div>
+            </div>
+          )}
 
           {/* Quick actions */}
           <div className="bg-[#0d1117] border border-gray-800 rounded-xl p-5">

@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
 import type { Paddle } from '@paddle/paddle-js';
 
-const PADDLE_CLIENT_TOKEN = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || 'test_bc7f362776f7ee51f3d70a12ef8';
+const PADDLE_CLIENT_TOKEN = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? '';
+// 'production' | 'sandbox' — env에서 주입, 기본값 production
+const PADDLE_ENV = (process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT ?? 'production') as 'production' | 'sandbox';
 
-// ✅ Paddle 상품 ID — 플랜별 분리
+// ✅ Paddle 상품 ID — NEXT_PUBLIC_PADDLE_PRICE_ID_* env에서 주입
 const PLAN_CONFIG = {
   developer: {
-    priceId: 'pri_01kkr1y9x2m1vj7jkxgser2k5c',
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER ?? '',
     name: 'Developer Plan',
     price: '$49',
     period: 'per month',
@@ -28,7 +30,7 @@ const PLAN_CONFIG = {
     badgeClass: 'bg-[#00D4A6] text-[#0B0F14]',
   },
   pro: {
-    priceId: 'pri_01kk8jf8118g3s9d2ajqk7pbbe',
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO ?? '',
     name: 'Pro Plan',
     price: '$199',
     period: 'per month',
@@ -44,6 +46,22 @@ const PLAN_CONFIG = {
     buttonLabel: 'Subscribe — $199/month',
     badgeLabel: 'PRO',
     badgeClass: 'bg-[#4EA3FF] text-white',
+  },
+  // ⚠️ 테스트 전용 — 실제 서비스에서는 노출 안 함
+  test: {
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test ?? '',
+    name: '[TEST] $1 Checkout',
+    price: '$1',
+    period: 'one-time test',
+    desc: 'Live payment integration test only',
+    features: [
+      'Webhook → DB 연동 확인용',
+      'subscription.created 발생',
+      'Developer 플랜과 동일하게 처리',
+    ],
+    buttonLabel: 'Pay $1 (Test)',
+    badgeLabel: 'TEST',
+    badgeClass: 'bg-yellow-400 text-black',
   },
 } as const;
 
@@ -74,7 +92,7 @@ export default function PaymentModal({ isOpen, onClose, userEmail, userId, planT
 
     import('@paddle/paddle-js').then(({ initializePaddle }) => {
       initializePaddle({
-        environment: 'sandbox',
+        environment: PADDLE_ENV,
         token: PADDLE_CLIENT_TOKEN,
         eventCallback: (event) => {
           if (event.name === 'checkout.completed') {

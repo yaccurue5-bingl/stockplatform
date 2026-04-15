@@ -13,12 +13,36 @@ const navItems = [
   { label: 'Company',  href: '#'          },
 ];
 
+type PlanType = 'free' | 'developer' | 'pro';
+
+const PLAN_CONFIG: Record<PlanType, { label: string; initial: string; ring: string; text: string; bg: string }> = {
+  free:      { label: 'FREE',  initial: 'F', ring: 'border-gray-500',     text: 'text-gray-400',      bg: 'bg-gray-500' },
+  developer: { label: 'DEV',   initial: 'D', ring: 'border-blue-400',     text: 'text-blue-400',      bg: 'bg-blue-400' },
+  pro:       { label: 'PRO',   initial: 'P', ring: 'border-[#00D4A6]',    text: 'text-[#00D4A6]',     bg: 'bg-[#00D4A6]' },
+};
+
 export default function Navbar() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userPlan, setUserPlan] = useState<PlanType>('free');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const fetchUserPlan = async (userId: string) => {
+    try {
+      const supabase = getSupabase();
+      const { data } = await supabase
+        .from('users')
+        .select('plan')
+        .eq('id', userId)
+        .maybeSingle();
+      const raw = (data?.plan ?? 'free') as string;
+      const plan: PlanType = raw === 'pro' ? 'pro' : raw === 'developer' ? 'developer' : 'free';
+      setUserPlan(plan);
+    } catch {
+      setUserPlan('free');
+    }
+  };
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -27,14 +51,18 @@ export default function Navbar() {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         setIsLoggedIn(true);
-        setUserEmail(data.user.email ?? null);
+        fetchUserPlan(data.user.id);
       }
     });
 
     // 로그인/아웃 변화 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session?.user);
-      setUserEmail(session?.user?.email ?? null);
+      if (session?.user) {
+        fetchUserPlan(session.user.id);
+      } else {
+        setUserPlan('free');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -48,8 +76,7 @@ export default function Navbar() {
     router.push('/');
   };
 
-  // 이메일 앞부분만 표시 (예: user@example.com → user)
-  const displayName = userEmail ? userEmail.split('@')[0] : '';
+  const plan = PLAN_CONFIG[userPlan];
 
   return (
     <nav className="sticky top-0 z-50 bg-[#0B0F14]/95 backdrop-blur border-b border-gray-800">
@@ -82,12 +109,12 @@ export default function Navbar() {
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500"
+                className={`flex items-center gap-2 text-sm transition px-3 py-1.5 rounded-lg border hover:border-gray-500 ${plan.ring} hover:opacity-90`}
               >
-                <div className="w-6 h-6 rounded-full bg-[#00D4A6] flex items-center justify-center">
-                  <span className="text-[#0B0F14] font-bold text-xs">{displayName.charAt(0).toUpperCase()}</span>
+                <div className={`w-6 h-6 rounded-full ${plan.bg} flex items-center justify-center shrink-0`}>
+                  <span className="text-[#0B0F14] font-bold text-xs">{plan.initial}</span>
                 </div>
-                <span className="max-w-[100px] truncate">{displayName}</span>
+                <span className={`font-semibold text-xs tracking-wider ${plan.text}`}>{plan.label}</span>
                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -161,7 +188,17 @@ export default function Navbar() {
                 <Link
                   href="/dashboard"
                   onClick={() => setMobileOpen(false)}
-                  className="text-sm text-gray-300 hover:text-white px-3 py-2 border border-gray-700 rounded-lg"
+                  className={`flex items-center gap-2 text-sm px-3 py-2 border rounded-lg ${plan.ring} ${plan.text}`}
+                >
+                  <div className={`w-5 h-5 rounded-full ${plan.bg} flex items-center justify-center shrink-0`}>
+                    <span className="text-[#0B0F14] font-bold text-xs">{plan.initial}</span>
+                  </div>
+                  <span className="font-semibold tracking-wider text-xs">{plan.label}</span>
+                </Link>
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileOpen(false)}
+                  className="text-sm text-gray-300 hover:text-white px-3 py-2"
                 >
                   Dashboard
                 </Link>
