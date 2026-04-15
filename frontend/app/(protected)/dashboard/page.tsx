@@ -36,7 +36,8 @@ export default async function DashboardPage() {
     plan             = (profileRes.data?.plan ?? 'free').toLowerCase();
     userEmail        = profileRes.data?.email ?? user.email ?? '';
     hasActiveSub     = !!subRes.data;
-    nextBillingDate  = subRes.data?.next_billing_date ?? null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    nextBillingDate  = (subRes.data as any)?.next_billing_date ?? null;
   }
 
   const quota = PLAN_QUOTA[plan] ?? PLAN_QUOTA.free;
