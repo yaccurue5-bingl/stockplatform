@@ -27,6 +27,7 @@ URL: https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getSt
 import os
 import sys
 import argparse
+import time
 import requests
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -51,9 +52,11 @@ load_env()
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 
-ENDPOINT   = "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo"
-BATCH_SIZE = 100
-PAGE_SIZE  = 1000
+ENDPOINT      = "https://apis.data.go.kr/1160100/service/GetStockSecuritiesInfoService/getStockPriceInfo"
+BATCH_SIZE    = 100
+PAGE_SIZE     = 1000
+MAX_RETRIES   = 3    # 점검/일시 오류 시 재시도 횟수
+RETRY_BACKOFF = 5    # 재시도 간 대기 초 (5 → 10 → 20초 지수 증가)
 
 
 def get_target_business_day(ref: datetime = None) -> str:
@@ -96,8 +99,47 @@ def fetch_page(service_key: str, bas_dt: str, page_no: int) -> dict:
     return resp.json()
 
 
+def fetch_page_with_retry(service_key: str, bas_dt: str, page_no: int) -> dict | None:
+    """재시도 로직 포함 페이지 호출. 점검/일시 장애 시 None 반환."""
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            return fetch_page(service_key, bas_dt, page_no)
+        except requests.exceptions.ConnectionError as e:
+            wait = RETRY_BACKOFF * (2 ** (attempt - 1))
+            print(f"\n[WARN] 네트워크 연결 실패 (시도 {attempt}/{MAX_RETRIES}): {e}")
+            if attempt < MAX_RETRIES:
+                print(f"  {wait}초 후 재시도...")
+                time.sleep(wait)
+            else:
+                print("[ERROR] 최대 재시도 초과 — API 점검 중일 수 있습니다. 빈 결과 반환.")
+                return None
+        except requests.exceptions.HTTPError as e:
+            status = e.response.status_code if e.response is not None else "?"
+            # 503 Service Unavailable: 점검 중 → 재시도
+            if status in (429, 500, 502, 503, 504):
+                wait = RETRY_BACKOFF * (2 ** (attempt - 1))
+                print(f"\n[WARN] HTTP {status} (시도 {attempt}/{MAX_RETRIES}). {wait}초 후 재시도...")
+                if attempt < MAX_RETRIES:
+                    time.sleep(wait)
+                else:
+                    print("[ERROR] 최대 재시도 초과 — 빈 결과 반환.")
+                    return None
+            else:
+                print(f"\n[ERROR] HTTP {status} — 재시도 불가 오류. 빈 결과 반환.")
+                return None
+        except requests.exceptions.Timeout:
+            wait = RETRY_BACKOFF * (2 ** (attempt - 1))
+            print(f"\n[WARN] 타임아웃 (시도 {attempt}/{MAX_RETRIES}). {wait}초 후 재시도...")
+            if attempt < MAX_RETRIES:
+                time.sleep(wait)
+            else:
+                print("[ERROR] 최대 재시도 초과 — 빈 결과 반환.")
+                return None
+    return None
+
+
 def fetch_all(service_key: str, bas_dt: str) -> list[dict]:
-    """전체 페이지 순회하여 모든 종목 수집"""
+    """전체 페이지 순회하여 모든 종목 수집. 오류 시 수집된 데이터 그대로 반환."""
     all_items = []
     page_no = 1
 
@@ -105,14 +147,10 @@ def fetch_all(service_key: str, bas_dt: str) -> list[dict]:
 
     while True:
         print(f"  페이지 {page_no} 조회중...", end=" ", flush=True)
-        try:
-            data = fetch_page(service_key, bas_dt, page_no)
-        except requests.exceptions.ConnectionError:
-            print("\n[ERROR] 네트워크 연결 실패. 인터넷 연결을 확인하세요.")
-            sys.exit(1)
-        except requests.exceptions.HTTPError as e:
-            print(f"\n[ERROR] HTTP 오류: {e}")
-            sys.exit(1)
+        data = fetch_page_with_retry(service_key, bas_dt, page_no)
+        if data is None:
+            print(f"[WARN] 페이지 {page_no} 조회 실패. 지금까지 수집된 {len(all_items)}건으로 계속 진행.")
+            break
 
         header = data.get("response", {}).get("header", {})
         result_code = header.get("resultCode", "")

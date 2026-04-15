@@ -7,6 +7,19 @@
 
 const DART_API_URL = 'https://opendart.fss.or.kr/api';
 
+const DART_TIMEOUT_MS = 12_000; // 12초: 점검/지연 시 빠르게 fallback
+
+/** fetch + AbortController 타임아웃 래퍼 */
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = DART_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // 중요 공시 키워드 (실시간 처리 대상)
 const IMPORTANT_KEYWORDS = [
   '대규모',
@@ -78,20 +91,20 @@ export async function fetchRecentDisclosures(
   });
 
   try {
-    const response = await fetch(`${url}?${params}`, {
-      headers: {
-        'Accept': 'application/json',
-      },
+    const response = await fetchWithTimeout(`${url}?${params}`, {
+      headers: { 'Accept': 'application/json' },
     });
 
     if (!response.ok) {
-      throw new Error(`DART API error: ${response.status}`);
+      console.error(`DART API HTTP error: ${response.status}`);
+      return [];
     }
 
     const data = await response.json();
 
     if (data.status !== '000') {
-      console.error('DART API error:', data.message);
+      // status 010: 없는 날짜, 020: 시스템 점검 등
+      console.warn(`DART API status ${data.status}: ${data.message}`);
       return [];
     }
 
@@ -106,8 +119,11 @@ export async function fetchRecentDisclosures(
 
     return disclosures;
   } catch (error) {
-    console.error('❌ Failed to fetch DART disclosures:', error);
-    throw error;
+    const isTimeout = error instanceof Error && error.name === 'AbortError';
+    console.error(isTimeout
+      ? `⏱ DART API timeout (>${DART_TIMEOUT_MS / 1000}s) — 점검 중일 수 있습니다. 빈 배열 반환.`
+      : `❌ Failed to fetch DART disclosures: ${error}`);
+    return []; // 점검/장애 시 빈 배열로 graceful fallback
   }
 }
 
@@ -142,10 +158,11 @@ export async function fetchDisclosureDetail(rcept_no: string): Promise<DartDiscl
   });
 
   try {
-    const response = await fetch(`${url}?${params}`);
+    const response = await fetchWithTimeout(`${url}?${params}`, {}, 15_000); // 문서 다운로드 15초
 
     if (!response.ok) {
-      throw new Error(`DART API error: ${response.status}`);
+      console.error(`DART document API HTTP error: ${response.status} for ${rcept_no}`);
+      return null;
     }
 
     const xmlContent = await response.text();
@@ -161,7 +178,10 @@ export async function fetchDisclosureDetail(rcept_no: string): Promise<DartDiscl
       content: textContent,
     };
   } catch (error) {
-    console.error(`❌ Failed to fetch disclosure detail (${rcept_no}):`, error);
+    const isTimeout = error instanceof Error && error.name === 'AbortError';
+    console.error(isTimeout
+      ? `⏱ DART document API timeout for ${rcept_no} — null 반환.`
+      : `❌ Failed to fetch disclosure detail (${rcept_no}): ${error}`);
     return null;
   }
 }
