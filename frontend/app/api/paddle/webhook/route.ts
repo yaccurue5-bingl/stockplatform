@@ -240,22 +240,45 @@ async function handleSubscriptionCreated(event: any) {
 
 // 구독 업데이트 처리
 async function handleSubscriptionUpdated(event: any) {
-  const { subscription_id, status, next_bill_date } = event.data || event;
+  const data = event.data || event;
+  const subscriptionId = data.id || data.subscription_id;
+  const status        = data.status;
+  const nextBillDate  = data.next_billed_at || data.next_bill_date || null;
+  const newPlanId     = data.items?.[0]?.price?.id || data.subscription_plan_id || '';
 
-  console.log(`🔄 Subscription updated: ${subscription_id} -> ${status}`);
+  console.log(`🔄 Subscription updated: ${subscriptionId} -> status=${status} planId=${newPlanId}`);
 
   const supabase = getSupabaseClient();
+
+  // 1. subscriptions 테이블 업데이트
+  const newPlan = newPlanId ? resolvePlan(newPlanId) : null;
   const { error } = await supabase
     .from('subscriptions')
     .update({
       status,
-      next_billing_date: next_bill_date,
+      next_billing_date: nextBillDate,
+      ...(newPlan ? { plan_type: newPlan } : {}),
       updated_at: new Date().toISOString(),
     })
-    .eq('paddle_subscription_id', subscription_id);
+    .eq('paddle_subscription_id', subscriptionId);
 
-  if (error) {
-    console.error('❌ Failed to update subscription:', error);
+  if (error) console.error('❌ Failed to update subscription:', error);
+
+  // 2. 플랜이 변경됐으면 users.plan 도 동기화
+  if (newPlan) {
+    const userId = await resolveUserId(event);
+    if (userId) {
+      const { error: userError } = await supabase
+        .from('users')
+        .update({
+          plan: newPlan,
+          subscription_status: status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+      if (userError) console.error('❌ users plan 업데이트 실패:', userError);
+      else console.log(`✅ users.plan → ${newPlan} (user=${userId})`);
+    }
   }
 }
 

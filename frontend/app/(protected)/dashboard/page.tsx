@@ -54,6 +54,11 @@ export default async function DashboardPage() {
   const resetDate    = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const resetLabel   = resetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
+  // 남은 일수 계산
+  const daysRemaining = nextBillingDate
+    ? Math.max(0, Math.ceil((new Date(nextBillingDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+    : null;
+
   const stats = [
     { label: 'API Calls Today',   value: '—',          sub: 'Usage tracking coming soon',  color: '#00D4A6' },
     { label: 'Monthly Usage',     value: '—',           sub: `Limit: ${limitLabel}`,        color: '#4EA3FF' },
@@ -134,11 +139,31 @@ export default async function DashboardPage() {
                   {nextBillingDate && (
                     <p className="text-xs text-gray-500 mt-1">
                       Next billing: {new Date(nextBillingDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {daysRemaining !== null && (
+                        <span className={`ml-2 font-semibold ${daysRemaining <= 3 ? 'text-red-400' : 'text-[#00D4A6]'}`}>
+                          (D-{daysRemaining})
+                        </span>
+                      )}
                     </p>
                   )}
                 </div>
                 <ManageBillingButton />
               </div>
+              {/* 남은 기간 프로그레스바 */}
+              {daysRemaining !== null && (
+                <div className="mt-3">
+                  <div className="flex justify-between text-[11px] text-gray-600 mb-1">
+                    <span>{daysRemaining}일 남음</span>
+                    <span>30일 기준</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${daysRemaining <= 3 ? 'bg-red-400' : 'bg-[#00D4A6]'}`}
+                      style={{ width: `${Math.min(100, Math.round((daysRemaining / 30) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
