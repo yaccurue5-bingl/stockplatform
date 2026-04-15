@@ -73,9 +73,14 @@ export async function POST(_req: NextRequest) {
     }
 
     const paddleData = await paddleRes.json();
-    // Paddle 응답: { data: { urls: { customer_portal: "https://..." } } }
+    console.log('Paddle portal response:', JSON.stringify(paddleData));
+
+    // Paddle Billing v2 실제 응답 구조:
+    // { data: { urls: { general: { overview: "https://..." }, subscriptions: [...] } } }
     const portalUrl: string | undefined =
-      paddleData?.data?.urls?.customer_portal;
+      paddleData?.data?.urls?.general?.overview      // v2 실제 경로
+      ?? paddleData?.data?.urls?.customer_portal      // 구버전 fallback
+      ?? paddleData?.data?.url;                       // 기타 fallback
 
     if (!portalUrl) {
       console.error('Unexpected Paddle portal response:', JSON.stringify(paddleData));

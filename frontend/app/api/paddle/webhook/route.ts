@@ -172,15 +172,30 @@ function resolvePlan(planId: string): string {
 async function handleSubscriptionCreated(event: any) {
   const data = event.data || event;
   const subscriptionId = data.id || data.subscription_id;
-  // Paddle v2: customer_id 위치 여러 경로 체크
-  const customerId = data.customer_id || data.customer?.id || null;
   const planId = data.items?.[0]?.price?.id || data.subscription_plan_id || '';
   const status = data.status || 'active';
   const nextBillDate = data.next_billed_at || data.next_bill_date || null;
 
-  // 디버그: 실제 payload 구조 로깅
-  console.log('📦 subscription.created payload keys:', Object.keys(data));
-  console.log('📦 customer_id:', customerId, '| customer obj:', JSON.stringify(data.customer ?? null));
+  // Paddle v2: ctm_xxx 형식 customer_id 여러 경로에서 추출
+  const rawCustomerId =
+    data.customer_id ||        // 표준 위치
+    data.customer?.id ||       // 중첩 객체
+    null;
+  // ctm_xxx 형식만 유효한 customer ID로 인정
+  const customerId = typeof rawCustomerId === 'string' && rawCustomerId.startsWith('ctm_')
+    ? rawCustomerId
+    : null;
+
+  // 디버그: 실제 payload 구조 로깅 (customer_id 미확인 시)
+  if (!customerId) {
+    console.warn('⚠️ customer_id 미추출 — payload 확인:', JSON.stringify({
+      customer_id: data.customer_id,
+      customer: data.customer,
+      keys: Object.keys(data),
+    }));
+  } else {
+    console.log('✅ customer_id 추출 성공:', customerId);
+  }
 
   const userId = await resolveUserId(event);
   if (!userId) {
