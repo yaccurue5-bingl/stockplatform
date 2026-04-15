@@ -4,8 +4,8 @@ import Link from 'next/link';
 
 const PLAN_QUOTA: Record<string, { window: 'daily' | 'monthly'; limit: number; label: string }> = {
   free:      { window: 'daily',   limit: 50,     label: 'Free' },
-  developer: { window: 'monthly', limit: 8_000,  label: 'Developer' },
-  pro:       { window: 'monthly', limit: 80_000, label: 'Pro' },
+  developer: { window: 'monthly', limit: 10_000,  label: 'Developer' },
+  pro:       { window: 'monthly', limit: 100_000, label: 'Pro' },
 };
 
 function fmtNum(n: number) {
@@ -146,7 +146,7 @@ export default async function UsagePage() {
             <p className="text-xs text-gray-600">
               {plan === 'free'
                 ? 'Upgrade for higher limits and real-time signals'
-                : 'Upgrade to Pro for 80,000 req/month + bulk endpoints'}
+                : 'Upgrade to Pro for 100,000 req/month + bulk endpoints'}
             </p>
             <Link
               href="/pricing"
