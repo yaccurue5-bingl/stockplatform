@@ -172,10 +172,15 @@ function resolvePlan(planId: string): string {
 async function handleSubscriptionCreated(event: any) {
   const data = event.data || event;
   const subscriptionId = data.id || data.subscription_id;
-  const customerId = data.customer_id || null;          // Paddle Customer ID (ctm_xxx)
+  // Paddle v2: customer_id 위치 여러 경로 체크
+  const customerId = data.customer_id || data.customer?.id || null;
   const planId = data.items?.[0]?.price?.id || data.subscription_plan_id || '';
   const status = data.status || 'active';
   const nextBillDate = data.next_billed_at || data.next_bill_date || null;
+
+  // 디버그: 실제 payload 구조 로깅
+  console.log('📦 subscription.created payload keys:', Object.keys(data));
+  console.log('📦 customer_id:', customerId, '| customer obj:', JSON.stringify(data.customer ?? null));
 
   const userId = await resolveUserId(event);
   if (!userId) {
