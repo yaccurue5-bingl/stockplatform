@@ -6,6 +6,8 @@ import { Check } from 'lucide-react';
 import type { Paddle } from '@paddle/paddle-js';
 
 const PADDLE_CLIENT_TOKEN = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? '';
+// 'production' | 'sandbox' — env에서 주입, 기본값 production
+const PADDLE_ENV = (process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT ?? 'production') as 'production' | 'sandbox';
 
 // ✅ Paddle 상품 ID — NEXT_PUBLIC_PADDLE_PRICE_ID_* env에서 주입
 const PLAN_CONFIG = {
@@ -74,7 +76,7 @@ export default function PaymentModal({ isOpen, onClose, userEmail, userId, planT
 
     import('@paddle/paddle-js').then(({ initializePaddle }) => {
       initializePaddle({
-        environment: 'sandbox',
+        environment: PADDLE_ENV,
         token: PADDLE_CLIENT_TOKEN,
         eventCallback: (event) => {
           if (event.name === 'checkout.completed') {

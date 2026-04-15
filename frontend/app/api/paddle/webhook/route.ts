@@ -21,8 +21,14 @@ function verifyPaddleWebhook(requestBody: string, signatureHeader: string): bool
   const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    console.warn('⚠️ PADDLE_WEBHOOK_SECRET is not set - skipping verification (sandbox mode)');
-    return true; // 샌드박스 테스트 시 검증 스킵
+    // 라이브 모드에서는 시크릿 없으면 검증 실패 처리
+    const isLocal = process.env.NODE_ENV === 'development';
+    if (isLocal) {
+      console.warn('⚠️ PADDLE_WEBHOOK_SECRET not set — skipping (dev only)');
+      return true;
+    }
+    console.error('❌ PADDLE_WEBHOOK_SECRET is not configured');
+    return false;
   }
 
   try {
@@ -145,8 +151,9 @@ async function resolveUserId(event: any): Promise<string | null> {
 function resolvePlan(planId: string): string {
   const id = (planId || '').toLowerCase();
 
-  const proPriceId  = (process.env.PADDLE_PRICE_ID_PRO       || '').toLowerCase();
-  const devPriceId  = (process.env.PADDLE_PRICE_ID_DEVELOPER  || '').toLowerCase();
+  // PADDLE_PRICE_ID_* (server-only) or NEXT_PUBLIC_PADDLE_PRICE_ID_* (both)
+  const proPriceId  = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO       || '').toLowerCase();
+  const devPriceId  = (process.env.PADDLE_PRICE_ID_DEVELOPER || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER || '').toLowerCase();
 
   if (proPriceId  && id === proPriceId)  return 'pro';
   if (devPriceId  && id === devPriceId)  return 'developer';
