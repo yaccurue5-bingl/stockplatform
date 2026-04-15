@@ -4,38 +4,39 @@ import { useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 
 /**
- * Paddle Customer Portal 로 이동하는 버튼.
- * 클릭 → /api/subscription/portal 호출 → 1회용 URL → 새 탭
+ * Paddle Customer Portal 버튼 + 취소 링크.
+ * 둘 다 같은 포털 URL을 열고, 포털 안에서 플랜 변경/취소 가능.
  */
+async function openPortal(
+  setLoading: (v: boolean) => void,
+  setError: (v: string) => void,
+) {
+  setLoading(true);
+  setError('');
+  try {
+    const res = await fetch('/api/subscription/portal', { method: 'POST' });
+    const json = await res.json();
+    if (!res.ok || !json.url) {
+      setError(json.error || 'Failed to open billing portal. Please try again.');
+      return;
+    }
+    window.open(json.url, '_blank', 'noopener,noreferrer');
+  } catch {
+    setError('Network error. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+}
+
 export default function ManageBillingButton() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleClick = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/subscription/portal', { method: 'POST' });
-      const json = await res.json();
-
-      if (!res.ok || !json.url) {
-        setError(json.error || 'Failed to open billing portal');
-        return;
-      }
-
-      // 새 탭으로 Paddle Customer Portal 열기
-      window.open(json.url, '_blank', 'noopener,noreferrer');
-    } catch {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-end gap-2">
+      {/* 기본 버튼: 결제 수단 변경, 인보이스 조회 등 */}
       <button
-        onClick={handleClick}
+        onClick={() => openPortal(setLoading, setError)}
         disabled={loading}
         className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-700 hover:border-gray-500 text-sm text-gray-300 hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
@@ -54,9 +55,17 @@ export default function ManageBillingButton() {
           </>
         )}
       </button>
-      {error && (
-        <p className="text-xs text-red-400">{error}</p>
-      )}
+
+      {/* 취소 링크: 같은 포털, 텍스트만 다름 */}
+      <button
+        onClick={() => openPortal(setLoading, setError)}
+        disabled={loading}
+        className="text-xs text-gray-600 hover:text-red-400 transition disabled:opacity-50"
+      >
+        Cancel subscription
+      </button>
+
+      {error && <p className="text-xs text-red-400 text-right">{error}</p>}
     </div>
   );
 }
