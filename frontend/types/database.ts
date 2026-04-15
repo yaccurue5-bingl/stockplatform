@@ -965,33 +965,6 @@ export type Database = {
         }
         Relationships: []
       }
-      waitlist: {
-        Row: {
-          created_at: string | null
-          email: string
-          id: string
-          notified_at: string | null
-          source: string | null
-          subscribed: boolean | null
-        }
-        Insert: {
-          created_at?: string | null
-          email: string
-          id?: string
-          notified_at?: string | null
-          source?: string | null
-          subscribed?: boolean | null
-        }
-        Update: {
-          created_at?: string | null
-          email?: string
-          id?: string
-          notified_at?: string | null
-          source?: string | null
-          subscribed?: boolean | null
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
