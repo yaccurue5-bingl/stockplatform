@@ -399,7 +399,7 @@ export default async function SignalPage({
             K-MarketInsight
           </Link>
           <Link
-            href="/login"
+            href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
             className="text-xs text-[#00D4A6] hover:underline"
           >
             Sign in for full access →
@@ -495,7 +495,7 @@ export default async function SignalPage({
           </div>
           <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
             <Link
-              href="/login"
+              href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
               className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
             >
               Get API Key →
