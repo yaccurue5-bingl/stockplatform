@@ -154,12 +154,15 @@ function resolvePlan(planId: string): string {
   // PADDLE_PRICE_ID_* (server-only) or NEXT_PUBLIC_PADDLE_PRICE_ID_* (both)
   const proPriceId  = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO       || '').toLowerCase();
   const devPriceId  = (process.env.PADDLE_PRICE_ID_DEVELOPER || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER || '').toLowerCase();
+  const testPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test || '').toLowerCase();
 
   if (proPriceId  && id === proPriceId)  return 'pro';
   if (devPriceId  && id === devPriceId)  return 'developer';
+  // test 상품 → developer로 매핑 (users.plan CHECK 제약 준수)
+  if (testPriceId && id === testPriceId) return 'developer';
 
   // 폴백: 이름 기반 매칭
-  if (id.includes('pro'))                        return 'pro';
+  if (id.includes('pro'))                          return 'pro';
   if (id.includes('developer') || id.includes('dev')) return 'developer';
 
   return 'developer'; // 기본값

@@ -47,6 +47,22 @@ const PLAN_CONFIG = {
     badgeLabel: 'PRO',
     badgeClass: 'bg-[#4EA3FF] text-white',
   },
+  // ⚠️ 테스트 전용 — 실제 서비스에서는 노출 안 함
+  test: {
+    priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test ?? '',
+    name: '[TEST] $1 Checkout',
+    price: '$1',
+    period: 'one-time test',
+    desc: 'Live payment integration test only',
+    features: [
+      'Webhook → DB 연동 확인용',
+      'subscription.created 발생',
+      'Developer 플랜과 동일하게 처리',
+    ],
+    buttonLabel: 'Pay $1 (Test)',
+    badgeLabel: 'TEST',
+    badgeClass: 'bg-yellow-400 text-black',
+  },
 } as const;
 
 type PlanType = keyof typeof PLAN_CONFIG;
