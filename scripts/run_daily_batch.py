@@ -39,7 +39,7 @@ EOD 배치 실행 순서 (장 마감 후 ~16:30 KST, cron/trigger.py 에서 1일
   4. compute_base_score.py         : FinalScore 갱신
   5. compute_sector_signals.py     : 섹터 시그널 업데이트
   6. compute_market_radar.py       : 시장 레이더 집계 (외국인 순매수 포함)
-  7. backfill_prices.py --stats-only : event_stats 재집계 (수익률 통계)
+  7. backfill_prices.py --days 30  : 최근 30일 공시 T+3/T+5 수익률 백필 + event_stats 재집계
   8. compute_backtest.py           : event_macro_v1 백테스트 업데이트
 """
 
@@ -253,10 +253,12 @@ def run_eod(args):
          dry_flag,
          False),
 
-        # Step 7: scores_log 기반 event_stats 재집계 (선택)
-        ("event_stats 집계",
+        # Step 7: 최근 30일 공시 T+3/T+5 수익률 백필 + event_stats 재집계
+        # --days 30: 오늘 기준 30일 이내 공시만 처리 (data.go.kr API 호출 최소화)
+        # T+3 미도래 공시는 자동 스킵되므로 매일 돌아도 안전
+        ("수익률 백필",
          "backfill_prices.py",
-         ["--stats-only"] + dry_flag,
+         ["--days", "30"] + dry_flag,
          skip_prices),
 
         # Step 8: event_macro_v1 백테스트 업데이트
@@ -339,7 +341,7 @@ def main():
     parser.add_argument("--skip-fetch",   action="store_true",
                         help="백테스트 시 fetch 스텝 생략 (loan/market 이미 있을 때)")
     parser.add_argument("--skip-prices",  action="store_true",
-                        help="EOD 시 backfill_prices --stats-only 스킵 (수익률 미확정 시)")
+                        help="EOD 시 수익률 백필(backfill_prices) 스킵 (data.go.kr 점검 등)")
 
     args = parser.parse_args()
 
