@@ -40,6 +40,7 @@ EOD 배치 실행 순서 (장 마감 후 ~16:30 KST, cron/trigger.py 에서 1일
   5. compute_sector_signals.py     : 섹터 시그널 업데이트
   6. compute_market_radar.py       : 시장 레이더 집계 (외국인 순매수 포함)
   7. backfill_prices.py --stats-only : event_stats 재집계 (수익률 통계)
+  8. compute_backtest.py           : event_macro_v1 백테스트 업데이트
 """
 
 import sys
@@ -257,6 +258,12 @@ def run_eod(args):
          "backfill_prices.py",
          ["--stats-only"] + dry_flag,
          skip_prices),
+
+        # Step 8: event_macro_v1 백테스트 업데이트
+        ("백테스트 갱신",
+         "compute_backtest.py",
+         dry_flag,
+         False),
     ]
 
     return _execute_steps(steps)
@@ -323,7 +330,7 @@ def main():
     mode.add_argument("--prod",     action="store_true",
                       help="정식 일배치 모드: 크롤링 → 분석 → 스코어 (장 중)")
     mode.add_argument("--eod",      action="store_true",
-                      help="EOD 배치 모드: 장 마감 후 시세+대차 수집 → LPS → AI 백필 → 스코어 갱신")
+                      help="EOD 배치 모드: 장 마감 후 시세 수집 → AI 백필 → 스코어 갱신 → 백테스트")
 
     parser.add_argument("--dry-run",      action="store_true",
                         help="compute 스텝 저장 없이 출력만 (fetch는 실행)")
