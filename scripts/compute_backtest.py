@@ -131,16 +131,15 @@ def fetch_foreign_flow_map(sb, needed_dates: set[date]) -> dict[str, float | Non
 
     date_strs = [d.isoformat() for d in needed_dates]
 
-    # daily_indicators 의 date 컬럼이 어떤 형식인지 확인 후 맞춤
-    # fetch_mofe_indicator.py 에서 date 는 'YYYYMMDD' 형식으로 저장됨
-    # 조회 시 ISO 형식 변환 필요
-    yyyymmdd_strs = [d.strftime("%Y%m%d") for d in needed_dates]
+    # daily_indicators.date 는 YYYY-MM-DD (ISO) 형식으로 저장됨
+    # fetch_mofe_indicator.py / backfill_foreign_flow.py 모두 ISO 형식 사용
+    iso_strs = [d.isoformat() for d in needed_dates]
 
     result: dict[str, float | None] = {}
 
     chunk = 200
-    for i in range(0, len(yyyymmdd_strs), chunk):
-        batch = yyyymmdd_strs[i:i + chunk]
+    for i in range(0, len(iso_strs), chunk):
+        batch = iso_strs[i:i + chunk]
         try:
             resp = (
                 sb.table("daily_indicators")
@@ -149,12 +148,7 @@ def fetch_foreign_flow_map(sb, needed_dates: set[date]) -> dict[str, float | Non
                 .execute()
             )
             for row in (resp.data or []):
-                raw_date = str(row["date"])
-                # YYYYMMDD → YYYY-MM-DD 변환
-                if len(raw_date) == 8 and "-" not in raw_date:
-                    iso = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:]}"
-                else:
-                    iso = raw_date
+                iso = str(row["date"])   # 이미 YYYY-MM-DD
                 val = row.get("foreign_net_buy_kospi")
                 result[iso] = float(val) if val is not None else None
         except Exception as e:
