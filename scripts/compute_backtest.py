@@ -20,6 +20,14 @@ event_macro_v1 전략 백테스트 엔진.
   python scripts/compute_backtest.py --score-min 70    # score 임계값 변경 (기본 60)
   python scripts/compute_backtest.py --dry-run         # 계산만, DB 저장 안 함
   python scripts/compute_backtest.py --reset           # 기존 backtest_trades 삭제 후 재실행
+  python scripts/compute_backtest.py --ignore-regime   # 레짐 필터 무시 (외국인 데이터 없을 때)
+
+[--ignore-regime 사용 시점]
+  daily_indicators(외국인순매수) 가 최근 몇 일치밖에 없으면
+  과거 공시 전부가 RISK_OFF 로 분류되어 성과 집계가 불가능하다.
+  이 플래그를 사용하면 레짐 구분 없이 base_score 조건만으로 전체 거래를
+  RISK_ON 으로 취급해 성과 지표를 산출한다.
+  (fetch_mofe_indicator.py 히스토리가 충분히 쌓이면 플래그 없이 실행할 것)
 """
 
 import os
@@ -337,14 +345,20 @@ def main():
                         help=f"진입 base_score 임계값 (기본: {DEFAULT_SCORE_MIN})")
     parser.add_argument("--dry-run",    action="store_true",
                         help="계산만, DB 저장 안 함")
-    parser.add_argument("--reset",      action="store_true",
+    parser.add_argument("--reset",         action="store_true",
                         help="기존 해당 전략 backtest_trades 삭제 후 전체 재실행")
+    parser.add_argument("--ignore-regime", action="store_true",
+                        help="레짐 필터 무시: 외국인 데이터 부족 시 전체를 RISK_ON 으로 처리")
     args = parser.parse_args()
 
     logger.info("=" * 55)
     logger.info(f"  compute_backtest : {STRATEGY_NAME}")
     logger.info(f"  score_min={args.score_min}  days={args.days}  "
-                f"dry_run={args.dry_run}  reset={args.reset}")
+                f"dry_run={args.dry_run}  reset={args.reset}  "
+                f"ignore_regime={args.ignore_regime}")
+    if args.ignore_regime:
+        logger.warning("  ⚠️  --ignore-regime 활성화: 외국인 데이터 무시, 전체 RISK_ON 처리")
+        logger.warning("     fetch_mofe_indicator.py 히스토리가 쌓이면 이 플래그 없이 재실행 권장")
     logger.info("=" * 55)
 
     sb = _get_supabase()
@@ -373,16 +387,26 @@ def main():
     # ── Step 2: 시장 레짐 계산을 위한 외국인 순매수 조회 ──────────────────────
     logger.info("\n  [2/4] 외국인 순매수 데이터 조회 중 (시장 레짐 판단)...")
 
-    # 필요한 날짜 수집 (공시일 직전 RISK_ON_LOOKBACK 영업일 × 전체 공시 수)
-    needed_dates: set[date] = set()
-    for row in score_rows:
-        event_date = date.fromisoformat(row["date"])
-        for d in prev_n_business_days(event_date, RISK_ON_LOOKBACK):
-            needed_dates.add(d)
+    if args.ignore_regime:
+        logger.info("  → --ignore-regime: 조회 생략, 전체 RISK_ON 처리")
+        flow_map: dict[str, float | None] = {}
+    else:
+        # 필요한 날짜 수집 (공시일 직전 RISK_ON_LOOKBACK 영업일 × 전체 공시 수)
+        needed_dates: set[date] = set()
+        for row in score_rows:
+            event_date = date.fromisoformat(row["date"])
+            for d in prev_n_business_days(event_date, RISK_ON_LOOKBACK):
+                needed_dates.add(d)
 
-    logger.info(f"  → 조회 날짜: {len(needed_dates)}일")
-    flow_map = fetch_foreign_flow_map(sb, needed_dates)
-    logger.info(f"  → 데이터 확보: {len(flow_map)}일")
+        logger.info(f"  → 조회 날짜: {len(needed_dates)}일")
+        flow_map = fetch_foreign_flow_map(sb, needed_dates)
+        covered = len(flow_map)
+        logger.info(f"  → 데이터 확보: {covered}일 / {len(needed_dates)}일")
+
+        if needed_dates and covered / len(needed_dates) < 0.1:
+            logger.warning("  ⚠️  외국인 데이터 커버리지 10% 미만 → 거의 모든 거래가 RISK_OFF 분류됨")
+            logger.warning("     fetch_mofe_indicator.py 히스토리가 쌓이거나")
+            logger.warning("     --ignore-regime 플래그로 재실행을 권장합니다")
 
     # ── Step 3: 매매 기록 생성 ───────────────────────────────────────────────
     logger.info("\n  [3/4] 매매 시뮬레이션 중...")
@@ -398,7 +422,7 @@ def main():
             continue
 
         event_date = date.fromisoformat(row["date"])
-        regime     = compute_regime(event_date, flow_map)
+        regime     = "RISK_ON" if args.ignore_regime else compute_regime(event_date, flow_map)
         regime_counts[regime] += 1
 
         trades.append({

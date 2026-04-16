@@ -3,19 +3,23 @@
  * ================================
  * 백테스트 개별 매매 기록 조회 (backtest_trades 테이블).
  *
+ * 백테스트 데이터는 과거 전체 히스토리가 의미 있으므로
+ * 날짜 범위 제한 대신 플랜별 레코드 수 상한으로 제어한다.
+ *   developer : 최대 50건
+ *   pro        : 최대 500건
+ *
  * Query params:
  *   strategy    - 전략명 (기본: event_macro_v1)
  *   regime      - RISK_ON | RISK_OFF | all (기본: all)
- *   date_from   - YYYY-MM-DD (플랜 히스토리 제한 적용)
- *   date_to     - YYYY-MM-DD (기본: 오늘)
- *   limit       - 1~200 (기본: 100)
+ *   limit       - 요청 건수 (플랜 상한 이하, 기본: 50)
+ *   offset      - 페이지네이션 offset (기본: 0)
  *
- * Plans: developer (3d), pro (30d)
+ * Plans: developer, pro
  * Cache: 3600s (1시간)
  */
 
 import { NextRequest } from 'next/server'
-import { resolveApiKey, checkPlan, PLAN_HISTORY_DAYS } from '@/lib/v1/auth'
+import { resolveApiKey, checkPlan } from '@/lib/v1/auth'
 import { makeCacheKey, cacheGet, cacheSet } from '@/lib/v1/cache'
 import { checkRateLimit } from '@/lib/v1/rateLimit'
 import { logApiCall } from '@/lib/v1/usage'
@@ -23,6 +27,12 @@ import { formatResponse } from '@/lib/v1/format'
 import { createServiceClient } from '@/lib/supabase/server'
 
 const TTL_PERFORMANCE = 3600   // 1 hour
+
+// 플랜별 최대 조회 레코드 수
+const PLAN_TRADE_LIMIT: Record<string, number> = {
+  developer: 50,
+  pro:       500,
+}
 
 export async function GET(req: NextRequest) {
   // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -42,27 +52,13 @@ export async function GET(req: NextRequest) {
   const strategy = p.get('strategy') || 'event_macro_v1'
   const regime   = p.get('regime')   || 'all'   // RISK_ON | RISK_OFF | all
   const plan     = user.plan
-  const historyDays = PLAN_HISTORY_DAYS[plan] ?? 3
 
-  const today    = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
-
-  const rawTo = p.get('date_to')
-  const dtTo  = rawTo && /^\d{4}-\d{2}-\d{2}$/.test(rawTo) ? rawTo : todayStr
-
-  const rawFrom    = p.get('date_from')
-  let dtFromDate   = rawFrom && /^\d{4}-\d{2}-\d{2}$/.test(rawFrom)
-    ? new Date(rawFrom)
-    : new Date(new Date().setDate(today.getDate() - historyDays))
-
-  const maxFrom = new Date(new Date().setDate(today.getDate() - historyDays))
-  if (historyDays > 0 && dtFromDate < maxFrom) dtFromDate = maxFrom
-  const dtFrom = dtFromDate.toISOString().slice(0, 10)
-
-  const limit = Math.min(Math.max(parseInt(p.get('limit') || '100', 10), 1), 200)
+  const maxLimit = PLAN_TRADE_LIMIT[plan] ?? 50
+  const limit    = Math.min(Math.max(parseInt(p.get('limit') || String(maxLimit), 10), 1), maxLimit)
+  const offset   = Math.max(parseInt(p.get('offset') || '0', 10), 0)
 
   // ── Cache ────────────────────────────────────────────────────────────────────
-  const cacheKey = makeCacheKey('v1:performance:trades', { strategy, regime, plan, dtFrom, dtTo, limit })
+  const cacheKey = makeCacheKey('v1:performance:trades', { strategy, regime, plan, limit, offset })
   const cached   = await cacheGet<object>(cacheKey)
   if (cached) return formatResponse(req, cached as Record<string, unknown>)
 
@@ -73,38 +69,39 @@ export async function GET(req: NextRequest) {
       .from('backtest_trades')
       .select(
         'id, stock_code, event_date, disclosure_id, base_score, final_score, ' +
-        'return_3d, return_5d, market_regime, created_at'
+        'return_3d, return_5d, market_regime, created_at',
+        { count: 'exact' }
       )
       .eq('strategy_name', strategy)
-      .gte('event_date', dtFrom)
-      .lte('event_date', dtTo)
       .order('event_date', { ascending: false })
-      .limit(limit)
+      .range(offset, offset + limit - 1)
 
     if (regime === 'RISK_ON' || regime === 'RISK_OFF') {
       query = query.eq('market_regime', regime)
     }
 
-    const { data, error } = await query
+    const { data, error, count } = await query
     if (error) throw error
 
-    // 간단 집계 (해당 페이지 내 통계)
-    const trades = data ?? []
+    // 페이지 내 간단 집계
+    const trades  = data ?? []
     const returns = trades.map(t => t.return_3d).filter((r): r is number => r !== null)
     const winCount = returns.filter(r => r > 0).length
-    const summary = {
+    const pageSummary = {
       count:    trades.length,
       win_rate: returns.length > 0 ? winCount / returns.length : null,
       avg_r3:   returns.length > 0 ? returns.reduce((s, v) => s + v, 0) / returns.length : null,
     }
 
     const result = {
-      data:      trades,
-      summary,
+      data:         trades,
+      page_summary: pageSummary,
+      total:        count ?? null,
+      limit,
+      offset,
       strategy,
       regime,
-      date_from: dtFrom,
-      date_to:   dtTo,
+      plan_limit:   maxLimit,
     }
 
     await cacheSet(cacheKey, result, TTL_PERFORMANCE)
