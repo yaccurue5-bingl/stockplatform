@@ -153,31 +153,52 @@ def _get_supabase():
     return _supabase_create_client(url, key)
 
 
+def _paginate(sb, table: str, filters_fn, page_size: int = 1000) -> list[dict]:
+    """
+    Supabase 기본 max_rows=1000 캡을 우회하기 위한 페이지네이션 헬퍼.
+    filters_fn(query) → query 형태로 필터/정렬을 주입받음.
+    """
+    rows = []
+    offset = 0
+    while True:
+        q = sb.table(table).select("*")
+        q = filters_fn(q)
+        q = q.range(offset, offset + page_size - 1)
+        resp = q.execute()
+        page = resp.data or []
+        rows.extend(page)
+        if len(page) < page_size:
+            break
+        offset += page_size
+    return rows
+
+
 def fetch_disclosures(sb, days: int) -> list[dict]:
     """
     event_type 있고 stock_code 있는 공시 조회.
     scores_log 에 future_return_3d / future_return_5d 없는 것만 (미처리).
 
     ※ disclosure_insights.rcept_dt 는 YYYYMMDD(8자리) 형식으로 저장됨.
-      텍스트 비교 시 YYYYMMDD 순서가 사전적 순서와 일치하므로 gte 직접 사용.
+      Supabase 기본 max_rows=1000 캡을 우회하기 위해 페이지네이션 사용.
     """
-    since_yyyymm = (date.today() - timedelta(days=days)).strftime("%Y%m%d")  # "20260116"
+    since_yyyymm = (date.today() - timedelta(days=days)).strftime("%Y%m%d")
 
-    resp = (
-        sb.table("disclosure_insights")
-        .select("id, stock_code, rcept_dt, event_type")
-        .gte("rcept_dt", since_yyyymm)
-        .not_.is_("event_type", "null")
-        .not_.is_("stock_code", "null")
-        .eq("analysis_status", "completed")
-        .order("rcept_dt", desc=False)
-        .limit(50000)
-        .execute()
-    )
-    all_rows = resp.data or []
+    def _filters(q):
+        return (
+            q.select("id, stock_code, rcept_dt, event_type")
+             .gte("rcept_dt", since_yyyymm)
+             .not_.is_("event_type", "null")
+             .not_.is_("stock_code", "null")
+             .eq("analysis_status", "completed")
+             .order("rcept_dt", desc=False)
+        )
+
+    all_rows = _paginate(sb, "disclosure_insights", _filters)
 
     if not all_rows:
         return []
+
+    logger.info(f"  → 공시 조회 합계: {len(all_rows)}건")
 
     # scores_log 에 return_3d AND return_5d 모두 있는 것만 제외
     # → 둘 중 하나라도 없으면 재처리 (return_3d 신규 추가 시 기존 데이터 백필 포함)
@@ -319,14 +340,12 @@ def compute_event_stats(sb, dry_run: bool) -> int:
     """
     logger.info("\n  event_stats 집계 중...")
 
-    resp = (
-        sb.table("scores_log")
-        .select("disclosure_id, future_return_5d, future_return_20d")
-        .not_.is_("future_return_5d", "null")
-        .limit(50000)
-        .execute()
-    )
-    log_rows = resp.data or []
+    def _sl_filters(q):
+        return (
+            q.select("disclosure_id, future_return_5d, future_return_20d")
+             .not_.is_("future_return_5d", "null")
+        )
+    log_rows = _paginate(sb, "scores_log", _sl_filters)
 
     if not log_rows:
         logger.info("  → 집계할 데이터 없음")
