@@ -241,7 +241,9 @@ def compute_performance_metrics(
     trade 리스트에서 성과 지표 계산.
     trades: {'return_3d', 'event_date', ...}
     """
-    returns = [t["return_3d"] for t in trades if t.get("return_3d") is not None]
+    # 복리 계산이 의미 있으려면 시간 순 정렬 필요
+    sorted_trades = sorted(trades, key=lambda t: t.get("event_date", ""))
+    returns = [t["return_3d"] for t in sorted_trades if t.get("return_3d") is not None]
 
     if not returns:
         return {}
@@ -262,14 +264,17 @@ def compute_performance_metrics(
     # 최대 낙폭
     max_dd = compute_max_drawdown(returns)
 
-    # 연환산 수익률 (거래 기간 달력일 기준 CAGR 근사)
+    # 연환산 수익률 — 복리 누적 수익률 기반 CAGR
+    # total_return 은 단순 합산이므로 CAGR 에 직접 쓸 수 없음.
+    # 개별 수익률을 시간 순으로 복리 누적한 뒤 연환산.
     ann_return = None
     if period_start and period_end:
         n_days = (period_end - period_start).days
         if n_days > 0:
-            # 총 기간 비율로 연환산: avg_per_trade * (252/3) → 과대추정 방지
-            # CAGR: (1 + total_return/100) ^ (365/n_days) - 1
-            cagr = (1 + total_return / 100) ** (365 / n_days) - 1
+            compound = 1.0
+            for r in returns:          # returns 는 시간 순 정렬된 수익률 리스트
+                compound *= (1 + r / 100)
+            cagr = compound ** (365 / n_days) - 1
             ann_return = round(cagr * 100, 4)
 
     risk_on_count = sum(1 for t in trades if t.get("market_regime") == "RISK_ON")
