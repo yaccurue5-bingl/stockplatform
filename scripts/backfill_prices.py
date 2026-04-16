@@ -158,12 +158,17 @@ def fetch_disclosures(sb, days: int) -> list[dict]:
     event_type 있고 stock_code 있는 공시 조회.
     scores_log 에 future_return_5d 없는 것만 (미처리).
     """
-    since = (date.today() - timedelta(days=days)).strftime("%Y%m%d")
+    # rcept_dt 가 YYYYMMDD 또는 YYYY-MM-DD 두 형식 모두 존재할 수 있음.
+    # Supabase 에서 text 컬럼을 문자열 비교하므로
+    # ISO 형식("2026-02-01")은 YYYYMMDD("20260116")보다 작게 평가됨.
+    # → ISO 형식 기준으로 since 를 만들고, OR 조건으로 양쪽 커버.
+    since_iso    = (date.today() - timedelta(days=days)).isoformat()      # "2026-01-16"
+    since_yyyymm = (date.today() - timedelta(days=days)).strftime("%Y%m%d")  # "20260116"
 
     resp = (
         sb.table("disclosure_insights")
         .select("id, stock_code, rcept_dt, event_type")
-        .gte("rcept_dt", since)
+        .or_(f"rcept_dt.gte.{since_iso},rcept_dt.gte.{since_yyyymm}")
         .not_.is_("event_type", "null")
         .not_.is_("stock_code", "null")
         .eq("analysis_status", "completed")
@@ -484,11 +489,15 @@ def main():
     needed_dates: set[str] = set()
 
     for d in disclosures:
-        rdt = str(d.get("rcept_dt") or "")
-        if not rdt or len(rdt) != 8:
-            continue
+        rdt = str(d.get("rcept_dt") or "").strip()
+        # rcept_dt 는 YYYYMMDD(8자리) 또는 YYYY-MM-DD(10자리) 두 형식이 혼재
         try:
-            t0 = datetime.strptime(rdt, "%Y%m%d").date()
+            if len(rdt) == 8:
+                t0 = datetime.strptime(rdt, "%Y%m%d").date()
+            elif len(rdt) == 10:
+                t0 = datetime.strptime(rdt, "%Y-%m-%d").date()
+            else:
+                continue
             t0 = next_business_day(t0)   # 공시일이 주말이면 다음 영업일
         except ValueError:
             continue
