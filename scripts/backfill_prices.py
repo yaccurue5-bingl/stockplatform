@@ -156,24 +156,22 @@ def _get_supabase():
 def fetch_disclosures(sb, days: int) -> list[dict]:
     """
     event_type 있고 stock_code 있는 공시 조회.
-    scores_log 에 future_return_5d 없는 것만 (미처리).
+    scores_log 에 future_return_3d / future_return_5d 없는 것만 (미처리).
+
+    ※ disclosure_insights.rcept_dt 는 YYYYMMDD(8자리) 형식으로 저장됨.
+      텍스트 비교 시 YYYYMMDD 순서가 사전적 순서와 일치하므로 gte 직접 사용.
     """
-    # rcept_dt 가 YYYYMMDD 또는 YYYY-MM-DD 두 형식 모두 존재할 수 있음.
-    # Supabase 에서 text 컬럼을 문자열 비교하므로
-    # ISO 형식("2026-02-01")은 YYYYMMDD("20260116")보다 작게 평가됨.
-    # → ISO 형식 기준으로 since 를 만들고, OR 조건으로 양쪽 커버.
-    since_iso    = (date.today() - timedelta(days=days)).isoformat()      # "2026-01-16"
     since_yyyymm = (date.today() - timedelta(days=days)).strftime("%Y%m%d")  # "20260116"
 
     resp = (
         sb.table("disclosure_insights")
         .select("id, stock_code, rcept_dt, event_type")
-        .or_(f"rcept_dt.gte.{since_iso},rcept_dt.gte.{since_yyyymm}")
+        .gte("rcept_dt", since_yyyymm)
         .not_.is_("event_type", "null")
         .not_.is_("stock_code", "null")
         .eq("analysis_status", "completed")
         .order("rcept_dt", desc=False)
-        .limit(5000)
+        .limit(50000)
         .execute()
     )
     all_rows = resp.data or []
@@ -493,15 +491,20 @@ def main():
         # rcept_dt 는 YYYYMMDD(8자리) 또는 YYYY-MM-DD(10자리) 두 형식이 혼재
         try:
             if len(rdt) == 8:
-                t0 = datetime.strptime(rdt, "%Y%m%d").date()
+                rdt_date = datetime.strptime(rdt, "%Y%m%d").date()
             elif len(rdt) == 10:
-                t0 = datetime.strptime(rdt, "%Y-%m-%d").date()
+                rdt_date = datetime.strptime(rdt, "%Y-%m-%d").date()
             else:
                 continue
-            t0 = next_business_day(t0)   # 공시일이 주말이면 다음 영업일
         except ValueError:
             continue
 
+        # scores_log.date 는 raw rcept_dt 기준 (compute_base_score 와 동일하게 유지)
+        # → 주말 공시여도 날짜 조정 없이 원본 사용해야 upsert 충돌키가 일치
+        rcept_dt_iso = rdt_date.isoformat()   # scores_log 저장용 (raw)
+
+        # 가격 조회용 날짜는 영업일 보정 (주말/공휴일에는 시세 없음)
+        t0  = next_business_day(rdt_date)
         t3  = offset_business_day(t0, T3_CALENDAR_DAYS)
         t5  = offset_business_day(t0, T5_CALENDAR_DAYS)
         t20 = offset_business_day(t0, T20_CALENDAR_DAYS)
@@ -519,7 +522,7 @@ def main():
             "date_t5":      t5.strftime("%Y%m%d") if t5 <= today else None,
             "date_t20":     t20.strftime("%Y%m%d") if t20 <= today else None,
             "event_type":   d["event_type"],
-            "rcept_dt_iso": str(t0),
+            "rcept_dt_iso": rcept_dt_iso,   # raw rcept_dt (영업일 보정 없음)
         })
         needed_dates.add(t0.strftime("%Y%m%d"))
         needed_dates.add(t3.strftime("%Y%m%d"))
