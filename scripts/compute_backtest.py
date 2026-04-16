@@ -265,17 +265,24 @@ def compute_performance_metrics(
     max_dd = compute_max_drawdown(returns)
 
     # 연환산 수익률 — 복리 누적 수익률 기반 CAGR
-    # total_return 은 단순 합산이므로 CAGR 에 직접 쓸 수 없음.
-    # 개별 수익률을 시간 순으로 복리 누적한 뒤 연환산.
+    # - 최소 90 달력일 이상 & 최소 10거래 이상일 때만 계산
+    #   (기간이 너무 짧으면 지수 증폭으로 의미 없는 수치가 나옴)
+    # - 90일 미만이면 None 반환 (API/UI 에서 "N/A" 표시)
     ann_return = None
-    if period_start and period_end:
+    MIN_DAYS_FOR_ANN = 90
+    if period_start and period_end and len(returns) >= 10:
         n_days = (period_end - period_start).days
-        if n_days > 0:
+        if n_days >= MIN_DAYS_FOR_ANN:
             compound = 1.0
-            for r in returns:          # returns 는 시간 순 정렬된 수익률 리스트
+            for r in returns:      # 시간 순 정렬된 수익률
                 compound *= (1 + r / 100)
             cagr = compound ** (365 / n_days) - 1
             ann_return = round(cagr * 100, 4)
+        else:
+            logger.warning(
+                f"  연환산 스킵: 기간 {n_days}일 < {MIN_DAYS_FOR_ANN}일 "
+                f"(기간이 짧으면 지수 증폭으로 수치 왜곡)"
+            )
 
     risk_on_count = sum(1 for t in trades if t.get("market_regime") == "RISK_ON")
 
