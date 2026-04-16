@@ -5,8 +5,8 @@
  *
  * 플랜 quota:
  *   free      → 50 calls / day
- *   developer → 8,000 calls / month
- *   pro       → 80,000 calls / month
+ *   developer → 10,000 calls / month
+ *   pro       → 100,000 calls / month
  *
  * 방식:
  *   - api_usage_daily 테이블에서 현재 사용량 조회
@@ -19,8 +19,8 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 export const PLAN_QUOTA = {
   free:      { window: 'daily',   limit: 50 },
-  developer: { window: 'monthly', limit: 8_000 },
-  pro:       { window: 'monthly', limit: 80_000 },
+  developer: { window: 'monthly', limit: 10_000 },
+  pro:       { window: 'monthly', limit: 100_000 },
 } as const
 
 type Plan = keyof typeof PLAN_QUOTA

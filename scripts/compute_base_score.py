@@ -119,7 +119,7 @@ def compute_reliability(key_numbers: object) -> float:
 def compute_final_score(base_score: float, lps: float | None, reliability: float = 1.0) -> float:
     """FinalScore = base_score * (1 - min(LPS/100, 0.4)) * reliability"""
     if lps is None:
-        lps = 50.0   # LPS 데이터 없으면 중립 가정
+        lps = 0.0   # LPS 데이터 없으면 패널티 없음 (대차 데이터 수집 중단 2026-04-20)
     loan_weight = min(float(lps) / 100.0, 0.4)
     final = base_score * (1.0 - loan_weight) * reliability
     return round(max(0.0, min(100.0, final)), 4)

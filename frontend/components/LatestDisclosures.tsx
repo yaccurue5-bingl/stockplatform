@@ -18,12 +18,7 @@ interface Disclosure {
   analyzed_at: string;
 }
 
-interface LatestDisclosuresProps {
-  onCardClick?: () => void;
-  isSuperUser?: boolean;
-}
-
-export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDisclosuresProps) {
+export default function LatestDisclosures() {
   const router = useRouter();
   const [disclosures, setDisclosures] = useState<Disclosure[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,12 +41,11 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
     }
   };
 
-
   const getImpactColor = (importance: string) => {
     switch (importance) {
-      case 'HIGH': return 'bg-red-900/30 text-red-400';
+      case 'HIGH':   return 'bg-red-900/30 text-red-400';
       case 'MEDIUM': return 'bg-orange-900/30 text-orange-400';
-      default: return 'bg-blue-900/30 text-blue-400';
+      default:       return 'bg-blue-900/30 text-blue-400';
     }
   };
 
@@ -59,23 +53,23 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
     switch (sentiment?.toUpperCase()) {
       case 'POSITIVE': return 'bg-green-900/30 text-green-400';
       case 'NEGATIVE': return 'bg-red-900/30 text-red-400';
-      default: return 'bg-gray-800 text-gray-400';
+      default:         return 'bg-gray-800 text-gray-400';
     }
   };
 
   const getTimeAgo = (date: string) => {
-    if (!date) return 'Recently';
-    return 'Recently';
+    if (!date) return '';
+    const diff = Date.now() - new Date(date).getTime();
+    const mins  = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days  = Math.floor(diff / 86400000);
+    if (mins  < 60)  return `${mins}m ago`;
+    if (hours < 24)  return `${hours}h ago`;
+    return `${days}d ago`;
   };
 
   const handleCardClick = (disclosure: Disclosure) => {
-    // 슈퍼 유저는 해당 공시 상세 페이지로 이동
-    if (isSuperUser) {
-      router.push(`/disclosures?stock=${disclosure.stock_code}`);
-    } else if (onCardClick) {
-      // 일반 사용자는 waitlist 모달 열기
-      onCardClick();
-    }
+    router.push(`/disclosures?stock=${disclosure.stock_code}`);
   };
 
   if (loading) return <div className="p-4 text-white">Loading...</div>;
@@ -83,9 +77,8 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
   return (
     <div className="flex flex-col space-y-4">
       {disclosures.map((disclosure) => {
-        // 30% 변동 등 중요 공시만 감지하여 스타일 변경
         const isCritical = disclosure.report_name?.includes('30%') || disclosure.importance === 'HIGH';
-        
+
         return (
           <div
             key={disclosure.id}
@@ -99,8 +92,7 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
                   {generateTicker(disclosure.corp_name_en)}
                 </div>
                 <div>
-                  {/* 영문명 우선, 한글명 아래 배치 */}
-                  <h4 className="font-bold text-white text-lg group-hover:text-blue-400">
+                  <h4 className="font-bold text-white text-lg">
                     {disclosure.corp_name_en || disclosure.corp_name}
                   </h4>
                   {disclosure.corp_name_en && (
@@ -120,7 +112,7 @@ export default function LatestDisclosures({ onCardClick, isSuperUser }: LatestDi
             <h5 className={`font-bold text-slate-100 mb-2 ${isCritical ? 'text-lg' : 'text-base'}`}>
               {disclosure.report_name}
             </h5>
-            
+
             <p className="text-sm text-slate-400 line-clamp-2 mb-4">
               {disclosure.summary}
             </p>
