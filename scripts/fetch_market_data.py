@@ -194,23 +194,33 @@ def parse_int(val) -> int | None:
         return None
 
 
+def parse_float(val) -> float | None:
+    if val is None or val == "":
+        return None
+    try:
+        return float(str(val).replace(",", "").strip())
+    except (ValueError, TypeError):
+        return None
+
+
 def transform(items: list[dict]) -> tuple[list[dict], list[dict]]:
     """
-    getStockPriceInfo 응답 → companies 테이블 + loan_stats 테이블 upsert용 딕셔너리
+    getStockPriceInfo 응답 → companies 테이블 + price_history 테이블 upsert용 딕셔너리
 
     응답 필드:
       srtnCd          : 단축코드 (앞에 'A' 붙는 경우 있음)
       itmsNm          : 종목명
       mrktCtg         : 시장구분 (KOSPI/KOSDAQ)
       mrktTotAmt      : 시가총액
-      lstgStCnt       : 상장주식수 (주의: lstgStckcnt 아님)
+      lstgStCnt       : 상장주식수
       frinInvstHldShrs: 외국인 보유주식수 (이 API 미제공 → 항상 None)
-      trqu            : 거래량 (V_t, loan_stats.volume 에 저장)
+      clpr            : 종가 (price_history.close 에 저장)
+      trqu            : 거래량 (price_history.volume 에 저장)
 
-    반환: (companies_rows, volume_rows)
+    반환: (company_rows, price_rows)
     """
     company_rows = []
-    volume_rows  = []
+    price_rows   = []
     missing_foreign = 0
 
     for item in items:
@@ -243,12 +253,14 @@ def transform(items: list[dict]) -> tuple[list[dict], list[dict]]:
             "updated_at":          datetime.now().isoformat(),
         })
 
-        # 거래량 → loan_stats.volume (V_t, LPS 계산에 사용)
+        # 종가(clpr) + 거래량(trqu) → price_history 테이블
+        close  = parse_float(item.get("clpr"))
         volume = parse_int(item.get("trqu"))
-        if volume is not None:
-            volume_rows.append({
+        if close is not None or volume is not None:
+            price_rows.append({
                 "stock_code": stock_code,
                 "date":       None,   # save_to_db에서 bas_dt 주입
+                "close":      close,
                 "volume":     volume,
             })
 
@@ -256,20 +268,20 @@ def transform(items: list[dict]) -> tuple[list[dict], list[dict]]:
         print(f"\n  [WARN] frinInvstHldShrs 없는 종목: {missing_foreign}건")
         print("    → API 응답에 외국인 보유주식수 필드가 없을 수 있습니다.")
 
-    return company_rows, volume_rows
+    return company_rows, price_rows
 
 
 # ── Supabase 저장 ─────────────────────────────────────────────────────────────
 
 def save_to_db(
     company_rows: list[dict],
-    volume_rows:  list[dict],
+    price_rows:   list[dict],
     bas_dt: str,
 ) -> tuple[int, int]:
     """
     배치 upsert.
-      - companies 테이블: stock_code 기준 upsert
-      - loan_stats 테이블: (stock_code, date) 기준 volume 만 upsert
+      - companies 테이블: stock_code 기준 upsert (시총·상장주식수 등)
+      - price_history 테이블: (stock_code, date) 기준 upsert (종가·거래량 이력)
     반환: (성공수, 실패수)
     """
     create_client = _supabase_create_client
@@ -287,7 +299,7 @@ def save_to_db(
     success = failure = 0
 
     # ── 1. companies 테이블 ────────────────────────────────────────────────────
-    # 같은 배치 내 stock_code 중복 시 companies_pkey 충돌 방지 → 마지막 row 우선 유지
+    # 같은 배치 내 stock_code 중복 시 PK 충돌 방지 → 마지막 row 우선
     seen_sc: dict[str, dict] = {}
     for row in company_rows:
         seen_sc[row["stock_code"]] = row
@@ -306,28 +318,29 @@ def save_to_db(
             failure += len(batch)
             print(f"  [ERROR] [companies] Batch {bn} 실패: {e}")
 
-    # ── 2. loan_stats 테이블: volume 컬럼만 upsert ─────────────────────────────
-    # bas_dt 주입 (transform 시점에는 날짜 미정이므로 여기서 설정)
+    # ── 2. price_history 테이블: 종가·거래량 이력 upsert ──────────────────────
+    # bas_dt → YYYY-MM-DD date 형식으로 변환 후 주입
     date_str = str(datetime.strptime(bas_dt, "%Y%m%d").date())
-    for row in volume_rows:
-        row["date"] = date_str
+    for row in price_rows:
+        row["date"]       = date_str
+        row["updated_at"] = datetime.now().isoformat()
 
-    vol_success = vol_failure = 0
-    for i in range(0, len(volume_rows), BATCH_SIZE):
-        batch = volume_rows[i:i + BATCH_SIZE]
+    ph_success = ph_failure = 0
+    for i in range(0, len(price_rows), BATCH_SIZE):
+        batch = price_rows[i:i + BATCH_SIZE]
         bn = i // BATCH_SIZE + 1
         try:
-            sb.table("loan_stats").upsert(
+            sb.table("price_history").upsert(
                 batch, on_conflict="stock_code,date"
             ).execute()
-            vol_success += len(batch)
-            print(f"  [loan_stats/volume] Batch {bn} 저장 완료 ({len(batch)}건)")
+            ph_success += len(batch)
+            print(f"  [price_history] Batch {bn} 저장 완료 ({len(batch)}건)")
         except Exception as e:
-            vol_failure += len(batch)
-            print(f"  [ERROR] [loan_stats/volume] Batch {bn} 실패: {e}")
+            ph_failure += len(batch)
+            print(f"  [ERROR] [price_history] Batch {bn} 실패: {e}")
 
-    print(f"  거래량 저장: 성공 {vol_success}건 / 실패 {vol_failure}건")
-    failure += vol_failure
+    print(f"  price_history 저장: 성공 {ph_success}건 / 실패 {ph_failure}건")
+    failure += ph_failure
 
     return success, failure
 
@@ -375,28 +388,33 @@ def main():
         print()
 
     # 2. 변환
-    company_rows, volume_rows = transform(items)
+    company_rows, price_rows = transform(items)
     kospi_cnt  = sum(1 for r in company_rows if r["market_type"] == "KOSPI")
     kosdaq_cnt = sum(1 for r in company_rows if r["market_type"] == "KOSDAQ")
     has_cap    = sum(1 for r in company_rows if r["market_cap"] is not None)
     has_ratio  = sum(1 for r in company_rows if r["foreign_ratio"] is not None)
+    has_close  = sum(1 for r in price_rows   if r["close"]  is not None)
+    has_vol    = sum(1 for r in price_rows   if r["volume"] is not None)
 
     print(f"  변환 완료: KOSPI {kospi_cnt}개 / KOSDAQ {kosdaq_cnt}개")
     print(f"  시가총액 데이터: {has_cap}/{len(company_rows)}건")
     print(f"  외국인 보유비율: {has_ratio}/{len(company_rows)}건")
-    print(f"  거래량 데이터:   {len(volume_rows)}건 → loan_stats.volume")
+    print(f"  종가 데이터:     {has_close}/{len(price_rows)}건 → price_history.close")
+    print(f"  거래량 데이터:   {has_vol}/{len(price_rows)}건 → price_history.volume")
 
     if args.dry_run:
         print("\n[DRY-RUN] 샘플 데이터 (상위 5건):")
         for r in company_rows[:5]:
             cap_str = f"{r['market_cap']:>15,}" if r['market_cap'] else "           None"
-            print(f"  {r['stock_code']:6s} | {r['corp_name']:20s} | {r['market_type']:6s} | 시총: {cap_str}")
+            ph = next((p for p in price_rows if p["stock_code"] == r["stock_code"]), {})
+            print(f"  {r['stock_code']:6s} | {r['corp_name']:20s} | {r['market_type']:6s} "
+                  f"| 시총: {cap_str} | 종가: {ph.get('close') or 'N/A'}")
         print("\n[DRY-RUN] DB 저장 생략. 실제 저장하려면 --dry-run 제거 후 실행.")
         sys.exit(0)
 
     # 3. 저장
-    print(f"\n  Supabase 저장 중 (companies {len(company_rows)}건, loan_stats volume {len(volume_rows)}건)...")
-    success, failure = save_to_db(company_rows, volume_rows, bas_dt)
+    print(f"\n  Supabase 저장 중 (companies {len(company_rows)}건, price_history {len(price_rows)}건)...")
+    success, failure = save_to_db(company_rows, price_rows, bas_dt)
 
     print("=" * 60)
     print(f"완료: 성공 {success}건 / 실패 {failure}건")

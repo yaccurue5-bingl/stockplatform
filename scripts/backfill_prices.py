@@ -1,22 +1,18 @@
 """
 scripts/backfill_prices.py
 ===========================
-과거 공시에 가격(t0/t5/t20)과 수익률(return_5d/return_20d)을 붙이고
+과거 공시에 가격(t0/t3/t5/t20)과 수익률(return_3d/return_5d/return_20d)을 붙이고
 event_stats 테이블을 갱신하는 백필 스크립트.
 
-[사용자 pseudocode 개선 사항]
-  - disclosures → disclosure_insights (실제 테이블명)
-  - price_t0/t5/t20 → scores_log.future_return_5d / future_return_20d (실제 스키마)
-  - yfinance 금지 → data.go.kr GetStockSecuritiesInfoService (basDt 파라미터)
-  - processed 컬럼 없음 → scores_log 존재 여부로 판별
-  - timedelta(days=7) → 영업일 보정 포함
-  - event_stats SQL 집계 → Python 집계 후 upsert
+[변경 이력]
+  - T+3 수익률(future_return_3d) 추가 (backtest 엔진 T+3 exit 전략용)
+  - fetch_disclosures: return_3d OR return_5d 누락 시 재처리
 
 [실행 흐름]
   Step 1 : disclosure_insights 에서 event_type 있는 공시 조회 (return 없는 것)
-  Step 2 : 필요한 날짜 목록 수집 (t0, t0+7일, t0+28일 영업일 보정)
+  Step 2 : 필요한 날짜 목록 수집 (t0, t0+5일, t0+7일, t0+28일 영업일 보정)
   Step 3 : data.go.kr 에서 날짜별 종가 수집 (배치, 날짜 × 종목)
-  Step 4 : return_5d / return_20d 계산 → scores_log upsert
+  Step 4 : return_3d / return_5d / return_20d 계산 → scores_log upsert
   Step 5 : scores_log 집계 → event_stats upsert
 
 [API 제한]
@@ -65,6 +61,7 @@ BATCH_SIZE    = 200      # Supabase upsert 배치
 KST           = timezone(timedelta(hours=9))
 
 # 영업일 offset (달력일 → 영업일 근사)
+T3_CALENDAR_DAYS  = 5    # 3 영업일 ≒ 5 달력일 (주말 포함 보정)
 T5_CALENDAR_DAYS  = 7    # 5 영업일 ≒ 7 달력일
 T20_CALENDAR_DAYS = 28   # 20 영업일 ≒ 28 달력일
 
@@ -179,7 +176,8 @@ def fetch_disclosures(sb, days: int) -> list[dict]:
     if not all_rows:
         return []
 
-    # scores_log 에 이미 return_5d 있는 것 제외
+    # scores_log 에 return_3d AND return_5d 모두 있는 것만 제외
+    # → 둘 중 하나라도 없으면 재처리 (return_3d 신규 추가 시 기존 데이터 백필 포함)
     disc_ids = [r["id"] for r in all_rows]
     chunk = 500
     existing_ids: set[str] = set()
@@ -189,6 +187,7 @@ def fetch_disclosures(sb, days: int) -> list[dict]:
             sb.table("scores_log")
             .select("disclosure_id")
             .in_("disclosure_id", batch)
+            .not_.is_("future_return_3d", "null")
             .not_.is_("future_return_5d", "null")
             .execute()
         )
@@ -200,16 +199,19 @@ def fetch_disclosures(sb, days: int) -> list[dict]:
 
 def upsert_returns(sb, rows: list[dict], dry_run: bool) -> tuple[int, int]:
     """
-    scores_log 에 future_return_5d / future_return_20d upsert.
-    rows: [{stock_code, date, disclosure_id, future_return_5d, future_return_20d}, ...]
+    scores_log 에 future_return_3d / future_return_5d / future_return_20d upsert.
+    rows: [{stock_code, date, disclosure_id, future_return_3d, future_return_5d, future_return_20d}, ...]
     """
     if dry_run:
         logger.info(f"  [DRY] {len(rows)}건 수익률 저장 생략")
         for r in rows[:3]:
-            r20 = r['future_return_20d']
-            r20_str = f"{r20:.2f}%" if r20 is not None else "N/A"
+            r3  = r.get('future_return_3d')
+            r5  = r.get('future_return_5d')
+            r20 = r.get('future_return_20d')
             logger.info(f"    {r['stock_code']} {r['date']} "
-                        f"r5={r['future_return_5d']:.2f}% r20={r20_str}")
+                        f"r3={f'{r3:.2f}%' if r3 is not None else 'N/A'}  "
+                        f"r5={f'{r5:.2f}%' if r5 is not None else 'N/A'}  "
+                        f"r20={f'{r20:.2f}%' if r20 is not None else 'N/A'}")
         return len(rows), 0
 
     success = failure = 0
@@ -468,7 +470,7 @@ def main():
     disclosures = fetch_disclosures(sb, args.days)
 
     if not disclosures:
-        logger.info("  처리할 공시 없음 (모두 수익률 있음)")
+        logger.info("  처리할 공시 없음 (return_3d / return_5d 모두 산출 완료)")
         compute_event_stats(sb, args.dry_run)
         sys.exit(0)
 
@@ -477,8 +479,8 @@ def main():
     # ── Step 2: 필요한 날짜 수집 ─────────────────────────────────────────────
     logger.info("\n  [2/5] 필요 날짜 계산 중...")
 
-    # disc별 t0/t5/t20 날짜 결정
-    disc_dates: list[dict] = []   # {id, stock_code, date_t0, date_t5, date_t20, event_type}
+    # disc별 t0/t3/t5/t20 날짜 결정
+    disc_dates: list[dict] = []   # {id, stock_code, date_t0, date_t3, date_t5, date_t20, event_type}
     needed_dates: set[str] = set()
 
     for d in disclosures:
@@ -491,25 +493,29 @@ def main():
         except ValueError:
             continue
 
+        t3  = offset_business_day(t0, T3_CALENDAR_DAYS)
         t5  = offset_business_day(t0, T5_CALENDAR_DAYS)
         t20 = offset_business_day(t0, T20_CALENDAR_DAYS)
 
         # 미래 날짜 스킵 (오늘 이후)
         today = date.today()
-        if t5 > today:
-            continue    # t5 아직 미도래 → 수익률 계산 불가
+        if t3 > today:
+            continue    # t3 아직 미도래 → 수익률 계산 불가
 
         disc_dates.append({
-            "id":         d["id"],
-            "stock_code": d["stock_code"],
-            "date_t0":    t0.strftime("%Y%m%d"),
-            "date_t5":    t5.strftime("%Y%m%d"),
-            "date_t20":   t20.strftime("%Y%m%d") if t20 <= today else None,
-            "event_type": d["event_type"],
+            "id":           d["id"],
+            "stock_code":   d["stock_code"],
+            "date_t0":      t0.strftime("%Y%m%d"),
+            "date_t3":      t3.strftime("%Y%m%d"),
+            "date_t5":      t5.strftime("%Y%m%d") if t5 <= today else None,
+            "date_t20":     t20.strftime("%Y%m%d") if t20 <= today else None,
+            "event_type":   d["event_type"],
             "rcept_dt_iso": str(t0),
         })
         needed_dates.add(t0.strftime("%Y%m%d"))
-        needed_dates.add(t5.strftime("%Y%m%d"))
+        needed_dates.add(t3.strftime("%Y%m%d"))
+        if t5 <= today:
+            needed_dates.add(t5.strftime("%Y%m%d"))
         if t20 <= today:
             needed_dates.add(t20.strftime("%Y%m%d"))
 
@@ -539,36 +545,45 @@ def main():
     skipped = 0
 
     for d in disc_dates:
-        code  = d["stock_code"]
-        dt0   = d["date_t0"]
-        dt5   = d["date_t5"]
-        dt20  = d["date_t20"]
+        code = d["stock_code"]
+        dt0  = d["date_t0"]
+        dt3  = d["date_t3"]
+        dt5  = d["date_t5"]
+        dt20 = d["date_t20"]
 
-        p0 = price_cache.get(dt0, {}).get(code)
-        p5 = price_cache.get(dt5, {}).get(code)
+        p0  = price_cache.get(dt0, {}).get(code)
+        p3  = price_cache.get(dt3, {}).get(code)
+        p5  = price_cache.get(dt5, {}).get(code) if dt5 else None
         p20 = price_cache.get(dt20, {}).get(code) if dt20 else None
 
-        if not p0 or not p5:
+        # t0(기준가) 또는 t3(최소 exit) 없으면 스킵
+        if not p0 or not p3:
             skipped += 1
             continue
 
-        r5  = round((p5 - p0) / p0 * 100, 4)
+        r3  = round((p3  - p0) / p0 * 100, 4)
+        r5  = round((p5  - p0) / p0 * 100, 4) if p5  and p0 else None
         r20 = round((p20 - p0) / p0 * 100, 4) if p20 and p0 else None
 
         return_rows.append({
-            "stock_code":       code,
-            "date":             d["rcept_dt_iso"],
-            "disclosure_id":    d["id"],
-            "future_return_5d": r5,
+            "stock_code":        code,
+            "date":              d["rcept_dt_iso"],
+            "disclosure_id":     d["id"],
+            "future_return_3d":  r3,
+            "future_return_5d":  r5,
             "future_return_20d": r20,
         })
 
     logger.info(f"  → 수익률 산출: {len(return_rows)}건 / 스킵(가격없음): {skipped}건")
 
     if return_rows:
-        r5_vals = [r["future_return_5d"] for r in return_rows]
-        logger.info(f"  return_5d: min={min(r5_vals):.2f}%  max={max(r5_vals):.2f}%  "
-                    f"avg={sum(r5_vals)/len(r5_vals):.2f}%")
+        r3_vals = [r["future_return_3d"] for r in return_rows]
+        r5_vals = [r["future_return_5d"] for r in return_rows if r["future_return_5d"] is not None]
+        logger.info(f"  return_3d: min={min(r3_vals):.2f}%  max={max(r3_vals):.2f}%  "
+                    f"avg={sum(r3_vals)/len(r3_vals):.2f}%")
+        if r5_vals:
+            logger.info(f"  return_5d: min={min(r5_vals):.2f}%  max={max(r5_vals):.2f}%  "
+                        f"avg={sum(r5_vals)/len(r5_vals):.2f}%")
 
     # ── Step 5: DB 저장 + event_stats 집계 ───────────────────────────────────
     logger.info(f"\n  [5/5] scores_log 저장 + event_stats 집계...")
