@@ -104,10 +104,7 @@ def _compute_scores_inline(
         e   = compute_e(ev_info.get("avg_5d_return"), ev_info.get("sample_size"))
         raw, bs = _compute_base_score(s, i_, e)
 
-        lps = _fetch_lps(
-            item.get("stock_code") or "",
-            item.get("rcept_dt") or "",
-        )
+        lps = None  # 금융위원회 대차거래 데이터 수집 중단 (2026-04-20 상업용 금지)
         fs  = compute_final_score(bs, lps)
         tag = compute_signal_tag(bs, lps)
 

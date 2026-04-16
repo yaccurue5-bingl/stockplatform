@@ -6,7 +6,7 @@ scripts/run_daily_batch.py
 모드:
   --backtest   기존 DB 데이터로 백테스트 (크롤링 스킵, backfill 분석)
   --prod       정식 일배치 (크롤링 → 분석 → 스코어 계산)
-  --eod        장 마감 후 배치 (시세+대차 수집 → LPS → AI 백필 → 스코어 갱신)
+  --eod        장 마감 후 배치 (시세 수집 → AI 백필 → 스코어 갱신 → 시장레이더)
   --dry-run    실제 저장 없이 출력만 (compute 스텝만 적용)
 
 사용법:
@@ -17,28 +17,28 @@ scripts/run_daily_batch.py
   python scripts/run_daily_batch.py --eod                    # 장 마감 후 배치
   python scripts/run_daily_batch.py --eod --skip-prices      # event_stats 재집계 스킵
 
+※ 대차잔고 수집(fetch_loan_data.py) · LPS 계산(compute_loan_pressure.py) 제거됨
+  금융위원회 주식대차정보 상업용 제공 중단 (2026-04-20)
+
 백테스트 실행 순서:
   1. backfill_scores.py --all      : sentiment_score 없는 기존 데이터 AI 재분석
-  2. fetch_loan_data.py            : 오늘 대차잔고 수집 (선택, --skip-fetch로 생략)
-  3. fetch_market_data.py          : 오늘 시세/거래량 수집 (선택)
-  4. compute_loan_pressure.py      : LPS 계산
-  5. compute_base_score.py --recompute : BaseScore / FinalScore 계산
+  2. fetch_market_data.py          : 오늘 시세/거래량 수집 (선택, --skip-fetch로 생략)
+  3. compute_base_score.py --recompute : BaseScore / FinalScore 계산
 
 정식 일배치 실행 순서 (장 중, trigger.py 에서 호출):
   1. dart_crawler.py               : 오늘 공시 수집
   2. fetch_market_data.py          : 오늘 시세/거래량 수집
-  3. fetch_loan_data.py            : 오늘 대차잔고 수집
-  4. compute_loan_pressure.py      : LPS 계산
-  5. auto_analyst.py               : AI 분석 (pending → completed, 신규 공시 전용)
-  6. compute_base_score.py         : BaseScore / FinalScore 계산
+  3. fetch_mofe_indicator.py       : 재정경제부 일일경제지표 (외국인 순매수) 수집
+  4. auto_analyst.py               : AI 분석 (pending → completed, 신규 공시 전용)
+  5. compute_base_score.py         : BaseScore / FinalScore 계산
 
-EOD 배치 실행 순서 (장 마감 후 ~16:00 KST, cron/trigger.py 에서 1일 1회):
+EOD 배치 실행 순서 (장 마감 후 ~16:30 KST, cron/trigger.py 에서 1일 1회):
   1. fetch_market_data.py          : 당일 종가/거래량 확정 수집
-  2. fetch_loan_data.py            : 당일 대차잔고 확정 수집
-  3. compute_loan_pressure.py      : LPS 재계산 (당일 데이터 반영)
-  4. backfill_scores.py --limit N  : 누락 AI 분석 보완 (completed but no sentiment)
-  5. compute_base_score.py         : FinalScore 갱신 (오늘 LPS 반영)
-  6. compute_sector_signals.py     : 섹터 시그널 업데이트
+  2. fetch_mofe_indicator.py       : 재정경제부 일일경제지표 확정 수집
+  3. backfill_scores.py --limit N  : 누락 AI 분석 보완 (completed but no sentiment)
+  4. compute_base_score.py         : FinalScore 갱신
+  5. compute_sector_signals.py     : 섹터 시그널 업데이트
+  6. compute_market_radar.py       : 시장 레이더 집계 (외국인 순매수 포함)
   7. backfill_prices.py --stats-only : event_stats 재집계 (수익률 통계)
 """
 
@@ -108,31 +108,20 @@ def run_backtest(args):
     logger.info("="*55)
 
     steps = [
-        # Step 1: sentiment_score 없는 기존 completed 항목 AI 재분석 (분리된 스크립트)
+        # Step 1: sentiment_score 없는 기존 completed 항목 AI 재분석
         ("AI 백필",
          "backfill_scores.py",
          ["--limit", limit],
          False),
 
-        # Step 2: 오늘 대차잔고 수집 (LPS 계산에 필요)
-        ("대차잔고 수집",
-         "fetch_loan_data.py",
-         [],
-         skip_fetch),
-
-        # Step 3: 오늘 시세/거래량 수집
+        # Step 2: 오늘 시세/거래량 수집
+        # ※ 대차잔고 수집·LPS 계산 제거됨 — 금융위원회 상업용 금지 2026-04-20
         ("시세/거래량 수집",
          "fetch_market_data.py",
          [],
          skip_fetch),
 
-        # Step 4: LPS 계산
-        ("LPS 계산",
-         "compute_loan_pressure.py",
-         dry_flag,
-         False),
-
-        # Step 5: BaseScore / FinalScore (--recompute: 기존 것도 재계산)
+        # Step 3: BaseScore / FinalScore (--recompute: 기존 것도 재계산)
         ("BaseScore 계산",
          "compute_base_score.py",
          ["--recompute"] + dry_flag,
@@ -169,31 +158,26 @@ def run_prod(args):
          [],
          False),
 
-        # Step 2: 시세/거래량 수집 (companies + loan_stats.volume)
+        # Step 2: 시세/거래량 수집
         ("시세/거래량 수집",
          "fetch_market_data.py",
          [],
          False),
 
-        # Step 3: 대차잔고 수집 (loan_stats.loan_balance)
-        ("대차잔고 수집",
-         "fetch_loan_data.py",
+        # Step 3: 재정경제부 일일경제지표 (외국인 순매수) 수집
+        # ※ 대차잔고 수집·LPS 계산 제거됨 — 금융위원회 상업용 금지 2026-04-20
+        ("외국인지표 수집",
+         "fetch_mofe_indicator.py",
          [],
          False),
 
-        # Step 4: LPS 계산
-        ("LPS 계산",
-         "compute_loan_pressure.py",
-         dry_flag,
-         False),
-
-        # Step 5: AI 분석 (pending → sentiment_score + completed)
+        # Step 4: AI 분석 (pending → sentiment_score + completed)
         ("AI 분석",
          "auto_analyst.py",
          [],
          False),
 
-        # Step 6: BaseScore / FinalScore
+        # Step 5: BaseScore / FinalScore
         ("BaseScore 계산",
          "compute_base_score.py",
          dry_flag,
@@ -231,45 +215,44 @@ def run_eod(args):
     logger.info("="*55)
 
     steps = [
-        # Step 1: 당일 종가/거래량 수집 (companies + loan_stats.volume)
+        # Step 1: 당일 종가/거래량 확정 수집
+        # ※ 대차잔고 수집·LPS 계산 제거됨 — 금융위원회 상업용 금지 2026-04-20
         ("시세/거래량 수집",
          "fetch_market_data.py",
          [],
          False),
 
-        # Step 2: 당일 대차잔고 수집 (loan_stats.loan_balance)
-        ("대차잔고 수집",
-         "fetch_loan_data.py",
+        # Step 2: 재정경제부 일일경제지표 확정 수집 (외국인 순매수)
+        ("외국인지표 수집",
+         "fetch_mofe_indicator.py",
          [],
          False),
 
-        # Step 3: LPS 재계산 (당일 loan_delta + volume 반영)
-        ("LPS 계산",
-         "compute_loan_pressure.py",
-         dry_flag,
-         False),
-
-        # Step 4: 당일 completed 공시 중 sentiment_score 누락 건 AI 보완
-        #   (장 중 auto_analyst 가 처리 못 한 건 또는 rate-limit 실패 건)
+        # Step 3: 당일 completed 공시 중 sentiment_score 누락 건 AI 보완
         ("AI 백필",
          "backfill_scores.py",
          ["--limit", limit] + dry_flag,
          False),
 
-        # Step 5: FinalScore 갱신 — 오늘 계산된 LPS 를 반영
+        # Step 4: FinalScore 갱신
         ("BaseScore 계산",
          "compute_base_score.py",
          dry_flag,
          False),
 
-        # Step 6: 섹터별 Bullish/Bearish/Neutral 시그널 업데이트
+        # Step 5: 섹터별 Bullish/Bearish/Neutral 시그널 업데이트
         ("섹터 시그널",
          "compute_sector_signals.py",
          dry_flag,
          False),
 
+        # Step 6: 시장 레이더 집계 (sector_signals + 외국인 순매수 → market_radar)
+        ("시장레이더 집계",
+         "compute_market_radar.py",
+         dry_flag,
+         False),
+
         # Step 7: scores_log 기반 event_stats 재집계 (선택)
-        #   --skip-prices 시 스킵 (수익률 데이터가 아직 없을 때)
         ("event_stats 집계",
          "backfill_prices.py",
          ["--stats-only"] + dry_flag,

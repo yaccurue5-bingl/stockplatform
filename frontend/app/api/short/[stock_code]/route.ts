@@ -1,3 +1,10 @@
+/**
+ * GET /api/short/[stock_code]
+ *
+ * ⚠️ DEPRECATED — 금융위원회 주식대차정보 상업용 제공 중단 (2026-04-20)
+ * 신규 수집 중단. 기존 DB 에 남아 있는 historical 데이터는 계속 조회 가능.
+ * 데이터가 없으면 null 필드를 반환하며, 클라이언트는 graceful 처리 필요.
+ */
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 

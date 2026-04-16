@@ -96,6 +96,53 @@ def fetch_market_indices(supabase) -> dict[str, float]:
     return result
 
 
+def fetch_foreign_flow(supabase, date_str: str) -> str:
+    """
+    daily_indicators 에서 외국인 순매수 KOSPI 조회 → 포맷 문자열 반환.
+    date_str: YYYYMMDD 형식 → daily_indicators.date 는 YYYY-MM-DD
+    반환 예시: "+8,300억원" / "-2,231억원" / "N/A"
+    """
+    iso_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+    try:
+        resp = (
+            supabase.table("daily_indicators")
+            .select("foreign_net_buy_kospi, foreign_net_buy_kosdaq")
+            .eq("date", iso_date)
+            .limit(1)
+            .execute()
+        )
+        data = resp.data
+        if not data:
+            print(f"  [WARN] daily_indicators 에 {iso_date} 데이터 없음 → N/A")
+            return "N/A"
+
+        kospi  = data[0].get("foreign_net_buy_kospi")
+        kosdaq = data[0].get("foreign_net_buy_kosdaq")
+
+        if kospi is None and kosdaq is None:
+            return "N/A"
+
+        # KOSPI 단독 우선, 없으면 KOSDAQ 사용, 둘 다 있으면 합산
+        total: float
+        if kospi is not None and kosdaq is not None:
+            total = float(kospi) + float(kosdaq)
+        elif kospi is not None:
+            total = float(kospi)
+        else:
+            total = float(kosdaq)  # type: ignore[arg-type]
+
+        sign = "+" if total >= 0 else ""
+        if abs(total) >= 10_000:
+            val = total / 10_000
+            return f"{sign}{val:.1f}조원"
+        else:
+            return f"{sign}{int(round(total)):,}억원"
+
+    except Exception as e:
+        print(f"  [WARN] foreign_flow 조회 실패: {e}")
+        return "N/A"
+
+
 # ── 시장 신호 계산 ────────────────────────────────────────────────────────────
 
 def compute_market_signal(sector_signals: list[dict]) -> str:
@@ -145,6 +192,7 @@ def generate_summary(
     kospi_change: float,
     kosdaq_change: float,
     date_str: str,
+    foreign_flow: str = "N/A",
 ) -> str:
     """한국어 요약 텍스트 자동 생성"""
     date_fmt = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
@@ -157,6 +205,9 @@ def generate_summary(
         f"{date_fmt} 시장은 {signal_ko} 흐름을 보였습니다.",
         f"{kospi_str}, {kosdaq_str}.",
     ]
+
+    if foreign_flow and foreign_flow != "N/A":
+        parts.append(f"외국인 순매수: {foreign_flow}.")
 
     if top_sector:
         parts.append(f"주목 섹터: {top_sector}.")
@@ -219,7 +270,12 @@ def main():
     kosdaq_change = indices.get("KOSDAQ", 0.0)
     print(f"  KOSPI {kospi_change:+.2f}% / KOSDAQ {kosdaq_change:+.2f}%")
 
-    # 3. 시장 신호 계산
+    # 3. 외국인 순매수 조회 (재정경제부 daily_indicators)
+    print("  외국인 순매수 조회 중...")
+    foreign_flow = fetch_foreign_flow(supabase, date_str)
+    print(f"  외국인 순매수:    {foreign_flow}")
+
+    # 4. 시장 신호 계산
     market_signal = compute_market_signal(sector_signals)
     top_sector, top_sector_en = get_top_sector(sector_signals)
 
@@ -228,7 +284,7 @@ def main():
     neutral_cnt = sum(1 for s in sector_signals if s["signal"] == "Neutral")
     total_disclosures = sum(s["disclosure_count"] for s in sector_signals)
 
-    # 4. 요약 생성
+    # 5. 요약 생성
     summary = generate_summary(
         market_signal=market_signal,
         top_sector=top_sector,
@@ -239,6 +295,7 @@ def main():
         kospi_change=kospi_change,
         kosdaq_change=kosdaq_change,
         date_str=date_str,
+        foreign_flow=foreign_flow,
     )
 
     row = {
@@ -246,23 +303,24 @@ def main():
         "market_signal":     market_signal,
         "top_sector":        top_sector,
         "top_sector_en":     top_sector_en,
-        "foreign_flow":      "N/A",      # 추후 외국인 순매수 API 연동 시 업데이트
+        "foreign_flow":      foreign_flow,
         "kospi_change":      round(kospi_change, 2),
         "kosdaq_change":     round(kosdaq_change, 2),
         "total_disclosures": total_disclosures,
         "summary":           summary,
     }
 
-    # 5. 결과 출력
+    # 6. 결과 출력
     print()
     print(f"  시장 신호:        {market_signal}")
     print(f"  주목 섹터:        {top_sector or 'N/A'} ({top_sector_en or 'N/A'})")
+    print(f"  외국인 순매수:    {foreign_flow}")
     print(f"  섹터 분포:        Bullish {bullish_cnt} / Bearish {bearish_cnt} / Neutral {neutral_cnt}")
     print(f"  총 공시:          {total_disclosures}건")
     print(f"  요약:")
     print(f"    {summary}")
 
-    # 6. 저장
+    # 7. 저장
     if args.dry_run:
         print("\n[DRY-RUN] DB 저장 생략.")
         sys.exit(0)
