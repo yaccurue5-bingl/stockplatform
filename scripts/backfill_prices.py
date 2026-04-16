@@ -161,7 +161,7 @@ def _paginate(sb, table: str, filters_fn, page_size: int = 1000) -> list[dict]:
     rows = []
     offset = 0
     while True:
-        q = sb.table(table).select("*")
+        q = sb.table(table)
         q = filters_fn(q)
         q = q.range(offset, offset + page_size - 1)
         resp = q.execute()
