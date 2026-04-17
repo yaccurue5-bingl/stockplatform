@@ -266,10 +266,10 @@ def compute_sector_score(win_rate: float, avg_return_3d: float, all_avg_returns:
 
 def signal_from_score(score: float) -> str:
     if score >= BULLISH_SCORE_THRESHOLD:
-        return "BULLISH"
+        return "Bullish"
     elif score >= BEARISH_SCORE_THRESHOLD:
-        return "NEUTRAL"
-    return "BEARISH"
+        return "Neutral"
+    return "Bearish"
 
 
 def aggregate_sectors(
@@ -485,10 +485,10 @@ def main() -> None:
     # ── 6. 결과 출력 ──────────────────────────────────────────────────────────
     print_results(agg_rows)
 
-    bullish_n = sum(1 for r in agg_rows if r["signal"] == "BULLISH")
-    neutral_n = sum(1 for r in agg_rows if r["signal"] == "NEUTRAL")
-    bearish_n = sum(1 for r in agg_rows if r["signal"] == "BEARISH")
-    logger.info(f"  신호 분포: BULLISH {bullish_n} / NEUTRAL {neutral_n} / BEARISH {bearish_n}")
+    bullish_n = sum(1 for r in agg_rows if r["signal"] == "Bullish")
+    neutral_n = sum(1 for r in agg_rows if r["signal"] == "Neutral")
+    bearish_n = sum(1 for r in agg_rows if r["signal"] == "Bearish")
+    logger.info(f"  신호 분포: Bullish {bullish_n} / Neutral {neutral_n} / Bearish {bearish_n}")
 
     # ── 7. 저장 ───────────────────────────────────────────────────────────────
     if args.dry_run:
