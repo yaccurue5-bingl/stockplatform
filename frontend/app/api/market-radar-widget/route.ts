@@ -76,6 +76,13 @@ export async function GET() {
       avg_return_3d: number;
       disclosure_count: number;
       score: number;
+      macro?: {
+        export_yoy: number;
+        export_momentum: string;
+        macro_score: number;
+        macro_label: string;
+        year_month: string;
+      } | null;
     }> = [];
 
     const sectorRows = sectorLatest as Array<{ date: string }> | null;
@@ -106,6 +113,29 @@ export async function GET() {
         score: s.score,
       }));
     }
+
+    // 4) sector_macro: 최신 year_month 데이터 조회 후 top_sectors에 매핑
+    const { data: macroData } = await supabase
+      .from('sector_macro')
+      .select('sector_en, year_month, export_yoy, export_momentum, macro_score, macro_label')
+      .order('year_month', { ascending: false })
+      .limit(20);
+
+    const macroMap = new Map(
+      ((macroData ?? []) as Array<{
+        sector_en: string;
+        year_month: string;
+        export_yoy: number;
+        export_momentum: string;
+        macro_score: number;
+        macro_label: string;
+      }>).map((m) => [m.sector_en, m])
+    );
+
+    top_sectors = top_sectors.map((s) => ({
+      ...s,
+      macro: macroMap.get(s.sector_en) ?? null,
+    }));
 
     const body = {
       date: latestDate,

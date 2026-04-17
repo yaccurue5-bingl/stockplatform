@@ -9,12 +9,21 @@ interface FlowPoint {
   value: number;
 }
 
+interface MacroContext {
+  export_yoy: number;
+  export_momentum: string;
+  macro_score: number;
+  macro_label: string;
+  year_month: string;
+}
+
 interface TopSector {
   sector_en: string;
   signal: string;
   avg_return_3d: number;
   disclosure_count: number;
   score: number;
+  macro?: MacroContext | null;
 }
 
 interface RadarData {
@@ -41,6 +50,23 @@ const FALLBACK: RadarData = {
     { date: '', value: 72 }, { date: '', value: 68 }, { date: '', value: 80 },
   ],
   top_sectors: [],
+};
+
+// ---- Macro label helpers ----
+const MACRO_LABEL_TEXT: Record<string, string> = {
+  STRONG_TAILWIND: 'Strong Tailwind',
+  POSITIVE:        'Positive',
+  NEUTRAL:         'Neutral',
+  NEGATIVE:        'Negative',
+  HEADWIND:        'Headwind',
+};
+
+const MACRO_COLOR: Record<string, string> = {
+  STRONG_TAILWIND: 'text-[#00D4A6]',
+  POSITIVE:        'text-blue-400',
+  NEUTRAL:         'text-gray-400',
+  NEGATIVE:        'text-orange-400',
+  HEADWIND:        'text-red-400',
 };
 
 // ---- Helpers ----
@@ -232,36 +258,49 @@ export default function MarketRadar() {
           <div className="flex flex-col gap-2">
             {d.top_sectors.map((sec) => {
               const pos = sec.avg_return_3d >= 0;
+              const macro = sec.macro ?? null;
+              const exportSign = macro && macro.export_yoy >= 0 ? '+' : '';
+              const macroLabelText = macro ? (MACRO_LABEL_TEXT[macro.macro_label] ?? macro.macro_label) : '';
+              const macroColorClass = macro ? (MACRO_COLOR[macro.macro_label] ?? 'text-gray-400') : '';
               return (
-                <div key={sec.sector_en} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-white font-medium">{sec.sector_en}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                        sec.signal === 'HIGH_CONVICTION'
-                          ? 'bg-[#00D4A6]/15 text-[#00D4A6]'
-                          : sec.signal === 'CONSTRUCTIVE'
-                          ? 'bg-blue-500/15 text-blue-400'
-                          : sec.signal === 'NEGATIVE'
-                          ? 'bg-orange-500/15 text-orange-400'
-                          : sec.signal === 'HIGH_RISK'
-                          ? 'bg-red-500/15 text-red-400'
-                          : 'bg-gray-700 text-gray-400'
-                      }`}
-                    >
-                      {sec.signal === 'HIGH_CONVICTION' ? 'High Conviction'
-                        : sec.signal === 'CONSTRUCTIVE' ? 'Constructive'
-                        : sec.signal === 'NEGATIVE' ? 'Negative Bias'
-                        : sec.signal === 'HIGH_RISK' ? 'High Risk'
-                        : 'Neutral'}
-                    </span>
+                <div key={sec.sector_en} className="flex flex-col gap-0.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-white font-medium">{sec.sector_en}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                          sec.signal === 'HIGH_CONVICTION'
+                            ? 'bg-[#00D4A6]/15 text-[#00D4A6]'
+                            : sec.signal === 'CONSTRUCTIVE'
+                            ? 'bg-blue-500/15 text-blue-400'
+                            : sec.signal === 'NEGATIVE'
+                            ? 'bg-orange-500/15 text-orange-400'
+                            : sec.signal === 'HIGH_RISK'
+                            ? 'bg-red-500/15 text-red-400'
+                            : 'bg-gray-700 text-gray-400'
+                        }`}
+                      >
+                        {sec.signal === 'HIGH_CONVICTION' ? 'High Conviction'
+                          : sec.signal === 'CONSTRUCTIVE' ? 'Constructive'
+                          : sec.signal === 'NEGATIVE' ? 'Negative Bias'
+                          : sec.signal === 'HIGH_RISK' ? 'High Risk'
+                          : 'Neutral'}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xs font-semibold ${pos ? 'text-[#00D4A6]' : 'text-red-400'}`}>
+                        {pos ? '+' : ''}{sec.avg_return_3d.toFixed(2)}%
+                      </span>
+                      <span className="text-[10px] text-gray-500 ml-1.5">{sec.disclosure_count}건</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-xs font-semibold ${pos ? 'text-[#00D4A6]' : 'text-red-400'}`}>
-                      {pos ? '+' : ''}{sec.avg_return_3d.toFixed(2)}%
-                    </span>
-                    <span className="text-[10px] text-gray-500 ml-1.5">{sec.disclosure_count}건</span>
-                  </div>
+                  {macro && (
+                    <p className="text-xs text-gray-500 pl-0.5">
+                      Export YoY: {exportSign}{macro.export_yoy.toFixed(1)}%
+                      {' • '}
+                      <span className={macroColorClass}>{macroLabelText}</span>
+                    </p>
+                  )}
                 </div>
               );
             })}
