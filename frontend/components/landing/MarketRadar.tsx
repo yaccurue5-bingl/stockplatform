@@ -238,14 +238,22 @@ export default function MarketRadar() {
                     <span className="text-xs text-white font-medium">{sec.sector_en}</span>
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                        sec.signal === 'BUY'
+                        sec.signal === 'HIGH_CONVICTION'
                           ? 'bg-[#00D4A6]/15 text-[#00D4A6]'
-                          : sec.signal === 'SELL'
+                          : sec.signal === 'CONSTRUCTIVE'
+                          ? 'bg-blue-500/15 text-blue-400'
+                          : sec.signal === 'NEGATIVE'
+                          ? 'bg-orange-500/15 text-orange-400'
+                          : sec.signal === 'HIGH_RISK'
                           ? 'bg-red-500/15 text-red-400'
                           : 'bg-gray-700 text-gray-400'
                       }`}
                     >
-                      {sec.signal}
+                      {sec.signal === 'HIGH_CONVICTION' ? 'High Conviction'
+                        : sec.signal === 'CONSTRUCTIVE' ? 'Constructive'
+                        : sec.signal === 'NEGATIVE' ? 'Negative Bias'
+                        : sec.signal === 'HIGH_RISK' ? 'High Risk'
+                        : 'Neutral'}
                     </span>
                   </div>
                   <div className="text-right">

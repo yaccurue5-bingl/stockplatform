@@ -57,9 +57,16 @@ logger = logging.getLogger("compute_sector_signals")
 DEFAULT_DAYS = 30
 BATCH_SIZE   = 50
 
-# 점수 기준
-BULLISH_SCORE_THRESHOLD = 60
-BEARISH_SCORE_THRESHOLD = 40
+# 점수 기준 (score 0~100 → signal 매핑)
+# score >= 70 → HIGH_CONVICTION
+# score >= 55 → CONSTRUCTIVE
+# score >= 40 → NEUTRAL
+# score >= 25 → NEGATIVE
+# score <  25 → HIGH_RISK
+HIGH_CONVICTION_THRESHOLD = 70
+CONSTRUCTIVE_THRESHOLD    = 55
+NEUTRAL_THRESHOLD         = 40
+NEGATIVE_THRESHOLD        = 25
 
 # confidence 계산 기준 건수
 CONFIDENCE_SCALE = 20   # event_count / 20 (최대 1.0)
@@ -265,11 +272,15 @@ def compute_sector_score(win_rate: float, avg_return_3d: float, all_avg_returns:
 
 
 def signal_from_score(score: float) -> str:
-    if score >= BULLISH_SCORE_THRESHOLD:
-        return "Bullish"
-    elif score >= BEARISH_SCORE_THRESHOLD:
-        return "Neutral"
-    return "Bearish"
+    if score >= HIGH_CONVICTION_THRESHOLD:
+        return "HIGH_CONVICTION"
+    elif score >= CONSTRUCTIVE_THRESHOLD:
+        return "CONSTRUCTIVE"
+    elif score >= NEUTRAL_THRESHOLD:
+        return "NEUTRAL"
+    elif score >= NEGATIVE_THRESHOLD:
+        return "NEGATIVE"
+    return "HIGH_RISK"
 
 
 def aggregate_sectors(
@@ -485,10 +496,10 @@ def main() -> None:
     # ── 6. 결과 출력 ──────────────────────────────────────────────────────────
     print_results(agg_rows)
 
-    bullish_n = sum(1 for r in agg_rows if r["signal"] == "Bullish")
-    neutral_n = sum(1 for r in agg_rows if r["signal"] == "Neutral")
-    bearish_n = sum(1 for r in agg_rows if r["signal"] == "Bearish")
-    logger.info(f"  신호 분포: Bullish {bullish_n} / Neutral {neutral_n} / Bearish {bearish_n}")
+    bullish_n = sum(1 for r in agg_rows if r["signal"] in ("HIGH_CONVICTION", "CONSTRUCTIVE"))
+    neutral_n = sum(1 for r in agg_rows if r["signal"] == "NEUTRAL")
+    bearish_n = sum(1 for r in agg_rows if r["signal"] in ("NEGATIVE", "HIGH_RISK"))
+    logger.info(f"  신호 분포: HIGH_CONVICTION/CONSTRUCTIVE {bullish_n} / NEUTRAL {neutral_n} / NEGATIVE/HIGH_RISK {bearish_n}")
 
     # ── 7. 저장 ───────────────────────────────────────────────────────────────
     if args.dry_run:
