@@ -253,6 +253,13 @@ def compute_performance_metrics(
     std = _std(returns)
     win_rate = sum(1 for r in returns if r > 0) / n
 
+    wins   = [r for r in returns if r > 0]
+    losses = [r for r in returns if r <= 0]
+    avg_win  = sum(wins)   / len(wins)   if wins   else 0.0
+    avg_loss = sum(losses) / len(losses) if losses else 0.0  # 음수값
+    loss_rate  = 1 - win_rate
+    expectancy = (win_rate * avg_win) - (loss_rate * abs(avg_loss))
+
     # 단순 합산 수익률
     total_return = sum(returns)
 
@@ -291,6 +298,9 @@ def compute_performance_metrics(
         "annualized_return": ann_return,
         "win_rate":          round(win_rate, 4),
         "avg_return":        round(avg, 4),
+        "avg_win":           round(avg_win, 4),
+        "avg_loss":          round(avg_loss, 4),
+        "expectancy":        round(expectancy, 4),
         "max_drawdown":      max_dd,
         "sharpe_ratio":      round(sharpe, 4),
         "total_trades":      n,
@@ -465,6 +475,15 @@ def main():
         period_start = min(all_dates)
         period_end   = max(all_dates)
 
+    # equity_curve_json 생성: RISK_ON 트레이드 시간 순 정렬 기반
+    sorted_trades = sorted(risk_on_trades, key=lambda t: t["event_date"])
+    risk_on_returns = [t["return_3d"] for t in sorted_trades if t.get("return_3d") is not None]
+    curve = compute_equity_curve(risk_on_returns)  # 시작값 포함, len = n+1
+    equity_curve_json = [
+        {"date": t["event_date"], "equity": round(eq, 6)}
+        for t, eq in zip(sorted_trades, curve[1:])
+    ]
+
     metrics = compute_performance_metrics(
         risk_on_trades, args.score_min, period_start, period_end
     )
@@ -479,6 +498,9 @@ def main():
         logger.info(f"  연환산:    {metrics['annualized_return']:+.2f}%" if metrics['annualized_return'] is not None else "  연환산:    N/A")
         logger.info(f"  최대 낙폭: {metrics['max_drawdown']:+.2f}%")
         logger.info(f"  Sharpe:    {metrics['sharpe_ratio']:+.4f}")
+        logger.info(f"  avg_win:   {metrics.get('avg_win', 0):+.2f}%")
+        logger.info(f"  avg_loss:  {metrics.get('avg_loss', 0):+.2f}%")
+        logger.info(f"  기댓값:    {metrics.get('expectancy', 0):+.4f}%")
     else:
         logger.warning("  RISK_ON 거래 없음 → 성과 지표 계산 불가")
 
@@ -494,6 +516,10 @@ def main():
             "period_end":        period_end.isoformat()   if period_end   else None,
             "updated_at":        datetime.utcnow().isoformat(),
             **metrics,
+            "avg_win":           metrics.get("avg_win"),
+            "avg_loss":          metrics.get("avg_loss"),
+            "expectancy":        metrics.get("expectancy"),
+            "equity_curve_json": equity_curve_json,
         }
         ok = upsert_summary(sb, summary_payload, args.dry_run)
         logger.info(f"  performance_summary: {'OK' if ok else 'FAIL'}")
