@@ -20,7 +20,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import type { Database } from '@/types/database';
 
-export async function middleware(req: NextRequest) {
+export default async function proxy(req: NextRequest) {
   const host = req.headers.get('host') ?? '';
 
   // ── 1) SEO: vercel.app 도메인 noindex ───────────────────────────────────
