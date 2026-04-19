@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -111,24 +111,41 @@ const res = await fetch(
 const { events } = await res.json();
 console.log(events[0].event_type); // "earnings"`;
 
-export default function ApiDocsPage() {
+// useSearchParams는 Suspense 경계 내에서만 사용 가능 (Next.js 16 요구사항)
+function SearchParamsHandler({
+  onEndpoint,
+}: {
+  onEndpoint: (section: string, idx: number) => void;
+}) {
   const searchParams = useSearchParams();
-  const [activeSection, setActiveSection] = useState('Introduction');
-  const [activeEndpoint, setActiveEndpoint] = useState(0);
-
   useEffect(() => {
     const ep = searchParams.get('endpoint');
     if (ep !== null) {
       const idx = parseInt(ep, 10);
       if (!isNaN(idx) && idx >= 0 && idx < endpoints.length) {
-        setActiveSection('Endpoints');
-        setActiveEndpoint(idx);
+        onEndpoint('Endpoints', idx);
       }
     }
-  }, [searchParams]);
+  }, [searchParams, onEndpoint]);
+  return null;
+}
+
+export default function ApiDocsPage() {
+  const [activeSection, setActiveSection] = useState('Introduction');
+  const [activeEndpoint, setActiveEndpoint] = useState(0);
 
   return (
     <div className="bg-[#0B0F14] min-h-screen text-gray-200">
+      {/* URL ?endpoint=N 파라미터 처리 — Suspense 필수 (Next.js 16) */}
+      <Suspense fallback={null}>
+        <SearchParamsHandler
+          onEndpoint={(section, idx) => {
+            setActiveSection(section);
+            setActiveEndpoint(idx);
+          }}
+        />
+      </Suspense>
+
       <Navbar />
 
       <div className="max-w-[1200px] mx-auto flex gap-0 min-h-[calc(100vh-64px)]">

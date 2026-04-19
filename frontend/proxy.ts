@@ -48,7 +48,8 @@ export default async function proxy(req: NextRequest) {
         getAll() {
           return req.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
           cookiesToSet.forEach(({ name, value, options }) => {
             req.cookies.set(name, value);
             supabaseResponse.cookies.set(name, value, options);
@@ -146,7 +147,7 @@ export default async function proxy(req: NextRequest) {
 
   // ── 7) Pro 플랜 체크 (/stock/*) ─────────────────────────────────────────
   if (pathname.startsWith('/stock/')) {
-    const { data: subscription, error: subError } = await supabase
+    const { data: subRaw, error: subError } = await supabase
       .from('subscriptions')
       .select('plan_type, status')
       .eq('user_id', session.user.id)
@@ -156,6 +157,7 @@ export default async function proxy(req: NextRequest) {
       console.error('[MIDDLEWARE] Subscription check error:', subError);
     }
 
+    const subscription = subRaw as unknown as { plan_type: string; status: string } | null;
     const isPremium =
       subscription?.plan_type === 'premium' &&
       subscription?.status === 'active';
