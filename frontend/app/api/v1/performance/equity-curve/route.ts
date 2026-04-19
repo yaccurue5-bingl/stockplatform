@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     if (error) throw error
 
     // Supabase TS 추론 우회: 명시적 타입 캐스팅
-    const trades = (data ?? []) as Tables<'backtest_trades'>[]
+    const trades = (data ?? []) as unknown as Tables<'backtest_trades'>[]
 
     // 누적 equity curve 계산
     let equity = 100.0

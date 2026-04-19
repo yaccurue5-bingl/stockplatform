@@ -49,5 +49,6 @@ Supabase 쿼리에서 `GenericStringError` TS 에러 발생 시:
 → `database.ts` 타입이 구식이거나, 쿼리 결과에 명시적 타입 캐스팅 필요:
 ```ts
 import type { Tables } from '@/types/database'
-const rows = (data ?? []) as Tables<'table_name'>[]
+// 반드시 unknown을 경유해야 함 (직접 캐스팅은 TS 에러)
+const rows = (data ?? []) as unknown as Tables<'table_name'>[]
 ```
