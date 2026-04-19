@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import CodeBlock from '@/components/landing/ui/CodeBlock';
@@ -111,8 +112,20 @@ const { events } = await res.json();
 console.log(events[0].event_type); // "earnings"`;
 
 export default function ApiDocsPage() {
+  const searchParams = useSearchParams();
   const [activeSection, setActiveSection] = useState('Introduction');
   const [activeEndpoint, setActiveEndpoint] = useState(0);
+
+  useEffect(() => {
+    const ep = searchParams.get('endpoint');
+    if (ep !== null) {
+      const idx = parseInt(ep, 10);
+      if (!isNaN(idx) && idx >= 0 && idx < endpoints.length) {
+        setActiveSection('Endpoints');
+        setActiveEndpoint(idx);
+      }
+    }
+  }, [searchParams]);
 
   return (
     <div className="bg-[#0B0F14] min-h-screen text-gray-200">

@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import Section from './ui/Section';
-import Card from './ui/Card';
 import { FileText, TrendingUp, Globe, Building2 } from 'lucide-react';
 
 const products = [
@@ -10,7 +9,7 @@ const products = [
     desc: 'AI-classified DART disclosures',
     tags: ['Earnings', 'M&A', 'Capital Raise', 'Share Buybacks'],
     accent: '#00D4A6',
-    href: '/datasets#corporate-events',
+    href: '/api-docs?endpoint=0',
   },
   {
     Icon: TrendingUp,
@@ -18,7 +17,7 @@ const products = [
     desc: 'Momentum & flow indicators',
     tags: ['18 Sectors', 'Daily Signals', 'Momentum', 'Flow Data'],
     accent: '#4EA3FF',
-    href: '/datasets#sector-signals',
+    href: '/api-docs?endpoint=1',
   },
   {
     Icon: Globe,
@@ -26,7 +25,7 @@ const products = [
     desc: 'Macro + foreign flow indicators',
     tags: ['KOSPI', 'KOSDAQ', 'Daily Updates', 'Foreign Flow'],
     accent: '#a78bfa',
-    href: '/datasets#market-radar',
+    href: '/api-docs?endpoint=2',
   },
   {
     Icon: Building2,
@@ -34,7 +33,7 @@ const products = [
     desc: 'Event history & sentiment',
     tags: ['Event Timeline', 'Sentiment Signals', 'Full Coverage', 'API Access'],
     accent: '#fb923c',
-    href: '/datasets#company-intelligence',
+    href: '/api-docs?endpoint=3',
   },
 ];
 
@@ -52,7 +51,13 @@ export default function DataProducts() {
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {products.map((p) => (
-          <Card key={p.title} hover className="p-6 flex flex-col gap-4">
+          <Link
+            key={p.title}
+            href={p.href}
+            className="block bg-[#121821] border border-gray-800 rounded-xl p-6 flex flex-col gap-4
+                       hover:border-[#00D4A6]/40 hover:shadow-lg hover:shadow-[#00D4A6]/5
+                       transition-all duration-200 cursor-pointer"
+          >
             <div
               className="w-11 h-11 rounded-lg flex items-center justify-center"
               style={{ background: `${p.accent}15` }}
@@ -71,14 +76,7 @@ export default function DataProducts() {
                 </li>
               ))}
             </ul>
-            <Link
-              href={p.href}
-              className="mt-auto text-xs font-semibold hover:underline transition"
-              style={{ color: p.accent }}
-            >
-              View Dataset →
-            </Link>
-          </Card>
+          </Link>
         ))}
       </div>
     </Section>
