@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  trailingSlash: true,
+  // trailingSlash 제거: canonical URL(슬래시 없음)과 실제 URL이 일치해야 Google 색인 가능
   reactCompiler: true,
   experimental: {
     turbopackUseSystemTlsCerts: true,
