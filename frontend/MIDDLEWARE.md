@@ -1,24 +1,24 @@
 # Middleware 가이드
 
-## ⚠️ 핵심 규칙: 파일 이름은 반드시 `middleware.ts`
+## ⚠️ 핵심 규칙: 파일 이름은 반드시 `proxy.ts` (Next.js 16+)
 
-Next.js는 **프로젝트 루트의 `middleware.ts` (또는 `middleware.js`)** 파일만 미들웨어로 실행합니다.
+**Next.js 16+는 `proxy.ts` (또는 `proxy.js`)** 파일만 미들웨어로 실행합니다.  
+`middleware.ts`는 Next.js 15 이하에서 사용하던 구 방식으로, 16부터 deprecated.
 
 ```
 frontend/
-├── middleware.ts   ✅ Next.js가 인식하고 실행
-├── proxy.ts        ❌ 빌드 시 타입 검사만, 절대 실행 안 됨 (삭제됨)
-├── auth.ts         ❌ 마찬가지
+├── proxy.ts        ✅ Next.js 16+가 인식하고 실행 (올바른 미들웨어 파일)
+├── middleware.ts   ❌ deprecated — 경고만 발생, 실행 안 됨
+├── auth.ts         ❌ 어떤 이름도 proxy.ts 외에는 실행 안 됨
 └── guard.ts        ❌ 마찬가지
 ```
 
-### 왜 proxy.ts가 빌드 에러를 유발했나?
+### 왜 타입이 맞아도 빌드 에러가 나나?
 
 Next.js 빌드는 `tsconfig.json`에 포함된 **모든 `.ts` 파일을 TypeScript 타입 검사**합니다.  
-`proxy.ts`는 미들웨어로 실행되지 않지만, `next/server`, `@supabase/ssr` 등을 임포트하기 때문에  
-타입 불일치가 생기면 빌드가 실패합니다.
+`proxy.ts`가 실행되는 파일임에도 DB 스키마가 `types/database.ts`와 달라지면 빌드 실패.
 
-→ 해결책: **`middleware.ts` 하나로 통합, `proxy.ts` 삭제**
+→ 해결책: **DB 스키마 변경 시 `types/database.ts` 재생성**
 
 ---
 
