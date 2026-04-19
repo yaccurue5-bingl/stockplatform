@@ -1,18 +1,19 @@
 /**
- * Next.js Middleware (구 proxy.ts 통합본)
- *
- * ⚠️  Next.js는 반드시 이 파일(middleware.ts)만 미들웨어로 인식합니다.
- *     proxy.ts, auth.ts 등 다른 이름의 파일은 빌드 시 타입 검사만 되고
- *     절대 실행되지 않습니다. 인증 로직은 반드시 이 파일에 있어야 합니다.
+ * Next.js Middleware (proxy.ts — Next.js 16+ 미들웨어 파일명)
  *
  * 처리 순서:
  * 1. SEO: vercel.app 도메인 → X-Robots-Tag: noindex
- * 2. SEO: www → non-www 301 리다이렉트
- * 3. B2B API Key 요청 → /api/v1/* 직접 통과
- * 4. Cron Job 보안 (Authorization 헤더 검증)
- * 5. Public 경로 → 통과
- * 6. Protected 경로 → 세션 없으면 /login 리다이렉트
- * 7. /stock/* → Pro 플랜 체크
+ * 2. B2B API Key 요청 → /api/v1/* 직접 통과
+ * 3. Cron Job 보안 (Authorization 헤더 검증)
+ * 4. Public 경로 → 통과
+ * 5. Protected 경로 → 세션 없으면 /login 리다이렉트
+ * 6. /stock/* → Pro 플랜 체크
+ *
+ * ⚠️  www → non-www 리다이렉트는 미들웨어에서 하지 않는다.
+ *     이유: Vercel 도메인 설정의 Primary domain 방향과 충돌 시
+ *     모든 페이지에서 ERR_TOO_MANY_REDIRECTS 무한 루프 발생.
+ *     www/non-www 리다이렉트는 Vercel 대시보드 Domains 설정에서만 관리한다.
+ *     (Vercel: Settings → Domains → non-www를 Primary로 설정 → www는 자동 redirect)
  */
 
 import { createServerClient } from '@supabase/ssr';
@@ -28,13 +29,6 @@ export default async function proxy(req: NextRequest) {
     const response = NextResponse.next();
     response.headers.set('X-Robots-Tag', 'noindex, nofollow');
     return response;
-  }
-
-  // ── 2) SEO: www → non-www 301 ───────────────────────────────────────────
-  if (host.startsWith('www.')) {
-    const url = req.nextUrl.clone();
-    url.host = host.replace(/^www\./, '');
-    return NextResponse.redirect(url, { status: 301 });
   }
 
   // ── Supabase 세션 초기화 ────────────────────────────────────────────────
