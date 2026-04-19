@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     if (error) throw error
 
     // 페이지 내 간단 집계 (Supabase TS 추론 우회: 명시적 타입 캐스팅)
-    const trades = (data ?? []) as BacktestTrade[]
+    const trades = (data ?? []) as unknown as BacktestTrade[]
     const returns = trades.map(t => t.return_3d).filter((r): r is number => r !== null)
     const winCount = returns.filter(r => r > 0).length
     const pageSummary = {
