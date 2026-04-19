@@ -121,13 +121,12 @@ export default async function proxy(req: NextRequest) {
     '/robots.txt',
   ];
 
-  // 로그인한 사용자가 /login, /signup 접근 시 → 홈 또는 redirectTo로
-  const authPaths = ['/login', '/signup'];
-  if (session && authPaths.some((p) => pathname.startsWith(p))) {
-    const raw = req.nextUrl.searchParams.get('redirectTo') || '/';
-    const safe = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/';
-    return NextResponse.redirect(new URL(safe, req.url));
-  }
+  // 로그인/회원가입/비밀번호 찾기 페이지 → 세션 상태와 무관하게 통과
+  // ⚠️ 여기서 "이미 로그인 → redirectTo로 이동" 서버 리다이렉트를 하지 않는다.
+  //    이유: session이 불안정한 상태(토큰 만료 직전)일 때 아래 루프가 발생함:
+  //      /dashboard → /login?redirectTo=/dashboard → /dashboard → ∞ (ERR_TOO_MANY_REDIRECTS)
+  //    대신 클라이언트(LoginForm useEffect)에서 이미 로그인된 경우를 처리한다.
+  const authPaths = ['/login', '/signup', '/forgot-password'];
   if (authPaths.some((p) => pathname.startsWith(p))) {
     return supabaseResponse;
   }
