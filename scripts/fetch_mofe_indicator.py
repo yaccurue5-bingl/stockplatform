@@ -52,7 +52,8 @@ BOARD_URL      = (
 DETAIL_BASE    = f'{BASE_URL}/st/ecnmyidx/detailTbEconomyIndicatorView.do'
 BBS_ID         = 'MOSFBBS_000000000045'
 LAST_NTT_FILE  = Path(__file__).parent / '.mofe_last_ntt_id'  # 마지막 성공 NttId 저장
-INITIAL_NTT_ID = 77362  # 2026-04-03 기준 (업데이트 시 초기값)
+INITIAL_NTT_ID = 77372  # 2026-04-17 기준 (업데이트 시 초기값)
+NTT_PROBE_RANGE = 20    # 마지막 성공 NttId 기준 앞으로 최대 탐색 범위
 SITE_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
     'Referer': BASE_URL,
@@ -183,8 +184,8 @@ def find_and_download_hwp() -> tuple[str, str] | None:
         atch_id = None
         detail_url = None
 
-        # 마지막 성공 ID부터 최대 +10 probe (최신 찾기)
-        for offset in range(11):
+        # 마지막 성공 ID부터 최대 +NTT_PROBE_RANGE probe (최신 찾기)
+        for offset in range(NTT_PROBE_RANGE + 1):
             candidate = last_ntt + offset
             ntt_id_str = f'MOSF_{candidate:015d}'
             url = (
@@ -407,13 +408,17 @@ def save_indicators(data: dict) -> bool:
 def run(local_hwp: str | None = None, dry_run: bool = False):
     logger.info('=== 재정경제부 일일경제지표 파이프라인 시작 ===')
 
-    # 크레딧 확인
-    credit_r = requests.get('https://api.cloudconvert.com/v2/users/me', headers=CC_HEADERS, timeout=10)
-    credits = credit_r.json().get('data', {}).get('credits', 0)
-    logger.info(f'CloudConvert 잔여 크레딧: {credits}')
-    if credits < 1:
-        logger.error('크레딧 부족. 충전 필요.')
-        return
+    # 크레딧 확인 (네트워크 오류 시에도 정상 종료)
+    try:
+        credit_r = requests.get('https://api.cloudconvert.com/v2/users/me', headers=CC_HEADERS, timeout=10)
+        credits = credit_r.json().get('data', {}).get('credits', 0)
+        logger.info(f'CloudConvert 잔여 크레딧: {credits}')
+        if credits < 1:
+            logger.warning('CloudConvert 크레딧 부족 또는 확인 불가 — 파이프라인을 건너뜁니다.')
+            return
+    except Exception as e:
+        logger.warning(f'CloudConvert 크레딧 확인 실패: {e} — 계속 진행합니다.')
+        credits = 99  # 확인 불가 시 변환 시도 (실제 오류는 변환 단계에서 핸들링)
 
     hwp_path = None
     cleanup_files = []

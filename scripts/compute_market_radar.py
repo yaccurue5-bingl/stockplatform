@@ -258,10 +258,11 @@ def main():
     print(f"  {len(sector_signals)}개 섹터 신호 로드")
 
     if not sector_signals:
-        print("[WARN] sector_signals 데이터가 없습니다.")
+        print("[WARN] sector_signals 데이터가 없습니다 — 주말·공휴일 또는 compute_sector_signals 미실행.")
         print("  먼저 compute_sector_signals.py 를 실행하세요:")
         print(f"  python scripts/compute_sector_signals.py --date {date_str}")
-        sys.exit(1)
+        print("[INFO] market_radar 집계를 건너뜁니다. (정상 종료)")
+        sys.exit(0)
 
     # 2. market_indices 조회
     print("  market_indices 조회 중...")
