@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { signIn, signInWithGoogle } from '@/lib/supabase/client';
+import { signIn, signInWithGoogle, getSupabase } from '@/lib/supabase/client';
 
 function LoginForm() {
   const router = useRouter();
@@ -16,6 +16,16 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // ✅ 이미 로그인된 유저 → redirectTo(또는 /)로 이동
+  // 미들웨어에서 서버 리다이렉트를 제거했으므로 클라이언트에서 처리
+  useEffect(() => {
+    getSupabase().auth.getUser().then(({ data }) => {
+      if (data.user) {
+        router.replace(redirectTo);
+      }
+    });
+  }, [router, redirectTo]);
 
   // ✅ 뒤로가기로 돌아왔을 때 버튼 상태 초기화 (bfcache 대응)
   useEffect(() => {

@@ -165,26 +165,100 @@ def _save_ntt_id(ntt_num: int):
     LAST_NTT_FILE.write_text(str(ntt_num))
 
 
+def _download_hwp(http_session: requests.Session, atch_id: str, detail_url: str) -> tuple[str, str] | None:
+    """atch_id로 HWP 파일 다운로드. 성공 시 (tmp_path, filename) 반환."""
+    http_session.headers.update({'Referer': detail_url})
+    hwp_url = f'{BASE_URL}/com/cmm/fms/FileDown.do?atchFileId={atch_id}&fileSn=1'
+    logger.info(f'HWP 다운로드: {hwp_url}')
+
+    r = http_session.get(hwp_url, timeout=30, stream=True)
+    r.raise_for_status()
+
+    content_disp = r.headers.get('Content-Disposition', '')
+    fname_match = re.search(r'filename=(.+)', content_disp)
+    filename = fname_match.group(1).strip() if fname_match else 'indicator.hwp'
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.hwp', delete=False)
+    for chunk in r.iter_content(chunk_size=8192):
+        tmp.write(chunk)
+    tmp.close()
+
+    size_kb = Path(tmp.name).stat().st_size // 1024
+    if size_kb < 10:
+        logger.error(f'다운로드 파일이 너무 작음 ({size_kb} KB) → 인증 실패 가능성')
+        Path(tmp.name).unlink(missing_ok=True)
+        return None
+
+    logger.info(f'HWP 다운로드 완료: {size_kb} KB ({filename})')
+    return tmp.name, filename
+
+
 def find_and_download_hwp() -> tuple[str, str] | None:
     """
     재정경제부 일일경제지표 → 최신 HWP 다운로드.
-    - 마지막 성공 NttId 기준으로 최대 10개 앞까지 probe
-    - 성공한 NttId를 로컬 파일에 저장 (다음 실행 시 이어서)
-    - 첨부파일 경로: /com/cmm/fms/FileDown.do?atchFileId=...&fileSn=1
+
+    전략 1 (우선): 게시판 목록 페이지 파싱으로 최신 NttId 직접 추출.
+      - mofe.go.kr는 존재하지 않는 NttId에도 게시판 전체 목록 HTML(5000자↑)을 반환하므로
+        오프셋 프로브 방식은 "빈 페이지" 판별이 불가능하고 break가 조기 발생함.
+      - 목록 페이지에서 searchNttId1=MOSF_XXXXXX 링크를 추출하면 NttId 갭 문제를 완전 우회.
+
+    전략 2 (폴백): 마지막 성공 NttId ± NTT_PROBE_RANGE 오프셋 순차 탐색.
     """
     try:
-        session = requests.Session()
-        session.headers.update(SITE_HEADERS)
-        session.get(BASE_URL, timeout=10)  # 기본 쿠키 획득
+        http_session = requests.Session()
+        http_session.headers.update(SITE_HEADERS)
+        http_session.get(BASE_URL, timeout=10)  # 기본 쿠키 획득
 
         last_ntt = _load_last_ntt_id()
-        logger.info(f'마지막 NttId: {last_ntt}, 최신 탐색 시작...')
+        logger.info(f'마지막 처리 NttId: {last_ntt}')
 
+        # ── 전략 1: 게시판 목록 파싱 ─────────────────────────────────────────
+        logger.info('전략 1: 게시판 목록 페이지 파싱...')
+        try:
+            board_r = http_session.get(BOARD_URL, timeout=10)
+            # 목록 링크 예시: searchNttId1=MOSF_000000000077380
+            raw_matches = re.findall(r'searchNttId1=(MOSF_(\d+))', board_r.text)
+            if raw_matches:
+                # NttId 숫자 기준 내림차순 정렬 → 가장 최신 게시물 우선
+                raw_matches_sorted = sorted(raw_matches, key=lambda x: int(x[1]), reverse=True)
+                for ntt_id_str, ntt_num_str in raw_matches_sorted:
+                    ntt_num = int(ntt_num_str)
+                    if ntt_num <= last_ntt:
+                        logger.info(f'  {ntt_id_str}: 이미 처리됨 (last={last_ntt}), 건너뜀')
+                        continue
+
+                    # 상세 페이지 접근 → atchFileId 확인
+                    detail_url = (
+                        f'{DETAIL_BASE}?bbsId={BBS_ID}'
+                        f'&searchNttId1={ntt_id_str}&menuNo=6010200'
+                    )
+                    det_r = http_session.get(detail_url, timeout=10)
+                    atch_match = re.search(r'atchFileId=(ATCH_\w+)', det_r.text)
+                    if not atch_match:
+                        logger.info(f'  {ntt_id_str}: 첨부파일 없음 (공휴일/공지 등), 건너뜀')
+                        continue
+
+                    atch_id = atch_match.group(1)
+                    logger.info(f'  신규 게시물: {ntt_id_str} | {atch_id}')
+                    _save_ntt_id(ntt_num)
+
+                    result = _download_hwp(http_session, atch_id, detail_url)
+                    return result  # None이면 다운로드 실패 (상위에서 처리)
+
+                # 목록에 신규 없음
+                logger.info('게시판 목록에 신규 게시물 없음 (주말·공휴일·미게시) — 정상 종료')
+                return None
+            else:
+                logger.warning('게시판 목록에서 NttId를 찾지 못했습니다. 전략 2로 폴백합니다.')
+        except Exception as e:
+            logger.warning(f'전략 1 실패: {e} — 전략 2(오프셋 프로브)로 폴백합니다.')
+
+        # ── 전략 2: 오프셋 프로브 (폴백) ──────────────────────────────────────
+        logger.info(f'전략 2: {last_ntt}부터 +{NTT_PROBE_RANGE} 오프셋 프로브...')
         found_ntt = None
         atch_id = None
-        detail_url = None
+        detail_url_fallback = None
 
-        # 마지막 성공 ID부터 최대 +NTT_PROBE_RANGE probe (최신 찾기)
         for offset in range(NTT_PROBE_RANGE + 1):
             candidate = last_ntt + offset
             ntt_id_str = f'MOSF_{candidate:015d}'
@@ -192,55 +266,26 @@ def find_and_download_hwp() -> tuple[str, str] | None:
                 f'{DETAIL_BASE}?bbsId={BBS_ID}'
                 f'&searchNttId1={ntt_id_str}&menuNo=6010200'
             )
-            r = session.get(url, timeout=10)
-            if len(r.text) < 5000:
-                continue  # 빈 페이지 = 해당 ID 없음
+            r = http_session.get(url, timeout=10)
 
             atch_match = re.search(r'atchFileId=(ATCH_\w+)', r.text)
             if atch_match:
                 found_ntt = candidate
                 atch_id = atch_match.group(1)
-                detail_url = url
-                logger.info(f'게시물 발견: MOSF_{candidate:015d} | {atch_id}')
-                # 더 최신이 있는지 계속 탐색
-            else:
-                break  # ID가 없으면 더 이상 없음
+                detail_url_fallback = url
+                logger.info(f'  발견: {ntt_id_str} | {atch_id}')
+            # break 제거: mofe.go.kr가 없는 NttId에도 전체 HTML 반환하므로
+            # break 조건으로 삼을 수 없음 → 범위 끝까지 탐색
 
         if not found_ntt:
-            # 주말/공휴일/미게시 = 정상 케이스. 에러 아님
-            logger.info('신규 게시물 없음 (주말·공휴일·미게시 정상) — 마지막 저장 데이터 유지')
+            logger.info('오프셋 범위 내 신규 게시물 없음 — 정상 종료')
             return None
 
-        # 최신 NttId 저장 (초회 실행 포함: 상태파일 없으면 무조건 저장)
-        if not LAST_NTT_FILE.exists() or found_ntt > last_ntt:
+        if found_ntt > last_ntt:
             _save_ntt_id(found_ntt)
             logger.info(f'NttId 저장: {found_ntt}')
 
-        # 상세 페이지 Referer 설정 후 HWP 다운로드
-        session.headers.update({'Referer': detail_url})
-        hwp_url = f'{BASE_URL}/com/cmm/fms/FileDown.do?atchFileId={atch_id}&fileSn=1'
-        logger.info(f'HWP 다운로드: {hwp_url}')
-
-        r = session.get(hwp_url, timeout=30, stream=True)
-        r.raise_for_status()
-
-        content_disp = r.headers.get('Content-Disposition', '')
-        fname_match = re.search(r'filename=(.+)', content_disp)
-        filename = fname_match.group(1).strip() if fname_match else 'indicator.hwp'
-
-        tmp = tempfile.NamedTemporaryFile(suffix='.hwp', delete=False)
-        for chunk in r.iter_content(chunk_size=8192):
-            tmp.write(chunk)
-        tmp.close()
-
-        size_kb = Path(tmp.name).stat().st_size // 1024
-        if size_kb < 10:
-            logger.error(f'다운로드 파일이 너무 작음 ({size_kb} KB) → 인증 실패 가능성')
-            Path(tmp.name).unlink(missing_ok=True)
-            return None
-
-        logger.info(f'HWP 다운로드 완료: {size_kb} KB ({filename})')
-        return tmp.name, filename
+        return _download_hwp(http_session, atch_id, detail_url_fallback)
 
     except Exception as e:
         logger.error(f'HWP 탐색/다운로드 실패: {e}')
