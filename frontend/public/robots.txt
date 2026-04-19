@@ -12,4 +12,5 @@ Allow: /korea-earnings-signals
 Allow: /korea-dilution-filings
 Allow: /korea-contract-signals
 
+# Primary canonical domain only
 Sitemap: https://k-marketinsight.com/sitemap.xml
