@@ -14,6 +14,174 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_usage_daily: {
+        Row: {
+          call_count: number
+          date: string
+          user_id: string
+        }
+        Insert: {
+          call_count?: number
+          date: string
+          user_id: string
+        }
+        Update: {
+          call_count?: number
+          date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_daily_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_usage_log: {
+        Row: {
+          created_at: string | null
+          endpoint: string
+          id: string
+          latency_ms: number | null
+          method: string
+          plan: string | null
+          status_code: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          latency_ms?: number | null
+          method?: string
+          plan?: string | null
+          status_code?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          latency_ms?: number | null
+          method?: string
+          plan?: string | null
+          status_code?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      backtest_results: {
+        Row: {
+          avg_return_per_trade: number | null
+          computed_at: string | null
+          equity_curve: Json | null
+          event_filter: string | null
+          hold_days: number
+          id: string
+          max_drawdown: number | null
+          num_trades: number | null
+          score_threshold: number | null
+          sharpe_ratio: number | null
+          strategy_id: string
+          strategy_label: string
+          total_return: number | null
+          win_rate: number | null
+        }
+        Insert: {
+          avg_return_per_trade?: number | null
+          computed_at?: string | null
+          equity_curve?: Json | null
+          event_filter?: string | null
+          hold_days?: number
+          id?: string
+          max_drawdown?: number | null
+          num_trades?: number | null
+          score_threshold?: number | null
+          sharpe_ratio?: number | null
+          strategy_id: string
+          strategy_label: string
+          total_return?: number | null
+          win_rate?: number | null
+        }
+        Update: {
+          avg_return_per_trade?: number | null
+          computed_at?: string | null
+          equity_curve?: Json | null
+          event_filter?: string | null
+          hold_days?: number
+          id?: string
+          max_drawdown?: number | null
+          num_trades?: number | null
+          score_threshold?: number | null
+          sharpe_ratio?: number | null
+          strategy_id?: string
+          strategy_label?: string
+          total_return?: number | null
+          win_rate?: number | null
+        }
+        Relationships: []
+      }
+      backtest_trades: {
+        Row: {
+          base_score: number | null
+          created_at: string
+          disclosure_id: string | null
+          event_date: string
+          final_score: number | null
+          id: string
+          market_regime: string | null
+          return_3d: number | null
+          return_5d: number | null
+          stock_code: string
+          strategy_name: string
+        }
+        Insert: {
+          base_score?: number | null
+          created_at?: string
+          disclosure_id?: string | null
+          event_date: string
+          final_score?: number | null
+          id?: string
+          market_regime?: string | null
+          return_3d?: number | null
+          return_5d?: number | null
+          stock_code: string
+          strategy_name: string
+        }
+        Update: {
+          base_score?: number | null
+          created_at?: string
+          disclosure_id?: string | null
+          event_date?: string
+          final_score?: number | null
+          id?: string
+          market_regime?: string | null
+          return_3d?: number | null
+          return_5d?: number | null
+          stock_code?: string
+          strategy_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backtest_trades_disclosure_id_fkey"
+            columns: ["disclosure_id"]
+            isOneToOne: false
+            referencedRelation: "disclosure_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           corp_name: string
@@ -27,6 +195,7 @@ export type Database = {
           id: number
           ksic_code: string | null
           listed_shares: number | null
+          listed_shares_updated: string | null
           market_cap: number | null
           market_type: string | null
           representative: string | null
@@ -47,6 +216,7 @@ export type Database = {
           id?: number
           ksic_code?: string | null
           listed_shares?: number | null
+          listed_shares_updated?: string | null
           market_cap?: number | null
           market_type?: string | null
           representative?: string | null
@@ -67,6 +237,7 @@ export type Database = {
           id?: number
           ksic_code?: string | null
           listed_shares?: number | null
+          listed_shares_updated?: string | null
           market_cap?: number | null
           market_type?: string | null
           representative?: string | null
@@ -77,10 +248,62 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_indicators: {
+        Row: {
+          date: string
+          foreign_net_buy_kosdaq: number | null
+          foreign_net_buy_kospi: number | null
+          id: number
+          kosdaq_change_pct: number | null
+          kosdaq_close: number | null
+          kospi_change_pct: number | null
+          kospi_close: number | null
+          source: string | null
+          treasury_yield_10y: number | null
+          treasury_yield_3y: number | null
+          updated_at: string | null
+          usd_krw: number | null
+          wti_oil: number | null
+        }
+        Insert: {
+          date: string
+          foreign_net_buy_kosdaq?: number | null
+          foreign_net_buy_kospi?: number | null
+          id?: number
+          kosdaq_change_pct?: number | null
+          kosdaq_close?: number | null
+          kospi_change_pct?: number | null
+          kospi_close?: number | null
+          source?: string | null
+          treasury_yield_10y?: number | null
+          treasury_yield_3y?: number | null
+          updated_at?: string | null
+          usd_krw?: number | null
+          wti_oil?: number | null
+        }
+        Update: {
+          date?: string
+          foreign_net_buy_kosdaq?: number | null
+          foreign_net_buy_kospi?: number | null
+          id?: number
+          kosdaq_change_pct?: number | null
+          kosdaq_close?: number | null
+          kospi_change_pct?: number | null
+          kospi_close?: number | null
+          source?: string | null
+          treasury_yield_10y?: number | null
+          treasury_yield_3y?: number | null
+          updated_at?: string | null
+          usd_krw?: number | null
+          wti_oil?: number | null
+        }
+        Relationships: []
+      }
       dart_corp_codes: {
         Row: {
           corp_code: string
           corp_name: string
+          corp_name_en: string | null
           created_at: string | null
           modify_date: string | null
           stock_code: string
@@ -89,6 +312,7 @@ export type Database = {
         Insert: {
           corp_code: string
           corp_name: string
+          corp_name_en?: string | null
           created_at?: string | null
           modify_date?: string | null
           stock_code: string
@@ -97,6 +321,7 @@ export type Database = {
         Update: {
           corp_code?: string
           corp_name?: string
+          corp_name_en?: string | null
           created_at?: string | null
           modify_date?: string | null
           stock_code?: string
@@ -197,7 +422,11 @@ export type Database = {
           content: string | null
           corp_code: string | null
           corp_name: string | null
+          corp_name_en: string | null
+          counterparty_type: string | null
           created_at: string | null
+          deal_revenue_pct: number | null
+          dilution_pct: number | null
           event_type: string | null
           final_score: number | null
           financial_impact: string | null
@@ -213,6 +442,7 @@ export type Database = {
           rcept_dt: string | null
           rcept_no: string | null
           report_nm: string | null
+          report_nm_en: string | null
           risk_factors: string | null
           sector: string | null
           sentiment: string | null
@@ -242,7 +472,11 @@ export type Database = {
           content?: string | null
           corp_code?: string | null
           corp_name?: string | null
+          corp_name_en?: string | null
+          counterparty_type?: string | null
           created_at?: string | null
+          deal_revenue_pct?: number | null
+          dilution_pct?: number | null
           event_type?: string | null
           final_score?: number | null
           financial_impact?: string | null
@@ -258,6 +492,7 @@ export type Database = {
           rcept_dt?: string | null
           rcept_no?: string | null
           report_nm?: string | null
+          report_nm_en?: string | null
           risk_factors?: string | null
           sector?: string | null
           sentiment?: string | null
@@ -287,7 +522,11 @@ export type Database = {
           content?: string | null
           corp_code?: string | null
           corp_name?: string | null
+          corp_name_en?: string | null
+          counterparty_type?: string | null
           created_at?: string | null
+          deal_revenue_pct?: number | null
+          dilution_pct?: number | null
           event_type?: string | null
           final_score?: number | null
           financial_impact?: string | null
@@ -303,6 +542,7 @@ export type Database = {
           rcept_dt?: string | null
           rcept_no?: string | null
           report_nm?: string | null
+          report_nm_en?: string | null
           risk_factors?: string | null
           sector?: string | null
           sentiment?: string | null
@@ -369,7 +609,14 @@ export type Database = {
           avg_3d_return: number | null
           avg_5d_return: number | null
           event_type: string
+          median_20d_return: number | null
+          median_5d_return: number | null
+          risk_adj_return: number | null
           sample_size: number | null
+          sample_size_clean: number | null
+          signal_confidence: number | null
+          signal_grade: string | null
+          signal_score: number | null
           std_5d: number | null
           updated_at: string | null
         }
@@ -379,7 +626,14 @@ export type Database = {
           avg_3d_return?: number | null
           avg_5d_return?: number | null
           event_type: string
+          median_20d_return?: number | null
+          median_5d_return?: number | null
+          risk_adj_return?: number | null
           sample_size?: number | null
+          sample_size_clean?: number | null
+          signal_confidence?: number | null
+          signal_grade?: string | null
+          signal_score?: number | null
           std_5d?: number | null
           updated_at?: string | null
         }
@@ -389,8 +643,51 @@ export type Database = {
           avg_3d_return?: number | null
           avg_5d_return?: number | null
           event_type?: string
+          median_20d_return?: number | null
+          median_5d_return?: number | null
+          risk_adj_return?: number | null
           sample_size?: number | null
+          sample_size_clean?: number | null
+          signal_confidence?: number | null
+          signal_grade?: string | null
+          signal_score?: number | null
           std_5d?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      financials: {
+        Row: {
+          created_at: string | null
+          fiscal_year: number
+          id: number
+          is_financial_sector: boolean | null
+          net_profit: number | null
+          op_profit: number | null
+          revenue: number | null
+          stock_code: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fiscal_year: number
+          id?: number
+          is_financial_sector?: boolean | null
+          net_profit?: number | null
+          op_profit?: number | null
+          revenue?: number | null
+          stock_code: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fiscal_year?: number
+          id?: number
+          is_financial_sector?: boolean | null
+          net_profit?: number | null
+          op_profit?: number | null
+          revenue?: number | null
+          stock_code?: string
           updated_at?: string | null
         }
         Relationships: []
@@ -418,7 +715,7 @@ export type Database = {
           corp_code: string
           corp_name: string
           created_at?: string | null
-          expires_at?: string
+          expires_at: string
           id?: string
           is_active?: boolean | null
           level?: string
@@ -680,6 +977,134 @@ export type Database = {
         }
         Relationships: []
       }
+      payments: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          currency: string | null
+          id: string
+          paddle_subscription_id: string | null
+          paid_at: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          paddle_subscription_id?: string | null
+          paid_at?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          paddle_subscription_id?: string | null
+          paid_at?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      performance_summary: {
+        Row: {
+          annualized_return: number | null
+          avg_loss: number | null
+          avg_return: number | null
+          avg_win: number | null
+          equity_curve_json: Json | null
+          expectancy: number | null
+          holding_days: string | null
+          max_drawdown: number | null
+          period_end: string | null
+          period_start: string | null
+          risk_on_trades: number | null
+          score_threshold: number | null
+          sharpe_ratio: number | null
+          strategy_name: string
+          total_return: number | null
+          total_trades: number | null
+          updated_at: string
+          win_rate: number | null
+        }
+        Insert: {
+          annualized_return?: number | null
+          avg_loss?: number | null
+          avg_return?: number | null
+          avg_win?: number | null
+          equity_curve_json?: Json | null
+          expectancy?: number | null
+          holding_days?: string | null
+          max_drawdown?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          risk_on_trades?: number | null
+          score_threshold?: number | null
+          sharpe_ratio?: number | null
+          strategy_name: string
+          total_return?: number | null
+          total_trades?: number | null
+          updated_at?: string
+          win_rate?: number | null
+        }
+        Update: {
+          annualized_return?: number | null
+          avg_loss?: number | null
+          avg_return?: number | null
+          avg_win?: number | null
+          equity_curve_json?: Json | null
+          expectancy?: number | null
+          holding_days?: string | null
+          max_drawdown?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          risk_on_trades?: number | null
+          score_threshold?: number | null
+          sharpe_ratio?: number | null
+          strategy_name?: string
+          total_return?: number | null
+          total_trades?: number | null
+          updated_at?: string
+          win_rate?: number | null
+        }
+        Relationships: []
+      }
+      price_history: {
+        Row: {
+          close: number | null
+          date: string
+          stock_code: string
+          updated_at: string
+          volume: number | null
+        }
+        Insert: {
+          close?: number | null
+          date: string
+          stock_code: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Update: {
+          close?: number | null
+          date?: string
+          stock_code?: string
+          updated_at?: string
+          volume?: number | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -716,6 +1141,7 @@ export type Database = {
           disclosure_id: string | null
           final_score: number | null
           future_return_20d: number | null
+          future_return_3d: number | null
           future_return_5d: number | null
           id: string
           lps: number | null
@@ -730,6 +1156,7 @@ export type Database = {
           disclosure_id?: string | null
           final_score?: number | null
           future_return_20d?: number | null
+          future_return_3d?: number | null
           future_return_5d?: number | null
           id?: string
           lps?: number | null
@@ -744,6 +1171,7 @@ export type Database = {
           disclosure_id?: string | null
           final_score?: number | null
           future_return_20d?: number | null
+          future_return_3d?: number | null
           future_return_5d?: number | null
           id?: string
           lps?: number | null
@@ -788,8 +1216,51 @@ export type Database = {
         }
         Relationships: []
       }
+      sector_macro: {
+        Row: {
+          export_amount_mn: number | null
+          export_momentum: string | null
+          export_yoy: number | null
+          id: string
+          macro_label: string | null
+          macro_score: number | null
+          prev_export_yoy: number | null
+          sector_en: string
+          source: string | null
+          updated_at: string | null
+          year_month: string
+        }
+        Insert: {
+          export_amount_mn?: number | null
+          export_momentum?: string | null
+          export_yoy?: number | null
+          id?: string
+          macro_label?: string | null
+          macro_score?: number | null
+          prev_export_yoy?: number | null
+          sector_en: string
+          source?: string | null
+          updated_at?: string | null
+          year_month: string
+        }
+        Update: {
+          export_amount_mn?: number | null
+          export_momentum?: string | null
+          export_yoy?: number | null
+          id?: string
+          macro_label?: string | null
+          macro_score?: number | null
+          prev_export_yoy?: number | null
+          sector_en?: string
+          source?: string | null
+          updated_at?: string | null
+          year_month?: string
+        }
+        Relationships: []
+      }
       sector_signals: {
         Row: {
+          avg_return_3d: number | null
           confidence: number | null
           created_at: string | null
           date: string
@@ -799,11 +1270,16 @@ export type Database = {
           negative_count: number | null
           neutral_count: number | null
           positive_count: number | null
+          risk_on_ratio: number | null
+          score: number | null
           sector: string
           sector_en: string | null
           signal: string | null
+          top_stocks: Json | null
+          win_rate: number | null
         }
         Insert: {
+          avg_return_3d?: number | null
           confidence?: number | null
           created_at?: string | null
           date: string
@@ -813,11 +1289,16 @@ export type Database = {
           negative_count?: number | null
           neutral_count?: number | null
           positive_count?: number | null
+          risk_on_ratio?: number | null
+          score?: number | null
           sector: string
           sector_en?: string | null
           signal?: string | null
+          top_stocks?: Json | null
+          win_rate?: number | null
         }
         Update: {
+          avg_return_3d?: number | null
           confidence?: number | null
           created_at?: string | null
           date?: string
@@ -827,9 +1308,13 @@ export type Database = {
           negative_count?: number | null
           neutral_count?: number | null
           positive_count?: number | null
+          risk_on_ratio?: number | null
+          score?: number | null
           sector?: string
           sector_en?: string | null
           signal?: string | null
+          top_stocks?: Json | null
+          win_rate?: number | null
         }
         Relationships: []
       }
@@ -857,45 +1342,81 @@ export type Database = {
         }
         Relationships: []
       }
-      subscriptions: {
+      short_interest: {
         Row: {
-          id: string
-          user_id: string | null
-          paddle_subscription_id: string | null
-          paddle_customer_id: string | null
-          paddle_plan_id: string | null
-          plan_type: string
-          status: string
-          next_billing_date: string | null
-          canceled_at: string | null
           created_at: string | null
-          updated_at: string | null
+          date: string
+          id: number
+          loan_balance: number | null
+          loan_shares: number | null
+          stock_code: string
         }
         Insert: {
-          id?: string
-          user_id?: string | null
-          paddle_subscription_id?: string | null
-          paddle_customer_id?: string | null
-          paddle_plan_id?: string | null
-          plan_type?: string
-          status?: string
-          next_billing_date?: string | null
-          canceled_at?: string | null
           created_at?: string | null
-          updated_at?: string | null
+          date: string
+          id?: number
+          loan_balance?: number | null
+          loan_shares?: number | null
+          stock_code: string
         }
         Update: {
-          id?: string
-          user_id?: string | null
-          paddle_subscription_id?: string | null
-          paddle_customer_id?: string | null
-          paddle_plan_id?: string | null
-          plan_type?: string
-          status?: string
-          next_billing_date?: string | null
+          created_at?: string | null
+          date?: string
+          id?: number
+          loan_balance?: number | null
+          loan_shares?: number | null
+          stock_code?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean | null
+          canceled_at: string | null
+          created_at: string | null
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          next_billing_date: string | null
+          paddle_customer_id: string | null
+          paddle_plan_id: string | null
+          paddle_subscription_id: string | null
+          plan_type: string
+          status: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          cancel_at_period_end?: boolean | null
           canceled_at?: string | null
           created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          next_billing_date?: string | null
+          paddle_customer_id?: string | null
+          paddle_plan_id?: string | null
+          paddle_subscription_id?: string | null
+          plan_type?: string
+          status?: string
           updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          cancel_at_period_end?: boolean | null
+          canceled_at?: string | null
+          created_at?: string | null
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          next_billing_date?: string | null
+          paddle_customer_id?: string | null
+          paddle_plan_id?: string | null
+          paddle_subscription_id?: string | null
+          plan_type?: string
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -965,9 +1486,49 @@ export type Database = {
         }
         Relationships: []
       }
+      waitlist: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          notified_at: string | null
+          source: string | null
+          subscribed: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          notified_at?: string | null
+          source?: string | null
+          subscribed?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          notified_at?: string | null
+          source?: string | null
+          subscribed?: boolean | null
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      financials_yoy: {
+        Row: {
+          fiscal_year: number | null
+          is_financial_sector: boolean | null
+          net_profit: number | null
+          op_profit: number | null
+          op_profit_yoy: number | null
+          profit_yoy: number | null
+          revenue: number | null
+          revenue_yoy: number | null
+          stock_code: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_corp_code: {
@@ -978,6 +1539,10 @@ export type Database = {
         }[]
       }
       get_ksic_major_code: { Args: { ksic_code: string }; Returns: string }
+      increment_usage_daily: {
+        Args: { p_date: string; p_user_id: string }
+        Returns: undefined
+      }
       update_company_ksic: {
         Args: {
           p_corp_code?: string
