@@ -38,9 +38,10 @@ logger = logging.getLogger('fetch_ecos_foreign_flow')
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 
-ECOS_BASE  = 'https://ecos.bok.or.kr/api'
-STAT_CODE  = '064Y002'   # 외국인 주식 거래 동향 (일별)
-PAGE_SIZE  = 9999
+ECOS_BASE   = 'https://ecos.bok.or.kr/api'
+STAT_CODE   = '802Y001'   # 1.5.1.1. 주식시장(일)
+ITEM_CODE   = '0030000'   # 외국인 순매수(유가증권시장/KOSPI), 단위: 억원
+PAGE_SIZE   = 9999
 
 
 # ── 날짜 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ def ecos_search(api_key: str, start: str, end: str) -> list[dict]:
     url = '/'.join([
         ECOS_BASE, 'StatisticSearch', api_key, 'json', 'kr',
         '1', str(PAGE_SIZE), STAT_CODE, 'D', start, end,
-        '', '', '', '',   # item_code 1~4 (빈 문자열 = 와일드카드)
+        ITEM_CODE, '', '', '',   # ITEM_CODE1=0030000 (외국인 순매수 KOSPI)
     ]) + '/'
 
     try:
@@ -98,46 +99,23 @@ def ecos_search(api_key: str, start: str, end: str) -> list[dict]:
 def parse_foreign_net_buy(rows: list[dict]) -> dict[str, float]:
     """
     rows → {YYYY-MM-DD: 억원} 변환.
-    ECOS 064Y002 구조: 항목이 여러 개이므로 '순매수' 키워드 항목만 사용.
-    없으면 전체 합산 대신 첫 번째 항목 사용 (기존 backfill 방식과 동일).
+    ITEM_CODE=0030000 으로 필터했으므로 1일 1행 보장.
+    단위: 억원 (ECOS 802Y001 기준)
     """
     result: dict[str, float] = {}
-
-    # 항목명에 '순매수' 포함된 행 우선 필터
-    net_buy_rows = [
-        r for r in rows
-        if '순매수' in (r.get('ITEM_NAME1', '') + r.get('ITEM_NAME2', '') + r.get('ITEM_NAME3', ''))
-        and 'KOSPI' in (r.get('ITEM_NAME1', '') + r.get('ITEM_NAME2', '') + r.get('ITEM_NAME3', '')).upper()
-    ]
-
-    # KOSPI 순매수 항목이 없으면 '순매수' 항목 전체 사용
-    if not net_buy_rows:
-        net_buy_rows = [
-            r for r in rows
-            if '순매수' in (r.get('ITEM_NAME1', '') + r.get('ITEM_NAME2', '') + r.get('ITEM_NAME3', ''))
-        ]
-
-    # 그래도 없으면 전체 rows 그대로 (기존 backfill 동작과 동일)
-    target_rows = net_buy_rows if net_buy_rows else rows
-
-    for row in target_rows:
+    for row in rows:
         time_str = str(row.get('TIME', ''))
         raw_val  = row.get('DATA_VALUE')
-
         if not time_str or raw_val in (None, '', '-'):
             continue
-
         time_str = time_str.replace('/', '').replace('-', '')
         if len(time_str) != 8:
             continue
-
         iso = f'{time_str[:4]}-{time_str[4:6]}-{time_str[6:]}'
         try:
-            val = float(str(raw_val).replace(',', ''))
-            result[iso] = round(val, 2)
+            result[iso] = round(float(str(raw_val).replace(',', '')), 2)
         except (ValueError, TypeError):
             continue
-
     return result
 
 
