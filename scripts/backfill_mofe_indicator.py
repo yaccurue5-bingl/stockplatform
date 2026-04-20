@@ -18,6 +18,7 @@ CloudConvert: 1 크레딧/건  →  --count 이하로 크레딧이 부족하면 
 import os
 import re
 import json
+import ssl
 import sys
 import time
 import logging
@@ -26,7 +27,9 @@ import argparse
 from pathlib import Path
 from datetime import date
 
+import urllib3
 import requests
+from requests.adapters import HTTPAdapter
 import pdfplumber
 from groq import Groq
 from dotenv import load_dotenv
@@ -59,9 +62,64 @@ BOARD_URL   = (
 DETAIL_BASE = f'{BASE_URL}/st/ecnmyidx/detailTbEconomyIndicatorView.do'
 BBS_ID      = 'MOSFBBS_000000000045'
 SITE_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                  'Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
     'Referer': BASE_URL,
 }
+
+# SSL 경고 억제 (mofe.go.kr 레거시 인증서 대응)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+class _LegacySSLAdapter(HTTPAdapter):
+    """
+    한국 정부 사이트(mofe.go.kr)는 Python 3.10+ 기본 SSL 보안 정책과
+    호환되지 않는 경우가 많음 (WinError 10054 / SSL handshake 실패).
+    - SECLEVEL=1 로 레거시 cipher 허용
+    - 인증서 검증 비활성화 (공공기관 사이트 자체 서명 대응)
+    """
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        try:
+            ctx.set_ciphers('DEFAULT:@SECLEVEL=1')
+        except ssl.SSLError:
+            pass  # 일부 OpenSSL 버전에서 무시
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
+    def proxy_manager_for(self, proxy, **proxy_kwargs):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        try:
+            ctx.set_ciphers('DEFAULT:@SECLEVEL=1')
+        except ssl.SSLError:
+            pass
+        proxy_kwargs['ssl_context'] = ctx
+        return super().proxy_manager_for(proxy, **proxy_kwargs)
+
+
+def _make_mofe_session() -> requests.Session:
+    """mofe.go.kr 전용 HTTP 세션 생성 (레거시 SSL + 재시도)."""
+    session = requests.Session()
+    adapter = _LegacySSLAdapter(
+        max_retries=urllib3.Retry(
+            total=3,
+            backoff_factor=1.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=['GET', 'POST'],
+        )
+    )
+    session.mount('https://', adapter)
+    session.mount('http://', adapter)
+    session.headers.update(SITE_HEADERS)
+    return session
 
 # Groq 추출 프롬프트 (fetch_mofe_indicator.py와 동일)
 INDICATOR_SYSTEM_PROMPT = """You are a STRICT financial data extraction engine for Korean government documents.
@@ -122,7 +180,7 @@ def get_board_posts(http: requests.Session, page_count: int = 2) -> list[tuple[s
     for page in range(1, page_count + 1):
         url = BOARD_URL + f'&pageIndex={page}&recordCountPerPage=20'
         try:
-            r = http.get(url, timeout=10)
+            r = http.get(url, timeout=15, verify=False)
         except Exception as e:
             logger.warning(f'게시판 페이지 {page} 요청 실패: {e}')
             break
@@ -153,7 +211,7 @@ def get_atch_id(http: requests.Session, ntt_id_str: str) -> tuple[str, str] | No
         f'&searchNttId1={ntt_id_str}&menuNo=6010200'
     )
     try:
-        r = http.get(detail_url, timeout=10)
+        r = http.get(detail_url, timeout=15, verify=False)
         m = re.search(r'atchFileId=(ATCH_\w+)', r.text)
         if m:
             return m.group(1), detail_url
@@ -169,7 +227,7 @@ def download_hwp(http: requests.Session, atch_id: str, detail_url: str) -> str |
     http.headers.update({'Referer': detail_url})
     hwp_url = f'{BASE_URL}/com/cmm/fms/FileDown.do?atchFileId={atch_id}&fileSn=1'
     try:
-        r = http.get(hwp_url, timeout=30, stream=True)
+        r = http.get(hwp_url, timeout=60, stream=True, verify=False)
         r.raise_for_status()
         tmp = tempfile.NamedTemporaryFile(suffix='.hwp', delete=False)
         for chunk in r.iter_content(chunk_size=8192):
@@ -380,9 +438,11 @@ def main():
 
     # 게시판 목록 파싱 (count의 3배를 목표로 넉넉하게)
     logger.info('\n게시판 목록 파싱 중...')
-    http = requests.Session()
-    http.headers.update(SITE_HEADERS)
-    http.get(BASE_URL, timeout=10)
+    http = _make_mofe_session()
+    try:
+        http.get(BASE_URL, timeout=10, verify=False)  # 초기 쿠키 획득
+    except Exception as e:
+        logger.warning(f'초기 쿠키 획득 실패 (무시하고 계속): {e}')
 
     page_need = max(2, (args.count * 3) // 20 + 1)
     posts = get_board_posts(http, page_count=page_need)
