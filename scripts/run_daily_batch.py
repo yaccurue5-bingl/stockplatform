@@ -223,9 +223,10 @@ def run_eod(args):
          [],
          False),
 
-        # Step 2: 재정경제부 일일경제지표 확정 수집 (외국인 순매수)
+        # Step 2: 한국은행 ECOS API → 외국인 순매수 KOSPI 수집
+        # (fetch_mofe_indicator.py 대체 — CloudConvert 불필요, SSL 문제 없음)
         ("외국인지표 수집",
-         "fetch_mofe_indicator.py",
+         "fetch_ecos_foreign_flow.py",
          [],
          False),
 
