@@ -21,12 +21,13 @@ import { createServiceClient } from '@/lib/supabase/server'
 const DEV_COLUMNS =
   'id, rcept_no, corp_name, corp_name_en, stock_code, report_nm, report_nm_en, rcept_dt, ' +
   'sentiment_score, short_term_impact_score, event_type, ai_summary, ' +
-  'base_score, final_score, signal_tag'
+  'base_score, final_score, alpha_score, signal_tag'
 
 const PRO_COLUMNS =
   DEV_COLUMNS + ', headline, financial_impact, base_score_raw, risk_factors'
 
-const SORT_WHITELIST = new Set(['rcept_dt', 'final_score', 'base_score'])
+const SORT_WHITELIST    = new Set(['rcept_dt', 'final_score', 'base_score', 'alpha_score'])
+const SIGNAL_TAG_VALUES = new Set(['HIGH_CONVICTION', 'CONSTRUCTIVE', 'NEUTRAL', 'NEGATIVE', 'HIGH_RISK'])
 
 export async function GET(req: NextRequest) {
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -69,11 +70,13 @@ export async function GET(req: NextRequest) {
   const dtFromStr = dtFrom.replace(/-/g, '')
   const dtToStr   = dtTo.replace(/-/g, '')
 
-  const stockCode = p.get('stock_code') || ''
-  const sentiment = (p.get('sentiment') || '').toUpperCase()
-  const eventType = p.get('event_type') || ''
-  const sortBy    = SORT_WHITELIST.has(p.get('sort_by') || '') ? p.get('sort_by')! : 'rcept_dt'
-  const limit     = Math.min(Math.max(parseInt(p.get('limit') || '50', 10), 1), 200)
+  const stockCode      = p.get('stock_code') || ''
+  const sentiment      = (p.get('sentiment') || '').toUpperCase()
+  const eventType      = p.get('event_type') || ''
+  const signalTag      = (p.get('signal_tag') || '').toUpperCase()
+  const alphaScoreMin  = parseFloat(p.get('alpha_score_min') || 'NaN')
+  const sortBy         = SORT_WHITELIST.has(p.get('sort_by') || '') ? p.get('sort_by')! : 'rcept_dt'
+  const limit          = Math.min(Math.max(parseInt(p.get('limit') || '50', 10), 1), 200)
 
   if (sentiment && !['POSITIVE', 'NEGATIVE', 'NEUTRAL'].includes(sentiment)) {
     return NextResponse.json(
@@ -81,11 +84,19 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     )
   }
+  if (signalTag && !SIGNAL_TAG_VALUES.has(signalTag)) {
+    return NextResponse.json(
+      { error: `signal_tag must be one of: ${[...SIGNAL_TAG_VALUES].join(', ')}` },
+      { status: 400 }
+    )
+  }
 
   // ── Cache ───────────────────────────────────────────────────────────────────
   const cacheKey = makeCacheKey('v1:disclosures', {
     plan, dtFrom: dtFromStr, dtTo: dtToStr,
-    stockCode, sentiment, eventType, sortBy, limit,
+    stockCode, sentiment, eventType, signalTag,
+    alphaScoreMin: isNaN(alphaScoreMin) ? '' : alphaScoreMin,
+    sortBy, limit,
   })
   const cached = await cacheGet<object>(cacheKey)
   if (cached) return formatResponse(req, cached as Record<string, unknown>)
@@ -106,6 +117,8 @@ export async function GET(req: NextRequest) {
     if (!isPro) query = query.eq('is_visible', true)
     if (stockCode) query = query.eq('stock_code', stockCode)
     if (eventType) query = query.eq('event_type', eventType)
+    if (signalTag)  query = query.eq('signal_tag', signalTag)
+    if (!isNaN(alphaScoreMin)) query = query.gte('alpha_score', alphaScoreMin)
     if (sentiment === 'POSITIVE') query = query.gte('sentiment_score', 0.3)
     else if (sentiment === 'NEGATIVE') query = query.lte('sentiment_score', -0.3)
     else if (sentiment === 'NEUTRAL') query = query.gt('sentiment_score', -0.3).lt('sentiment_score', 0.3)
