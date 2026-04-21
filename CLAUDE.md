@@ -52,3 +52,40 @@ import type { Tables } from '@/types/database'
 // 반드시 unknown을 경유해야 함 (직접 캐스팅은 TS 에러)
 const rows = (data ?? []) as unknown as Tables<'table_name'>[]
 ```
+
+---
+
+## 보안 규칙 (필수)
+
+### 시크릿·API 키 절대 하드코딩 금지
+
+**소스 코드·설정 파일에 키 값을 직접 쓰지 않는다.**
+
+```bash
+# ❌ 절대 금지 — 값 직접 명시
+API_KEY="20e813cb..."
+SUPABASE_SERVICE_ROLE_KEY="eyJhbGci..."
+
+# ✅ 올바른 방식 — 환경변수 참조
+API_KEY="$API_KEY"
+curl -H "X-API-Key: $API_KEY" ...
+```
+
+- 모든 키·토큰은 `.env` (gitignore됨) 또는 GitHub Actions Secrets에만 보관한다.
+- 코드·커밋 메시지·PR 본문·로그 어디에도 실제 키 값을 쓰지 않는다.
+- `.claude/settings.local.json`은 Claude Code 권한 로그이므로 **gitignore 처리** (tracked 상태면 `git rm --cached` 후 `.gitignore`에 추가).
+
+### GitHub Secret Scanning Alert 처리
+
+- **open** alert 발견 시 → 해당 키를 즉시 rotate(무효화)한 뒤 `resolved / revoked`로 닫는다.
+- Alert를 닫기 전에 키가 실제로 rotate됐는지 반드시 확인한다.
+- Supabase 키 rotate: Supabase Dashboard → Project Settings → API → "Reset" 버튼.
+
+### `.claude/settings.local.json` 관리
+
+- 이 파일은 Claude Code가 자동 생성하는 로컬 권한 캐시이며, 과거 실행 명령이 그대로 기록된다.
+- **절대 git에 추적시키지 않는다.** `.gitignore`에 반드시 포함:
+  ```
+  .claude/settings.local.json
+  ```
+- 이미 tracked 상태라면: `git rm --cached .claude/settings.local.json`
