@@ -38,10 +38,11 @@ logger = logging.getLogger('fetch_ecos_foreign_flow')
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 
-ECOS_BASE   = 'https://ecos.bok.or.kr/api'
-STAT_CODE   = '802Y001'   # 1.5.1.1. 주식시장(일)
-ITEM_CODE   = '0030000'   # 외국인 순매수(유가증권시장/KOSPI), 단위: 억원
-PAGE_SIZE   = 9999
+ECOS_BASE        = 'https://ecos.bok.or.kr/api'
+STAT_CODE        = '802Y001'   # 1.5.1.1. 주식시장(일)
+ITEM_KOSPI_FLOW  = '0030000'   # 외국인 순매수(유가증권시장/KOSPI), 단위: 억원
+ITEM_KOSDAQ_FLOW = '0113000'   # 외국인 순매수(코스닥시장/KOSDAQ),  단위: 억원
+PAGE_SIZE        = 9999
 
 
 # ── 날짜 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -63,57 +64,41 @@ def to_iso(d: date) -> str:
 
 # ── ECOS API ──────────────────────────────────────────────────────────────────
 
-def ecos_search(api_key: str, start: str, end: str) -> list[dict]:
-    """
-    ECOS StatisticSearch 호출.
-    start/end: YYYYMMDD
-    반환: row 리스트
-    """
+def ecos_search_item(api_key: str, start: str, end: str, item_code: str) -> list[dict]:
+    """ECOS StatisticSearch — 특정 item_code 단일 조회."""
     url = '/'.join([
         ECOS_BASE, 'StatisticSearch', api_key, 'json', 'kr',
         '1', str(PAGE_SIZE), STAT_CODE, 'D', start, end,
-        ITEM_CODE, '', '', '',   # ITEM_CODE1=0030000 (외국인 순매수 KOSPI)
+        item_code, '', '', '',
     ]) + '/'
-
     try:
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        logger.error(f'ECOS API 호출 실패: {e}')
+        logger.error(f'ECOS API 호출 실패 (item={item_code}): {e}')
         return []
 
     result = data.get('StatisticSearch', {})
     if 'RESULT' in result:
-        code = result['RESULT'].get('CODE', '')
-        msg  = result['RESULT'].get('MESSAGE', '')
-        logger.warning(f'ECOS 응답: [{code}] {msg}')
+        logger.warning(f"ECOS 응답: {result['RESULT']}")
         return []
 
     rows = result.get('row', [])
-    if isinstance(rows, dict):
-        rows = [rows]
-    return rows or []
+    return [rows] if isinstance(rows, dict) else (rows or [])
 
 
-def parse_foreign_net_buy(rows: list[dict]) -> dict[str, float]:
-    """
-    rows → {YYYY-MM-DD: 억원} 변환.
-    ITEM_CODE=0030000 으로 필터했으므로 1일 1행 보장.
-    단위: 억원 (ECOS 802Y001 기준)
-    """
+def parse_values(rows: list[dict]) -> dict[str, float]:
+    """rows → {YYYY-MM-DD: float(억원)}. 1 item_code 기준이므로 1일 1행."""
     result: dict[str, float] = {}
     for row in rows:
-        time_str = str(row.get('TIME', ''))
-        raw_val  = row.get('DATA_VALUE')
-        if not time_str or raw_val in (None, '', '-'):
+        t = str(row.get('TIME', '')).replace('/', '').replace('-', '')
+        v = row.get('DATA_VALUE')
+        if len(t) != 8 or v in (None, '', '-'):
             continue
-        time_str = time_str.replace('/', '').replace('-', '')
-        if len(time_str) != 8:
-            continue
-        iso = f'{time_str[:4]}-{time_str[4:6]}-{time_str[6:]}'
+        iso = f'{t[:4]}-{t[4:6]}-{t[6:]}'
         try:
-            result[iso] = round(float(str(raw_val).replace(',', '')), 2)
+            result[iso] = round(float(str(v).replace(',', '')), 2)
         except (ValueError, TypeError):
             continue
     return result
@@ -133,16 +118,12 @@ def get_supabase():
     return _supabase_create_client(url, key)
 
 
-def save_to_db(sb, iso_date: str, value: float) -> bool:
+def save_to_db(sb, iso_date: str, kospi: float | None, kosdaq: float | None) -> bool:
+    row: dict = {'date': iso_date, 'source': '한국은행_ECOS'}
+    if kospi  is not None: row['foreign_net_buy_kospi']  = kospi
+    if kosdaq is not None: row['foreign_net_buy_kosdaq'] = kosdaq
     try:
-        sb.table('daily_indicators').upsert(
-            {
-                'date':                  iso_date,
-                'foreign_net_buy_kospi': value,
-                'source':                '한국은행_ECOS',
-            },
-            on_conflict='date',
-        ).execute()
+        sb.table('daily_indicators').upsert(row, on_conflict='date').execute()
         return True
     except Exception as e:
         logger.error(f'DB 저장 실패 ({iso_date}): {e}')
@@ -180,49 +161,46 @@ def main():
         logger.error('ECOS_API_KEY 환경변수 누락')
         sys.exit(1)
 
-    # ECOS 조회 (대상일 포함 최근 5영업일 — ECOS 지연 대비)
+    # ECOS 조회 (최근 7일 범위 — ECOS 지연 대비)
     fetch_start = to_yyyymmdd(target - timedelta(days=7))
     fetch_end   = target_yyyymm
     logger.info(f'  ECOS 조회: {fetch_start} ~ {fetch_end}')
 
-    rows = ecos_search(api_key, fetch_start, fetch_end)
-    logger.info(f'  수신 rows: {len(rows)}개')
+    kospi_rows  = ecos_search_item(api_key, fetch_start, fetch_end, ITEM_KOSPI_FLOW)
+    kosdaq_rows = ecos_search_item(api_key, fetch_start, fetch_end, ITEM_KOSDAQ_FLOW)
+    logger.info(f'  수신: KOSPI {len(kospi_rows)}행 / KOSDAQ {len(kosdaq_rows)}행')
 
-    if not rows:
-        logger.warning('  ECOS 데이터 없음 — 주말·공휴일 또는 API 지연일 수 있음. 정상 종료.')
+    kospi_map  = parse_values(kospi_rows)
+    kosdaq_map = parse_values(kosdaq_rows)
+
+    all_dates = sorted(set(kospi_map) | set(kosdaq_map), reverse=True)
+    logger.info(f'  파싱된 날짜: {all_dates}')
+
+    if not all_dates:
+        logger.warning('  ECOS 데이터 없음 — 주말·공휴일 또는 API 지연. 정상 종료.')
         sys.exit(0)
 
-    flow_map = parse_foreign_net_buy(rows)
-    logger.info(f'  파싱된 날짜: {sorted(flow_map.keys())}')
+    # 대상일 우선, 없으면 가장 최신 날짜 사용
+    save_date = target_iso if target_iso in all_dates else all_dates[0]
+    if save_date != target_iso:
+        logger.warning(f'  {target_iso} 데이터 없음 (ECOS 지연) → {save_date} 사용')
 
-    # 대상일 데이터 확인
-    value = flow_map.get(target_iso)
+    kospi_val  = kospi_map.get(save_date)
+    kosdaq_val = kosdaq_map.get(save_date)
 
-    if value is None:
-        # ECOS 지연 — 최근 가용 날짜 데이터 확인
-        available = sorted(flow_map.keys(), reverse=True)
-        logger.warning(f'  {target_iso} 데이터 없음 (ECOS 지연)')
-        if available:
-            logger.info(f'  가용 최신 날짜: {available[0]} → 해당 날짜 저장 시도')
-            value     = flow_map[available[0]]
-            target_iso = available[0]
-        else:
-            logger.warning('  저장할 데이터 없음. 정상 종료.')
-            sys.exit(0)
-
-    sign = '+' if value >= 0 else ''
-    logger.info(f'  외국인 순매수 [{target_iso}]: {sign}{value:,.0f}억원')
+    def fmt(v): return f'{v:+,.0f}억원' if v is not None else 'N/A'
+    logger.info(f'  [{save_date}] KOSPI 순매수: {fmt(kospi_val)} / KOSDAQ 순매수: {fmt(kosdaq_val)}')
 
     if args.dry_run:
         logger.info('  [DRY-RUN] DB 저장 생략.')
         sys.exit(0)
 
     sb = get_supabase()
-    ok = save_to_db(sb, target_iso, value)
+    ok = save_to_db(sb, save_date, kospi_val, kosdaq_val)
 
     logger.info('=' * 55)
     if ok:
-        logger.info(f'  ✅ 완료: {target_iso} 외국인 순매수 {sign}{value:,.0f}억원 저장')
+        logger.info(f'  ✅ 완료: {save_date} 저장 (KOSPI {fmt(kospi_val)} / KOSDAQ {fmt(kosdaq_val)})')
         sys.exit(0)
     else:
         logger.error('  ❌ DB 저장 실패')
