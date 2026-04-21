@@ -56,8 +56,9 @@ logger = logging.getLogger("compute_sector_signals")
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 
-DEFAULT_DAYS = 30
-BATCH_SIZE   = 50
+DEFAULT_DAYS   = 30
+BATCH_SIZE     = 50
+ALLOWED_WINDOW = {7, 30}   # sector rotation 지원 윈도우 (migration 038)
 
 # 점수 기준 (score 0~100 → signal 매핑)
 # score >= 70 → HIGH_CONVICTION
@@ -298,6 +299,7 @@ def aggregate_sectors(
     sector_map: dict[str, str],
     risk_on_dates: set[str],
     upsert_date: str,
+    window_days: int = 30,
 ) -> list[dict]:
     """
     섹터별로 집계하여 sector_signals 행 목록 반환.
@@ -358,6 +360,7 @@ def aggregate_sectors(
                 "date":             upsert_date,
                 "sector_en":        se,
                 "sector":           se,        # sector 컬럼 = sector_en 과 동일
+                "window_days":      window_days,
                 "signal":           signal,
                 "confidence":       round(confidence, 4),
                 "disclosure_count": event_count,
@@ -387,7 +390,7 @@ def save_to_db(sb, rows: list[dict]) -> tuple[int, int]:
         try:
             sb.table("sector_signals").upsert(
                 batch,
-                on_conflict="date,sector_en",
+                on_conflict="date,sector_en,window_days",
             ).execute()
             success += len(batch)
             logger.info(f"  Batch {bn} 저장 완료 ({len(batch)}건)")
@@ -431,7 +434,7 @@ def main() -> None:
         "--days",
         type=int,
         default=DEFAULT_DAYS,
-        help=f"집계 기간 (기본 {DEFAULT_DAYS}일)",
+        help=f"집계 기간 (기본 {DEFAULT_DAYS}일). sector rotation 지원: 7 또는 30",
     )
     parser.add_argument(
         "--dry-run",
@@ -447,6 +450,7 @@ def main() -> None:
     today = datetime.now().date()
     since = today - timedelta(days=args.days)
     since_iso, until_iso = date_range_iso(since, today)
+    window_days = args.days   # 집계 기간 = window_days (7 or 30)
 
     # upsert 에 저장할 date 값: YYYY-MM-DD (ISO) 형식으로 통일
     if args.date:
@@ -460,6 +464,7 @@ def main() -> None:
     logger.info("=" * 60)
     logger.info("섹터 신호 집계 (scores_log 기반)")
     logger.info(f"  집계 기간: {since_iso} ~ {until_iso} ({args.days}일)")
+    logger.info(f"  window_days: {window_days}")
     logger.info(f"  저장 date: {upsert_date}")
     logger.info(f"  모드:      {'DRY-RUN' if args.dry_run else '실제 저장'}")
     logger.info("=" * 60)
@@ -496,7 +501,7 @@ def main() -> None:
 
     # ── 5. 섹터별 집계 ────────────────────────────────────────────────────────
     logger.info("  섹터별 집계 중...")
-    agg_rows = aggregate_sectors(scores_rows, sector_map, risk_on_dates, upsert_date)
+    agg_rows = aggregate_sectors(scores_rows, sector_map, risk_on_dates, upsert_date, window_days)
     logger.info(f"  집계 완료: {len(agg_rows)}개 섹터")
 
     if not agg_rows:
