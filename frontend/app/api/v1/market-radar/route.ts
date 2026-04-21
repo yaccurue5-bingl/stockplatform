@@ -72,9 +72,19 @@ export async function GET(req: NextRequest) {
 
     if (error) throw error
 
+    // foreign_flow 문자열에서 regime 파생
+    // "+8,300억원" → RISK_ON / "-2,231억원" → RISK_OFF / "N/A" → null
+    const rows = (data ?? []).map((row: any) => {
+      const ff = row.foreign_flow as string | null
+      const regime = ff == null || ff === 'N/A'
+        ? null
+        : ff.startsWith('+') ? 'RISK_ON' : 'RISK_OFF'
+      return { ...row, regime }
+    })
+
     const result = {
-      data:      data ?? [],
-      total:     (data ?? []).length,
+      data:      rows,
+      total:     rows.length,
       date_from: dtFrom,
       date_to:   dtTo,
     }
