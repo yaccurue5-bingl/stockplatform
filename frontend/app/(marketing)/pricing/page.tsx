@@ -1,8 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import Footer from '@/components/Footer';
-import { getUser } from '@/lib/supabase/server';
-import TestPlanCard from '@/components/TestPlanCard';
 
 export const metadata: Metadata = {
   title: 'Pricing — K-MarketInsight',
@@ -84,9 +82,6 @@ const PLANS = [
 ];
 
 export default async function PricingPage() {
-  const hasTestPlan = !!process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test;
-  const user = hasTestPlan ? await getUser() : null;
-
   return (
     <div className="min-h-screen bg-[#0D1117] text-white">
       {/* Header */}
@@ -168,14 +163,6 @@ export default async function PricingPage() {
             </div>
           ))}
         </div>
-
-        {/* ⚠️ 테스트 카드 — NEXT_PUBLIC_PADDLE_PRICE_ID_test 있을 때만 표시 */}
-        {hasTestPlan && (
-          <TestPlanCard
-            userEmail={user?.email ?? null}
-            userId={user?.id ?? null}
-          />
-        )}
 
         {/* Comparison note */}
         <p className="text-center text-xs text-gray-600 mt-8">

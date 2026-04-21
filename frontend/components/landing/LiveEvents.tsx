@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Section from './ui/Section';
 import Card from './ui/Card';
 import { Zap } from 'lucide-react';
-import { createServiceClient, getUser } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { generateTicker } from '@/lib/generateTicker';
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
@@ -82,15 +82,16 @@ async function fetchLatestEvents() {
 // ── 컴포넌트 ──────────────────────────────────────────────────────────────────
 
 export default async function LiveEvents() {
-  const [events, user] = await Promise.all([fetchLatestEvents(), getUser()]);
-  const isLoggedIn = !!user;
+  const events = await fetchLatestEvents();
   const displayEvents = events ?? FALLBACK_EVENTS;
 
   return (
     <Section className="bg-[#0D1117]" id="events">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-3 mb-3">
         <Zap size={16} className="text-[#00D4A6]" />
         <span className="text-xs text-[#00D4A6] font-semibold uppercase tracking-widest">Real-time</span>
+        <span className="text-xs font-black uppercase tracking-wide bg-[#00D4A6]/15 text-[#00D4A6] border border-[#00D4A6]/30 px-2 py-0.5 rounded">Beta</span>
+        <span className="text-xs text-gray-500 italic">kimchi-powered development</span>
       </div>
       <h2 className="text-3xl font-bold text-white mb-2">See What You&apos;re Missing</h2>
       <p className="text-gray-400 mb-2">Real-time signals from official Korean corporate filings.</p>
@@ -102,13 +103,7 @@ export default async function LiveEvents() {
         {displayEvents.map((e) => (
           <Link
             key={e.id || `${e.company}-${e.ticker}`}
-            href={
-              isLoggedIn && e.ticker
-                ? `/disclosures?stock=${e.ticker}`
-                : e.id
-                ? `/disclosures/${e.id}`
-                : '/disclosures'
-            }
+            href={e.id ? `/disclosures/${e.id}` : '/disclosures'}
             className="block"
           >
           <Card hover className="flex items-center justify-between px-6 py-5 cursor-pointer">
