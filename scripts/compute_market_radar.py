@@ -154,19 +154,25 @@ BULLISH_SIGNALS = {"HIGH_CONVICTION", "CONSTRUCTIVE"}
 BEARISH_SIGNALS = {"NEGATIVE", "HIGH_RISK"}
 
 
+def _quality_weight(s: dict) -> float:
+    """
+    Quality-weighted 투표 가중치: disclosure_count × score
+    공시 건수가 많아도 score가 낮으면 영향력 감소.
+    score 미존재 시 중립값 50 fallback.
+    """
+    count = float(s.get("disclosure_count") or 0)
+    score = float(s.get("score") or 50.0)
+    return count * score
+
+
 def compute_market_signal(sector_signals: list[dict]) -> str:
-    """섹터 신호 투표 → 시장 전체 신호"""
+    """섹터 신호 투표 → 시장 전체 신호 (disclosure_count × score 가중)"""
     if not sector_signals:
         return "Neutral"
 
-    # disclosure_count 가중 투표
-    bullish_weight = sum(
-        s["disclosure_count"] for s in sector_signals if s["signal"] in BULLISH_SIGNALS
-    )
-    bearish_weight = sum(
-        s["disclosure_count"] for s in sector_signals if s["signal"] in BEARISH_SIGNALS
-    )
-    total_weight = sum(s["disclosure_count"] for s in sector_signals)
+    bullish_weight = sum(_quality_weight(s) for s in sector_signals if s["signal"] in BULLISH_SIGNALS)
+    bearish_weight = sum(_quality_weight(s) for s in sector_signals if s["signal"] in BEARISH_SIGNALS)
+    total_weight   = sum(_quality_weight(s) for s in sector_signals)
 
     if total_weight == 0:
         return "Neutral"

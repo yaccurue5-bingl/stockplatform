@@ -13,8 +13,10 @@ sector_signals 테이블에 upsert하는 배치 스크립트.
   1. scores_log 에서 최근 N일 중 future_return_3d IS NOT NULL 인 행 조회
   2. companies 에서 stock_code → sector_en 매핑
   3. daily_indicators 에서 최근 N일 foreign_net_buy_kospi 조회
-  4. RISK_ON 날짜: 공시일 직전 3영업일 합계 > 0
-  5. 섹터별 집계 → sector_signals upsert
+  4. RISK_ON 날짜: 공시일 직전 3영업일 합계 > 0 → risk_on_ratio 계산
+  5. 섹터 score = (win_rate×60 + normalized_return×40) × regime_weight
+     regime_weight = 0.8 + risk_on_ratio × 0.4  (0.8 risk-off ~ 1.2 risk-on)
+  6. 섹터별 집계 → sector_signals upsert
 
 사용법:
   python scripts/compute_sector_signals.py              # 최근 30일
@@ -261,13 +263,21 @@ def normalize_score(values: list[float], v: float) -> float:
     return (v - mn) / (mx - mn)
 
 
-def compute_sector_score(win_rate: float, avg_return_3d: float, all_avg_returns: list[float]) -> float:
+def compute_sector_score(
+    win_rate: float,
+    avg_return_3d: float,
+    all_avg_returns: list[float],
+    risk_on_ratio: float = 0.5,
+) -> float:
     """
-    score = win_rate * 60 + (avg_return_3d 정규화) * 40
+    score = (win_rate * 60 + normalized_return * 40) × regime_weight
+    regime_weight = 0.8 + risk_on_ratio * 0.4   → 0.8(risk-off) ~ 1.2(risk-on)
     → 0~100 범위
     """
     normalized_return = normalize_score(all_avg_returns, avg_return_3d)
-    raw = win_rate * 60.0 + normalized_return * 40.0
+    base = win_rate * 60.0 + normalized_return * 40.0
+    regime_weight = 0.8 + float(risk_on_ratio) * 0.4
+    raw = base * regime_weight
     return round(max(0.0, min(100.0, raw)), 4)
 
 
@@ -328,8 +338,8 @@ def aggregate_sectors(
             )
             risk_on_ratio = risk_on_count / event_count if event_count > 0 else 0.0
 
-            # score
-            score = compute_sector_score(win_rate, avg_return_3d, all_avg_returns)
+            # score (RISK_ON regime_weight 반영)
+            score = compute_sector_score(win_rate, avg_return_3d, all_avg_returns, risk_on_ratio)
             signal = signal_from_score(score)
             confidence = min(1.0, event_count / CONFIDENCE_SCALE)
 

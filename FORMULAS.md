@@ -76,13 +76,24 @@ i = clamp(i, 0, 30)
 ### 1-4. 이벤트 수익률 컴포넌트 `e` [0 ~ 30점]
 
 ```
-e = ((avg_5d_return + 3.0) / 6.0) × 30
-e = clamp(e, 0, 30)
+e_full = ((avg_5d_return + 3.0) / 6.0) × 30
+e_full = clamp(e_full, 0, 30)
+
+sample_size < 10  → e = 0.0  (통계 불충분)
+10 ≤ sample_size < 30 → e = e_full × confidence
+  confidence = 0.5 + 0.5 × (sample_size - 10) / 20   # 0.5 → 0.975 선형
+sample_size ≥ 30  → e = e_full  (완전 가중치)
 ```
 
 - `avg_5d_return = None` → `e = 0.0`
-- `sample_size < 30` → `e = 0.0` (통계 불신뢰)
 - 기준 범위: avg_5d_return = -3% → e = 0 / 0% → e = 15 / +3% → e = 30
+
+| sample_size | confidence | avg_5d_return=+2% 일 때 e |
+|-------------|------------|--------------------------|
+| < 10 | 0 (제외) | 0.0 |
+| 10 | 0.50 | 12.5 |
+| 20 | 0.75 | 18.75 |
+| 30 이상 | 1.00 | 25.0 |
 
 ---
 
@@ -199,11 +210,20 @@ normalized_return = (avg_return_3d - min_all) / (max_all - min_all)
   ※ min_all, max_all = 전체 섹터의 avg_return_3d 최솟값/최댓값
   ※ max_all == min_all → normalized_return = 0.5
 
-sector_score = win_rate × 60 + normalized_return × 40
-sector_score = clamp(sector_score, 0, 100)
+base_score = win_rate × 60 + normalized_return × 40   # 0 ~ 100
+
+# RISK_ON 레짐 반영
+regime_weight = 0.8 + risk_on_ratio × 0.4             # 0.8(risk-off) ~ 1.2(risk-on)
+sector_score  = clamp(base_score × regime_weight, 0, 100)
 ```
 
-**가중치**: 승률 60% + 수익률 상대순위 40%
+**가중치**: 승률 60% + 수익률 상대순위 40% × RISK_ON 레짐 보정
+
+| risk_on_ratio | regime_weight | 효과 |
+|--------------|--------------|------|
+| 0.0 (전부 RISK-OFF) | 0.80 | score × 0.8 (하향) |
+| 0.5 | 1.00 | 변화 없음 |
+| 1.0 (전부 RISK-ON) | 1.20 | score × 1.2 (상향, max 100) |
 
 ---
 
@@ -251,16 +271,19 @@ NEGATIVE, HIGH_RISK            →  Bearish
 ### 3-2. 시장 신호 (MarketSignal)
 
 ```
-bullish_weight = Σ disclosure_count  (Bullish 섹터)
-bearish_weight = Σ disclosure_count  (Bearish 섹터)
-total_weight   = Σ disclosure_count  (전체 섹터)
+quality_weight(sector) = disclosure_count × score   # quality-weighted 가중치
+
+bullish_weight = Σ quality_weight  (Bullish 섹터)
+bearish_weight = Σ quality_weight  (Bearish 섹터)
+total_weight   = Σ quality_weight  (전체 섹터)
 
 bullish_weight / total_weight ≥ 0.50  →  market_signal = "Bullish"
 bearish_weight / total_weight ≥ 0.50  →  market_signal = "Bearish"
 그 외                                  →  market_signal = "Neutral"
 ```
 
-> **가중치 기준**: 공시 건수(`disclosure_count`) — 섹터 수 기준이 아님.
+> **가중치 기준**: `disclosure_count × score` — 건수만으로는 quantity 편향 발생하므로 sector score로 quality 반영.  
+> `score` 없는 섹터는 중립값 50 fallback.
 
 ---
 
