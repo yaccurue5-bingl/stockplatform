@@ -237,12 +237,19 @@ def run_strategy(trades: list[dict], strategy: dict) -> dict | None:
     std_ret   = math.sqrt(sum((r - avg_ret) ** 2 for r in returns) / max(n - 1, 1))
     sharpe    = (avg_ret / std_ret * math.sqrt(252 / hold)) if std_ret > 0 else 0.0
 
-    # ── Equity Curve ──
+    # ── Equity Curve (날짜별 균등가중 포트폴리오 기준) ──
+    # 동일 날짜에 여러 신호를 개별 복리로 연산하면 기하급수적 낙폭이 발생 → 날짜별 평균으로 보정
+    daily_r: dict[str, list[float]] = defaultdict(list)
+    for t, r in zip(trade_rows, returns):
+        daily_r[t["date"]].append(r)
+    sorted_days = sorted(daily_r.keys())
+    period_rets = [sum(daily_r[d]) / len(daily_r[d]) for d in sorted_days]
+
     equity = 1.0
     curve  = []
     peak   = 1.0
     mdd    = 0.0
-    for i, (t, r) in enumerate(zip(trade_rows, returns)):
+    for d, r in zip(sorted_days, period_rets):
         equity *= (1 + r)
         if equity > peak:
             peak = equity
@@ -250,9 +257,9 @@ def run_strategy(trades: list[dict], strategy: dict) -> dict | None:
         if dd < mdd:
             mdd = dd
         curve.append({
-            "date":       t["date"],
+            "date":       d,
             "equity":     round(equity, 4),
-            "return_pct": t["return_pct"],
+            "return_pct": round(r * 100, 2),
         })
 
     total_return = equity - 1.0

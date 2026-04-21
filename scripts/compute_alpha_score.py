@@ -142,18 +142,38 @@ def get_supabase():
 # ── 데이터 조회 ───────────────────────────────────────────────────────────────
 
 def fetch_disclosures(sb, recompute: bool) -> list[dict]:
-    """base_score 있고 alpha_score 없는(또는 recompute=True) 공시 조회."""
-    query = (
-        sb.table("disclosure_insights")
-        .select("id, stock_code, rcept_dt, base_score")
-        .eq("analysis_status", "completed")
-        .not_.is_("base_score", "null")
-    )
-    if not recompute:
-        query = query.is_("alpha_score", "null")
+    """
+    base_score 있고 alpha_score 없는(또는 recompute=True) 공시 전체 조회.
+    Supabase REST API 1,000행 제한을 페이지네이션으로 우회.
+    """
+    PAGE = 1000
+    all_rows: list[dict] = []
+    offset = 0
 
-    resp = query.order("rcept_dt", desc=True).limit(3000).execute()
-    return resp.data or []
+    while True:
+        query = (
+            sb.table("disclosure_insights")
+            .select("id, stock_code, rcept_dt, base_score")
+            .eq("analysis_status", "completed")
+            .not_.is_("base_score", "null")
+        )
+        if not recompute:
+            query = query.is_("alpha_score", "null")
+
+        resp = (
+            query
+            .order("rcept_dt", desc=True)
+            .range(offset, offset + PAGE - 1)
+            .execute()
+        )
+        page_data = resp.data or []
+        all_rows.extend(page_data)
+
+        if len(page_data) < PAGE:
+            break           # 마지막 페이지
+        offset += PAGE
+
+    return all_rows
 
 
 def fetch_sector_map(sb, stock_codes: list[str]) -> dict[str, str]:
