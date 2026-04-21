@@ -7,6 +7,7 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
   s   = ((sentiment_score + 1) / 2) * 40            # 0~40  (감성 컴포넌트)
   i   = (short_term_impact_score / 5) * 30           # 0~30  (중요도 컴포넌트)
   e   = min(max((avg_5d_return + 3) / 6 * 30, 0), 30) # 0~30 (이벤트 수익률 컴포넌트)
+  # ※ sample_size < 10: e=0, 10~29: confidence 0.5~1.0 부분 적용, ≥30: 완전 적용
 
   base_score_raw = s + i + e                          # 0~100 (정규화 전)
   base_score     = sigmoid((raw - 50) / 10) * 100     # sigmoid 정규화 (0~100)
@@ -86,12 +87,21 @@ def compute_i(short_term_impact_score: int | None) -> float:
 def compute_e(avg_5d_return: float | None, sample_size: int | None) -> float:
     """
     이벤트 수익률 컴포넌트: 0~30
-    sample_size < 30 이면 통계 불신뢰 → 0 반환
+      sample_size <  10 : 통계 불충분 → 0 반환
+      sample_size 10~29 : 부분 신뢰도 적용 (confidence 0.5→1.0 선형 보간)
+      sample_size >= 30 : 완전 가중치
     """
-    if avg_5d_return is None or (sample_size is not None and sample_size < 30):
+    if avg_5d_return is None:
         return 0.0
-    e = (float(avg_5d_return) + 3.0) / 6.0 * 30.0
-    return max(0.0, min(30.0, e))
+    n = int(sample_size) if sample_size is not None else 0
+    if n < 10:
+        return 0.0
+    e_full = (float(avg_5d_return) + 3.0) / 6.0 * 30.0
+    e_full = max(0.0, min(30.0, e_full))
+    if n < 30:
+        confidence = 0.5 + 0.5 * (n - 10) / 20.0   # 10→0.5, 29→0.975
+        return round(e_full * confidence, 4)
+    return round(e_full, 4)
 
 
 def compute_base_score(s: float, i: float, e: float) -> tuple[float, float]:

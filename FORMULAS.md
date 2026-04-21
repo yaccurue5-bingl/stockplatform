@@ -11,10 +11,11 @@
 1. [BaseScore / FinalScore](#1-basescore--finalscore)
 2. [섹터 시그널 (SectorSignal)](#2-섹터-시그널-sectorsignal)
 3. [시장 레이더 (MarketRadar)](#3-시장-레이더-marketradar)
-4. [백테스트 성과 지표](#4-백테스트-성과-지표)
-5. [외국인 순매수 (RISK_ON 레짐)](#5-외국인-순매수-risk_on-레짐)
-6. [EOD 파이프라인 실행 순서](#6-eod-파이프라인-실행-순서)
-7. [데이터 흐름 다이어그램](#7-데이터-흐름-다이어그램)
+4. [**통합 알파 스코어 (AlphaScore)**](#4-통합-알파-스코어-alphascore) ← NEW
+5. [백테스트 성과 지표](#5-백테스트-성과-지표)
+6. [외국인 순매수 (RISK_ON 레짐)](#6-외국인-순매수-risk_on-레짐)
+7. [EOD 파이프라인 실행 순서](#7-eod-파이프라인-실행-순서)
+8. [데이터 흐름 다이어그램](#8-데이터-흐름-다이어그램)
 
 ---
 
@@ -76,13 +77,24 @@ i = clamp(i, 0, 30)
 ### 1-4. 이벤트 수익률 컴포넌트 `e` [0 ~ 30점]
 
 ```
-e = ((avg_5d_return + 3.0) / 6.0) × 30
-e = clamp(e, 0, 30)
+e_full = ((avg_5d_return + 3.0) / 6.0) × 30
+e_full = clamp(e_full, 0, 30)
+
+sample_size < 10  → e = 0.0  (통계 불충분)
+10 ≤ sample_size < 30 → e = e_full × confidence
+  confidence = 0.5 + 0.5 × (sample_size - 10) / 20   # 0.5 → 0.975 선형
+sample_size ≥ 30  → e = e_full  (완전 가중치)
 ```
 
 - `avg_5d_return = None` → `e = 0.0`
-- `sample_size < 30` → `e = 0.0` (통계 불신뢰)
 - 기준 범위: avg_5d_return = -3% → e = 0 / 0% → e = 15 / +3% → e = 30
+
+| sample_size | confidence | avg_5d_return=+2% 일 때 e |
+|-------------|------------|--------------------------|
+| < 10 | 0 (제외) | 0.0 |
+| 10 | 0.50 | 12.5 |
+| 20 | 0.75 | 18.75 |
+| 30 이상 | 1.00 | 25.0 |
 
 ---
 
@@ -199,11 +211,20 @@ normalized_return = (avg_return_3d - min_all) / (max_all - min_all)
   ※ min_all, max_all = 전체 섹터의 avg_return_3d 최솟값/최댓값
   ※ max_all == min_all → normalized_return = 0.5
 
-sector_score = win_rate × 60 + normalized_return × 40
-sector_score = clamp(sector_score, 0, 100)
+base_score = win_rate × 60 + normalized_return × 40   # 0 ~ 100
+
+# RISK_ON 레짐 반영
+regime_weight = 0.8 + risk_on_ratio × 0.4             # 0.8(risk-off) ~ 1.2(risk-on)
+sector_score  = clamp(base_score × regime_weight, 0, 100)
 ```
 
-**가중치**: 승률 60% + 수익률 상대순위 40%
+**가중치**: 승률 60% + 수익률 상대순위 40% × RISK_ON 레짐 보정
+
+| risk_on_ratio | regime_weight | 효과 |
+|--------------|--------------|------|
+| 0.0 (전부 RISK-OFF) | 0.80 | score × 0.8 (하향) |
+| 0.5 | 1.00 | 변화 없음 |
+| 1.0 (전부 RISK-ON) | 1.20 | score × 1.2 (상향, max 100) |
 
 ---
 
@@ -251,16 +272,19 @@ NEGATIVE, HIGH_RISK            →  Bearish
 ### 3-2. 시장 신호 (MarketSignal)
 
 ```
-bullish_weight = Σ disclosure_count  (Bullish 섹터)
-bearish_weight = Σ disclosure_count  (Bearish 섹터)
-total_weight   = Σ disclosure_count  (전체 섹터)
+quality_weight(sector) = disclosure_count × score   # quality-weighted 가중치
+
+bullish_weight = Σ quality_weight  (Bullish 섹터)
+bearish_weight = Σ quality_weight  (Bearish 섹터)
+total_weight   = Σ quality_weight  (전체 섹터)
 
 bullish_weight / total_weight ≥ 0.50  →  market_signal = "Bullish"
 bearish_weight / total_weight ≥ 0.50  →  market_signal = "Bearish"
 그 외                                  →  market_signal = "Neutral"
 ```
 
-> **가중치 기준**: 공시 건수(`disclosure_count`) — 섹터 수 기준이 아님.
+> **가중치 기준**: `disclosure_count × score` — 건수만으로는 quantity 편향 발생하므로 sector score로 quality 반영.  
+> `score` 없는 섹터는 중립값 50 fallback.
 
 ---
 
@@ -300,7 +324,70 @@ total = foreign_net_buy_kospi + foreign_net_buy_kosdaq
 
 ---
 
-## 4. 백테스트 성과 지표
+## 4. 통합 알파 스코어 (AlphaScore)
+
+**파일**: `scripts/compute_alpha_score.py`  
+**저장 컬럼**: `disclosure_insights.alpha_score`, `scores_log.alpha_score`
+
+### 4-1. 목적
+
+BaseScore(종목) + SectorScore(섹터) + MarketSignal(시장) + Regime(거시) 4개 신호를 단일 점수로 통합.
+
+---
+
+### 4-2. 공식
+
+```
+FINAL_ALPHA_SCORE =
+    base_score   × 0.50   (종목 퀄리티,   0~100)
+  + sector_score × 0.20   (섹터 강도,     0~100)
+  + market_score × 0.10   (시장 방향성,   25/50/75)
+  + regime_score × 0.20   (거시 환경,     0 or 100)
+
+이론 범위: 2.5 (최소) ~ 97.5 (최대)
+```
+
+---
+
+### 4-3. 컴포넌트 변환
+
+| 컴포넌트 | 원본 값 | 변환 규칙 | 0~100 점수 |
+|----------|---------|-----------|-----------|
+| `base_score` | 0~100 | 그대로 | 0~100 |
+| `sector_score` | 0~100 | 최신 `sector_signals.score` | 0~100 |
+| `market_score` | "Bullish"/"Neutral"/"Bearish" | Bullish→75 / Neutral→50 / Bearish→25 | 25~75 |
+| `regime_score` | 외국인순매수 3일합 | > 0 → 100 / ≤ 0 → 0 | 0 or 100 |
+
+> **설계 수정 (원본 대비)**:  
+> - MarketSignalWeight `1.0/0.8/0.5/0.2` → `75/50/25` (0~100 스케일 통일)  
+> - RegimeWeight `1.2/0.8(배수)` → `100/0` (배수로 쓰면 기여 < 0.3으로 사실상 무효)  
+> - HIGH_CONVICTION 제거 (sector_signals 레벨, market_radar에 없음)
+
+---
+
+### 4-4. 점수 해석
+
+| alpha_score | 레이블 |
+|-------------|--------|
+| ≥ 80 | Strong (강한 긍정) |
+| ≥ 65 | Positive (긍정) |
+| ≥ 50 | Neutral (중립) |
+| ≥ 35 | Weak (약한 부정) |
+| < 35 | Avoid (회피) |
+
+---
+
+### 4-5. 계산 예시
+
+| 시나리오 | base | sector | market | regime | alpha |
+|---------|------|--------|--------|--------|-------|
+| 이상적 | 90 | 85 | Bullish(75) | RISK_ON(100) | 90×0.5+85×0.2+75×0.1+100×0.2 = **89.5** |
+| 평균적 | 60 | 55 | Neutral(50) | RISK_OFF(0) | 60×0.5+55×0.2+50×0.1+0×0.2 = **46.0** |
+| 최악 | 20 | 15 | Bearish(25) | RISK_OFF(0) | 20×0.5+15×0.2+25×0.1+0×0.2 = **15.5** |
+
+---
+
+## 5. 백테스트 성과 지표
 
 **파일**: `scripts/compute_backtest.py`  
 **전략명**: `event_macro_v1`  

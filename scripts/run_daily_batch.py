@@ -39,8 +39,9 @@ EOD 배치 실행 순서 (장 마감 후 ~16:30 KST, cron/trigger.py 에서 1일
   4. compute_base_score.py         : FinalScore 갱신
   5. compute_sector_signals.py     : 섹터 시그널 업데이트
   6. compute_market_radar.py       : 시장 레이더 집계 (외국인 순매수 포함)
-  7. backfill_prices.py --days 30  : 최근 30일 공시 T+3/T+5 수익률 백필 + event_stats 재집계
-  8. compute_backtest.py           : event_macro_v1 백테스트 업데이트
+  7. compute_alpha_score.py        : 통합 알파 스코어 (Base+Sector+Market+Regime)
+  8. backfill_prices.py --days 30  : 최근 30일 공시 T+3/T+5 수익률 백필 + event_stats 재집계
+  9. compute_backtest.py           : event_macro_v1 백테스트 업데이트
 """
 
 import sys
@@ -254,7 +255,13 @@ def run_eod(args):
          dry_flag,
          False),
 
-        # Step 7: 최근 30일 공시 T+3/T+5 수익률 백필 + event_stats 재집계
+        # Step 7: 통합 알파 스코어 (BaseScore+Sector+Market+Regime → alpha_score)
+        ("알파스코어 계산",
+         "compute_alpha_score.py",
+         dry_flag,
+         False),
+
+        # Step 8: 최근 30일 공시 T+3/T+5 수익률 백필 + event_stats 재집계
         # --days 30: 오늘 기준 30일 이내 공시만 처리 (data.go.kr API 호출 최소화)
         # T+3 미도래 공시는 자동 스킵되므로 매일 돌아도 안전
         ("수익률 백필",
@@ -262,7 +269,7 @@ def run_eod(args):
          ["--days", "30"] + dry_flag,
          skip_prices),
 
-        # Step 8: event_macro_v1 백테스트 업데이트
+        # Step 9: event_macro_v1 백테스트 업데이트
         ("백테스트 갱신",
          "compute_backtest.py",
          dry_flag,

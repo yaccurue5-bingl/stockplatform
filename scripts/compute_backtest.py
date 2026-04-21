@@ -236,12 +236,14 @@ def compute_performance_metrics(
     score_threshold: float,
     period_start: date | None,
     period_end: date | None,
+    period_returns: list[float] | None = None,  # 날짜별 평균 수익률 (MDD 계산용)
 ) -> dict:
     """
     trade 리스트에서 성과 지표 계산.
     trades: {'return_3d', 'event_date', ...}
+    period_returns: 날짜별 균등가중 평균 수익률 리스트 (MDD·equity curve 공정 계산용).
+      None 이면 개별 거래 수익률을 fallback으로 사용.
     """
-    # 복리 계산이 의미 있으려면 시간 순 정렬 필요
     sorted_trades = sorted(trades, key=lambda t: t.get("event_date", ""))
     returns = [t["return_3d"] for t in sorted_trades if t.get("return_3d") is not None]
 
@@ -260,35 +262,37 @@ def compute_performance_metrics(
     loss_rate  = 1 - win_rate
     expectancy = (win_rate * avg_win) - (loss_rate * abs(avg_loss))
 
-    # 단순 합산 수익률
-    total_return = sum(returns)
+    # 복리 누적 수익률 (단순 합산 방식 제거 — 동일 날짜 신호가 많으면 왜곡됨)
+    compound = 1.0
+    for r in (period_returns if period_returns is not None else returns):
+        compound *= (1 + r / 100)
+    total_return = round((compound - 1) * 100, 4)
 
     # Sharpe ratio (무위험이율 0%, 3영업일 보유 기준으로 연환산)
     sharpe = 0.0
     if std > 0:
         sharpe = (avg / std) * math.sqrt(ANNUAL_FACTOR_3D)
 
-    # 최대 낙폭
-    max_dd = compute_max_drawdown(returns)
+    # 최대 낙폭: 날짜별 평균 수익률 기준으로 계산
+    # (개별 거래 순차 복리 시 동일 날짜 다중 신호가 기하급수적 낙폭을 만들어 수치 왜곡)
+    mdd_returns = period_returns if period_returns is not None else returns
+    max_dd = compute_max_drawdown(mdd_returns)
 
-    # 연환산 수익률 — 복리 누적 수익률 기반 CAGR
-    # - 최소 90 달력일 이상 & 최소 10거래 이상일 때만 계산
-    #   (기간이 너무 짧으면 지수 증폭으로 의미 없는 수치가 나옴)
-    # - 90일 미만이면 None 반환 (API/UI 에서 "N/A" 표시)
+    # CAGR — compound^(365/n_days) - 1
+    # total_return 계산에서 이미 구한 compound 재사용 (period_returns 기반으로 일관성 유지)
+    # 90일 미만이면 None → UI에서 조건부 표시: period_days >= 90 일 때만 렌더링
     ann_return = None
     MIN_DAYS_FOR_ANN = 90
     if period_start and period_end and len(returns) >= 10:
         n_days = (period_end - period_start).days
         if n_days >= MIN_DAYS_FOR_ANN:
-            compound = 1.0
-            for r in returns:      # 시간 순 정렬된 수익률
-                compound *= (1 + r / 100)
+            # compound 는 위 total_return 블록에서 period_returns 기반으로 이미 계산됨
             cagr = compound ** (365 / n_days) - 1
             ann_return = round(cagr * 100, 4)
         else:
             logger.warning(
-                f"  연환산 스킵: 기간 {n_days}일 < {MIN_DAYS_FOR_ANN}일 "
-                f"(기간이 짧으면 지수 증폭으로 수치 왜곡)"
+                f"  CAGR 스킵: 기간 {n_days}일 < {MIN_DAYS_FOR_ANN}일 "
+                f"(UI 조건부 표시: period_days >= 90 시 렌더링)"
             )
 
     risk_on_count = sum(1 for t in trades if t.get("market_regime") == "RISK_ON")
@@ -475,17 +479,28 @@ def main():
         period_start = min(all_dates)
         period_end   = max(all_dates)
 
-    # equity_curve_json 생성: RISK_ON 트레이드 시간 순 정렬 기반
+    # equity_curve_json 생성: 날짜별 균등가중 평균 수익률로 복리 계산
+    # ─ 동일 날짜에 신호가 N개 있으면 N개를 동시에 균등 보유한다고 가정 ─
     sorted_trades = sorted(risk_on_trades, key=lambda t: t["event_date"])
-    risk_on_returns = [t["return_3d"] for t in sorted_trades if t.get("return_3d") is not None]
-    curve = compute_equity_curve(risk_on_returns)  # 시작값 포함, len = n+1
+    daily_buckets: dict[str, list[float]] = defaultdict(list)
+    for t in sorted_trades:
+        if t.get("return_3d") is not None:
+            daily_buckets[t["event_date"]].append(t["return_3d"])
+    sorted_daily_dates = sorted(daily_buckets.keys())
+    period_returns = [
+        sum(daily_buckets[d]) / len(daily_buckets[d])
+        for d in sorted_daily_dates
+    ]
+
+    curve = compute_equity_curve(period_returns)  # 날짜별 1포인트, 시작값 포함
     equity_curve_json = [
-        {"date": t["event_date"], "equity": round(eq, 6)}
-        for t, eq in zip(sorted_trades, curve[1:])
+        {"date": d, "equity": round(eq, 6)}
+        for d, eq in zip(sorted_daily_dates, curve[1:])
     ]
 
     metrics = compute_performance_metrics(
-        risk_on_trades, args.score_min, period_start, period_end
+        risk_on_trades, args.score_min, period_start, period_end,
+        period_returns=period_returns,
     )
 
     if metrics:

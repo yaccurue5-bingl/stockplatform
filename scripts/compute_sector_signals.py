@@ -13,8 +13,10 @@ sector_signals 테이블에 upsert하는 배치 스크립트.
   1. scores_log 에서 최근 N일 중 future_return_3d IS NOT NULL 인 행 조회
   2. companies 에서 stock_code → sector_en 매핑
   3. daily_indicators 에서 최근 N일 foreign_net_buy_kospi 조회
-  4. RISK_ON 날짜: 공시일 직전 3영업일 합계 > 0
-  5. 섹터별 집계 → sector_signals upsert
+  4. RISK_ON 날짜: 공시일 직전 3영업일 합계 > 0 → risk_on_ratio 계산
+  5. 섹터 score = (win_rate×60 + normalized_return×40) × regime_weight
+     regime_weight = 0.8 + risk_on_ratio × 0.4  (0.8 risk-off ~ 1.2 risk-on)
+  6. 섹터별 집계 → sector_signals upsert
 
 사용법:
   python scripts/compute_sector_signals.py              # 최근 30일
@@ -54,8 +56,9 @@ logger = logging.getLogger("compute_sector_signals")
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 
-DEFAULT_DAYS = 30
-BATCH_SIZE   = 50
+DEFAULT_DAYS   = 30
+BATCH_SIZE     = 50
+ALLOWED_WINDOW = {7, 30}   # sector rotation 지원 윈도우 (migration 038)
 
 # 점수 기준 (score 0~100 → signal 매핑)
 # score >= 70 → HIGH_CONVICTION
@@ -261,13 +264,21 @@ def normalize_score(values: list[float], v: float) -> float:
     return (v - mn) / (mx - mn)
 
 
-def compute_sector_score(win_rate: float, avg_return_3d: float, all_avg_returns: list[float]) -> float:
+def compute_sector_score(
+    win_rate: float,
+    avg_return_3d: float,
+    all_avg_returns: list[float],
+    risk_on_ratio: float = 0.5,
+) -> float:
     """
-    score = win_rate * 60 + (avg_return_3d 정규화) * 40
+    score = (win_rate * 60 + normalized_return * 40) × regime_weight
+    regime_weight = 0.8 + risk_on_ratio * 0.4   → 0.8(risk-off) ~ 1.2(risk-on)
     → 0~100 범위
     """
     normalized_return = normalize_score(all_avg_returns, avg_return_3d)
-    raw = win_rate * 60.0 + normalized_return * 40.0
+    base = win_rate * 60.0 + normalized_return * 40.0
+    regime_weight = 0.8 + float(risk_on_ratio) * 0.4
+    raw = base * regime_weight
     return round(max(0.0, min(100.0, raw)), 4)
 
 
@@ -288,6 +299,7 @@ def aggregate_sectors(
     sector_map: dict[str, str],
     risk_on_dates: set[str],
     upsert_date: str,
+    window_days: int = 30,
 ) -> list[dict]:
     """
     섹터별로 집계하여 sector_signals 행 목록 반환.
@@ -328,8 +340,8 @@ def aggregate_sectors(
             )
             risk_on_ratio = risk_on_count / event_count if event_count > 0 else 0.0
 
-            # score
-            score = compute_sector_score(win_rate, avg_return_3d, all_avg_returns)
+            # score (RISK_ON regime_weight 반영)
+            score = compute_sector_score(win_rate, avg_return_3d, all_avg_returns, risk_on_ratio)
             signal = signal_from_score(score)
             confidence = min(1.0, event_count / CONFIDENCE_SCALE)
 
@@ -348,6 +360,7 @@ def aggregate_sectors(
                 "date":             upsert_date,
                 "sector_en":        se,
                 "sector":           se,        # sector 컬럼 = sector_en 과 동일
+                "window_days":      window_days,
                 "signal":           signal,
                 "confidence":       round(confidence, 4),
                 "disclosure_count": event_count,
@@ -377,7 +390,7 @@ def save_to_db(sb, rows: list[dict]) -> tuple[int, int]:
         try:
             sb.table("sector_signals").upsert(
                 batch,
-                on_conflict="date,sector_en",
+                on_conflict="date,sector_en,window_days",
             ).execute()
             success += len(batch)
             logger.info(f"  Batch {bn} 저장 완료 ({len(batch)}건)")
@@ -421,7 +434,7 @@ def main() -> None:
         "--days",
         type=int,
         default=DEFAULT_DAYS,
-        help=f"집계 기간 (기본 {DEFAULT_DAYS}일)",
+        help=f"집계 기간 (기본 {DEFAULT_DAYS}일). sector rotation 지원: 7 또는 30",
     )
     parser.add_argument(
         "--dry-run",
@@ -437,6 +450,7 @@ def main() -> None:
     today = datetime.now().date()
     since = today - timedelta(days=args.days)
     since_iso, until_iso = date_range_iso(since, today)
+    window_days = args.days   # 집계 기간 = window_days (7 or 30)
 
     # upsert 에 저장할 date 값: YYYY-MM-DD (ISO) 형식으로 통일
     if args.date:
@@ -450,6 +464,7 @@ def main() -> None:
     logger.info("=" * 60)
     logger.info("섹터 신호 집계 (scores_log 기반)")
     logger.info(f"  집계 기간: {since_iso} ~ {until_iso} ({args.days}일)")
+    logger.info(f"  window_days: {window_days}")
     logger.info(f"  저장 date: {upsert_date}")
     logger.info(f"  모드:      {'DRY-RUN' if args.dry_run else '실제 저장'}")
     logger.info("=" * 60)
@@ -486,7 +501,7 @@ def main() -> None:
 
     # ── 5. 섹터별 집계 ────────────────────────────────────────────────────────
     logger.info("  섹터별 집계 중...")
-    agg_rows = aggregate_sectors(scores_rows, sector_map, risk_on_dates, upsert_date)
+    agg_rows = aggregate_sectors(scores_rows, sector_map, risk_on_dates, upsert_date, window_days)
     logger.info(f"  집계 완료: {len(agg_rows)}개 섹터")
 
     if not agg_rows:
