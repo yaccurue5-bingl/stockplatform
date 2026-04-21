@@ -145,6 +145,15 @@ def fetch_foreign_flow(supabase, date_str: str) -> str:
 
 # ── 시장 신호 계산 ────────────────────────────────────────────────────────────
 
+# sector_signals.signal 값 → Bullish/Bearish 매핑
+# compute_sector_signals.py 기준:
+#   HIGH_CONVICTION(≥70), CONSTRUCTIVE(≥55) → Bullish
+#   NEUTRAL(≥40)                             → Neutral
+#   NEGATIVE(≥25), HIGH_RISK(<25)            → Bearish
+BULLISH_SIGNALS = {"HIGH_CONVICTION", "CONSTRUCTIVE"}
+BEARISH_SIGNALS = {"NEGATIVE", "HIGH_RISK"}
+
+
 def compute_market_signal(sector_signals: list[dict]) -> str:
     """섹터 신호 투표 → 시장 전체 신호"""
     if not sector_signals:
@@ -152,10 +161,10 @@ def compute_market_signal(sector_signals: list[dict]) -> str:
 
     # disclosure_count 가중 투표
     bullish_weight = sum(
-        s["disclosure_count"] for s in sector_signals if s["signal"] == "Bullish"
+        s["disclosure_count"] for s in sector_signals if s["signal"] in BULLISH_SIGNALS
     )
     bearish_weight = sum(
-        s["disclosure_count"] for s in sector_signals if s["signal"] == "Bearish"
+        s["disclosure_count"] for s in sector_signals if s["signal"] in BEARISH_SIGNALS
     )
     total_weight = sum(s["disclosure_count"] for s in sector_signals)
 
@@ -171,7 +180,7 @@ def compute_market_signal(sector_signals: list[dict]) -> str:
 
 def get_top_sector(sector_signals: list[dict]) -> tuple[str | None, str | None]:
     """Bullish 섹터 중 confidence 최고 → (sector, sector_en)"""
-    bullish = [s for s in sector_signals if s["signal"] == "Bullish"]
+    bullish = [s for s in sector_signals if s["signal"] in BULLISH_SIGNALS]
     if not bullish:
         # Bullish 없으면 disclosure_count 가장 많은 섹터
         if not sector_signals:
@@ -280,9 +289,9 @@ def main():
     market_signal = compute_market_signal(sector_signals)
     top_sector, top_sector_en = get_top_sector(sector_signals)
 
-    bullish_cnt = sum(1 for s in sector_signals if s["signal"] == "Bullish")
-    bearish_cnt = sum(1 for s in sector_signals if s["signal"] == "Bearish")
-    neutral_cnt = sum(1 for s in sector_signals if s["signal"] == "Neutral")
+    bullish_cnt = sum(1 for s in sector_signals if s["signal"] in BULLISH_SIGNALS)
+    bearish_cnt = sum(1 for s in sector_signals if s["signal"] in BEARISH_SIGNALS)
+    neutral_cnt = sum(1 for s in sector_signals if s["signal"] == "NEUTRAL")
     total_disclosures = sum(s["disclosure_count"] for s in sector_signals)
 
     # 5. 요약 생성

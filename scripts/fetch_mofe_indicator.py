@@ -12,13 +12,16 @@
 import os
 import re
 import json
+import ssl
 import time
 import logging
 import tempfile
 from datetime import datetime, date
 from pathlib import Path
 
+import urllib3
 import requests
+from requests.adapters import HTTPAdapter
 import pdfplumber
 from groq import Groq
 from dotenv import load_dotenv
@@ -55,9 +58,64 @@ LAST_NTT_FILE  = Path(__file__).parent / '.mofe_last_ntt_id'  # 마지막 성공
 INITIAL_NTT_ID = 77372  # 2026-04-17 기준 (업데이트 시 초기값)
 NTT_PROBE_RANGE = 20    # 마지막 성공 NttId 기준 앞으로 최대 탐색 범위
 SITE_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                  'Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
     'Referer': BASE_URL,
 }
+
+# SSL 경고 억제 (mofe.go.kr 레거시 인증서 대응)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+class _LegacySSLAdapter(HTTPAdapter):
+    """
+    한국 정부 사이트(mofe.go.kr)는 Python 3.10+ 기본 SSL 보안 정책과
+    호환되지 않는 경우가 많음 (WinError 10054 / SSL handshake 실패).
+    - SECLEVEL=1 로 레거시 cipher 허용
+    - 인증서 검증 비활성화 (공공기관 사이트 자체 서명 대응)
+    """
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        try:
+            ctx.set_ciphers('DEFAULT:@SECLEVEL=1')
+        except ssl.SSLError:
+            pass
+        kwargs['ssl_context'] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
+    def proxy_manager_for(self, proxy, **proxy_kwargs):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        try:
+            ctx.set_ciphers('DEFAULT:@SECLEVEL=1')
+        except ssl.SSLError:
+            pass
+        proxy_kwargs['ssl_context'] = ctx
+        return super().proxy_manager_for(proxy, **proxy_kwargs)
+
+
+def _make_mofe_session() -> requests.Session:
+    """mofe.go.kr 전용 HTTP 세션 생성 (레거시 SSL + 재시도)."""
+    session = requests.Session()
+    adapter = _LegacySSLAdapter(
+        max_retries=urllib3.Retry(
+            total=3,
+            backoff_factor=1.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=['GET', 'POST'],
+        )
+    )
+    session.mount('https://', adapter)
+    session.mount('http://', adapter)
+    session.headers.update(SITE_HEADERS)
+    return session
 
 
 # ── CloudConvert: HWP → PDF ───────────────────────────────────────────────────
@@ -171,7 +229,7 @@ def _download_hwp(http_session: requests.Session, atch_id: str, detail_url: str)
     hwp_url = f'{BASE_URL}/com/cmm/fms/FileDown.do?atchFileId={atch_id}&fileSn=1'
     logger.info(f'HWP 다운로드: {hwp_url}')
 
-    r = http_session.get(hwp_url, timeout=30, stream=True)
+    r = http_session.get(hwp_url, timeout=60, stream=True, verify=False)
     r.raise_for_status()
 
     content_disp = r.headers.get('Content-Disposition', '')
@@ -205,9 +263,11 @@ def find_and_download_hwp() -> tuple[str, str] | None:
     전략 2 (폴백): 마지막 성공 NttId ± NTT_PROBE_RANGE 오프셋 순차 탐색.
     """
     try:
-        http_session = requests.Session()
-        http_session.headers.update(SITE_HEADERS)
-        http_session.get(BASE_URL, timeout=10)  # 기본 쿠키 획득
+        http_session = _make_mofe_session()
+        try:
+            http_session.get(BASE_URL, timeout=10, verify=False)  # 기본 쿠키 획득
+        except Exception as e:
+            logger.warning(f'초기 쿠키 획득 실패 (무시하고 계속): {e}')
 
         last_ntt = _load_last_ntt_id()
         logger.info(f'마지막 처리 NttId: {last_ntt}')
@@ -215,7 +275,7 @@ def find_and_download_hwp() -> tuple[str, str] | None:
         # ── 전략 1: 게시판 목록 파싱 ─────────────────────────────────────────
         logger.info('전략 1: 게시판 목록 페이지 파싱...')
         try:
-            board_r = http_session.get(BOARD_URL, timeout=10)
+            board_r = http_session.get(BOARD_URL, timeout=15, verify=False)
             # 목록 링크 예시: searchNttId1=MOSF_000000000077380
             raw_matches = re.findall(r'searchNttId1=(MOSF_(\d+))', board_r.text)
             if raw_matches:
@@ -232,7 +292,7 @@ def find_and_download_hwp() -> tuple[str, str] | None:
                         f'{DETAIL_BASE}?bbsId={BBS_ID}'
                         f'&searchNttId1={ntt_id_str}&menuNo=6010200'
                     )
-                    det_r = http_session.get(detail_url, timeout=10)
+                    det_r = http_session.get(detail_url, timeout=15, verify=False)
                     atch_match = re.search(r'atchFileId=(ATCH_\w+)', det_r.text)
                     if not atch_match:
                         logger.info(f'  {ntt_id_str}: 첨부파일 없음 (공휴일/공지 등), 건너뜀')
@@ -266,7 +326,7 @@ def find_and_download_hwp() -> tuple[str, str] | None:
                 f'{DETAIL_BASE}?bbsId={BBS_ID}'
                 f'&searchNttId1={ntt_id_str}&menuNo=6010200'
             )
-            r = http_session.get(url, timeout=10)
+            r = http_session.get(url, timeout=15, verify=False)
 
             atch_match = re.search(r'atchFileId=(ATCH_\w+)', r.text)
             if atch_match:
