@@ -28,13 +28,13 @@ scripts/run_daily_batch.py
 정식 일배치 실행 순서 (장 중, trigger.py 에서 호출):
   1. dart_crawler.py               : 오늘 공시 수집
   2. fetch_market_data.py          : 오늘 시세/거래량 수집
-  3. fetch_mofe_indicator.py       : 재정경제부 일일경제지표 (외국인 순매수) 수집
+  3. fetch_ecos_foreign_flow.py    : 한국은행 ECOS API 외국인 순매수 KOSPI+KOSDAQ 수집
   4. auto_analyst.py               : AI 분석 (pending → completed, 신규 공시 전용)
   5. compute_base_score.py         : BaseScore / FinalScore 계산
 
 EOD 배치 실행 순서 (장 마감 후 ~16:30 KST, cron/trigger.py 에서 1일 1회):
   1. fetch_market_data.py          : 당일 종가/거래량 확정 수집
-  2. fetch_mofe_indicator.py       : 재정경제부 일일경제지표 확정 수집
+  2. fetch_ecos_foreign_flow.py    : 한국은행 ECOS API 외국인 순매수 KOSPI+KOSDAQ 수집
   3. backfill_scores.py --limit N  : 누락 AI 분석 보완 (completed but no sentiment)
   4. compute_base_score.py         : FinalScore 갱신
   5. compute_sector_signals.py     : 섹터 시그널 업데이트
@@ -165,10 +165,10 @@ def run_prod(args):
          [],
          False),
 
-        # Step 3: 재정경제부 일일경제지표 (외국인 순매수) 수집
-        # ※ 대차잔고 수집·LPS 계산 제거됨 — 금융위원회 상업용 금지 2026-04-20
+        # Step 3: 한국은행 ECOS API → 외국인 순매수 KOSPI+KOSDAQ 수집
+        # (fetch_mofe_indicator.py 대체 — CloudConvert/pdfplumber 불필요)
         ("외국인지표 수집",
-         "fetch_mofe_indicator.py",
+         "fetch_ecos_foreign_flow.py",
          [],
          False),
 
