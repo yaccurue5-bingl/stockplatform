@@ -92,10 +92,13 @@ function formatChange(change: number): string {
 function formatForeign(val: number): string {
   const sign = val >= 0 ? '+' : '';
   const abs = Math.abs(val);
+  // val 단위: 억원. 1억원 = 100M KRW → 10억 = 1B KRW
   if (abs >= 10000) {
-    return `${sign}₩${(abs / 10000).toFixed(1)}조`;
+    // 1조 이상 → T (trillion KRW). 10,000억 = 1T
+    return `${sign}₩${(abs / 10000).toFixed(1)}T`;
   }
-  return `${sign}₩${Math.round(abs).toLocaleString()}억`;
+  // 억원 → B KRW: 10억원 = 1B KRW
+  return `${sign}₩${(abs / 10).toFixed(1)}B`;
 }
 
 // ---- Skeleton ----
