@@ -17,6 +17,12 @@ export default function Hero() {
 
         {/* Left */}
         <div>
+          {/* Beta tagline — above LIVE badge */}
+          <div className="flex items-center gap-2.5 mb-3">
+            <span className="text-xs font-black uppercase tracking-wide bg-[#00D4A6]/15 text-[#00D4A6] border border-[#00D4A6]/30 px-2 py-0.5 rounded">Beta</span>
+            <span className="text-xs text-gray-500 italic">kimchi-powered development</span>
+          </div>
+
           <div className="inline-flex items-center gap-2 bg-[#121821] border border-gray-800 rounded-full px-3 py-1.5 text-xs text-gray-400 mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-[#00D4A6] animate-pulse" />
             LIVE · Korean Market Disclosures

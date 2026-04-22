@@ -239,8 +239,8 @@ export default async function DisclosureDetailPage({
 
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center">
-                <span className="text-xs font-bold text-gray-300">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center flex-shrink-0">
+                <span className="text-xs font-bold text-white tracking-tight">
                   {generateTicker(disclosure.corp_name_en ?? disclosure.corp_name)}
                 </span>
               </div>
