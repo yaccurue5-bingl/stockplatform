@@ -94,21 +94,49 @@ def compute_i(short_term_impact_score: int | None) -> float:
 
 def compute_e(avg_5d_return: float | None, sample_size: int | None) -> float:
     """
-    이벤트 수익률 컴포넌트: 0~30
-      sample_size <  10 : 통계 불충분 → 0 반환
-      sample_size 10~29 : 부분 신뢰도 적용 (confidence 0.5→1.0 선형 보간)
+    이벤트 수익률 컴포넌트: 0~30  (레거시 — Z-score 데이터 없을 때 fallback)
+      sample_size <  10 : 통계 불충분 → 중립(15) 반환
+      sample_size 10~29 : 부분 신뢰도 적용 (중립 15 기준으로 scale)
       sample_size >= 30 : 완전 가중치
     """
     if avg_5d_return is None:
-        return 0.0
+        return 15.0   # 데이터 없으면 중립
     n = int(sample_size) if sample_size is not None else 0
     if n < 10:
-        return 0.0
+        return 15.0   # 샘플 부족 → 중립
     e_full = (float(avg_5d_return) + 3.0) / 6.0 * 30.0
     e_full = max(0.0, min(30.0, e_full))
     if n < 30:
+        # 신뢰도 부분: 중립(15)에서 e_full 방향으로 선형 보간
         confidence = 0.5 + 0.5 * (n - 10) / 20.0   # 10→0.5, 29→0.975
-        return round(e_full * confidence, 4)
+        return round(15.0 + (e_full - 15.0) * confidence, 4)
+    return round(e_full, 4)
+
+
+def compute_e_zscore(z_score: float | None, sample_size: int | None) -> float:
+    """
+    시총 버킷 Z-score 기반 E 컴포넌트: 0~30 (중립=15)
+
+    Z-score = (이벤트유형 평균수익률 - 버킷시장평균) / 버킷시장표준편차
+    z 범위 [-2.5, +2.5] → E [0, 30]
+      z = -2.5 → E = 0   (강한 음수 시그널)
+      z =  0.0 → E = 15  (중립)
+      z = +2.5 → E = 30  (강한 양수 시그널)
+
+    sample_size < 5  : 중립(15) 반환
+    sample_size 5~29 : 중립 방향으로 부분 수렴
+    sample_size >= 30: 완전 적용
+    """
+    if z_score is None:
+        return 15.0
+    n = int(sample_size) if sample_size is not None else 0
+    if n < 5:
+        return 15.0
+    z     = max(-2.5, min(2.5, float(z_score)))
+    e_full = (z + 2.5) / 5.0 * 30.0   # [-2.5, +2.5] → [0, 30]
+    if n < 30:
+        confidence = min(1.0, 0.5 + 0.5 * (n - 5) / 25.0)   # 5→0.5, 30→1.0
+        return round(15.0 + (e_full - 15.0) * confidence, 4)
     return round(e_full, 4)
 
 
@@ -214,16 +242,52 @@ def _get_supabase():
 
 def load_event_stats(sb) -> dict[str, dict]:
     """
-    event_stats 전체 로드 → {event_type: {avg_5d_return, sample_size}} dict.
+    event_stats 전체 로드.
+    Z-score 컬럼(avg_z_5d_large/mid/small, n_large/mid/small) 포함.
     """
-    resp = sb.table("event_stats").select("event_type, avg_5d_return, sample_size").execute()
+    resp = sb.table("event_stats").select(
+        "event_type, avg_5d_return, sample_size, "
+        "avg_z_5d_large, avg_z_5d_mid, avg_z_5d_small, "
+        "n_large, n_mid, n_small"
+    ).execute()
     result: dict[str, dict] = {}
     for row in (resp.data or []):
         result[row["event_type"]] = {
             "avg_5d_return": row.get("avg_5d_return"),
             "sample_size":   row.get("sample_size"),
+            "z_large": row.get("avg_z_5d_large"),
+            "z_mid":   row.get("avg_z_5d_mid"),
+            "z_small": row.get("avg_z_5d_small"),
+            "n_large": row.get("n_large") or 0,
+            "n_mid":   row.get("n_mid")   or 0,
+            "n_small": row.get("n_small") or 0,
         }
     return result
+
+
+# 시총 버킷 기준 (backfill_prices.py 와 동일)
+_CAP_LARGE = 245_000_000_000
+_CAP_MID   =  65_000_000_000
+
+
+def get_cap_bucket(market_cap: int | None) -> str:
+    if not market_cap or market_cap <= 0:
+        return 'SMALL'
+    if market_cap >= _CAP_LARGE:
+        return 'LARGE'
+    if market_cap >= _CAP_MID:
+        return 'MID'
+    return 'SMALL'
+
+
+def load_market_caps(sb) -> dict[str, int]:
+    """companies 테이블에서 stock_code → market_cap 매핑 로드."""
+    resp = sb.table("companies").select("stock_code, market_cap").not_.is_("market_cap", "null").execute()
+    return {
+        r["stock_code"]: int(r["market_cap"])
+        for r in (resp.data or [])
+        if r.get("market_cap") and int(r["market_cap"]) > 0
+    }
 
 
 def fetch_unscored(sb, recompute: bool) -> list[dict]:
@@ -385,12 +449,15 @@ def main():
 
     sb = _get_supabase()
 
-    # 1. event_stats 로드
-    print("\n  [1/5] event_stats 로드 중...")
+    # 1. event_stats + market_cap 로드
+    print("\n  [1/5] event_stats + 시총 데이터 로드 중...")
     event_stats = load_event_stats(sb)
     print(f"  → {len(event_stats)}개 이벤트 유형 로드")
     if not event_stats:
-        print("  [WARN] event_stats 가 비어 있습니다. e 컴포넌트는 모두 0으로 처리됩니다.")
+        print("  [WARN] event_stats 가 비어 있습니다. e 컴포넌트는 중립(15)으로 처리됩니다.")
+
+    cap_map = load_market_caps(sb)
+    print(f"  → 시총 매핑: {len(cap_map)}개 종목")
 
     # 2. 미계산 공시 조회
     print("\n  [2/5] 미계산 공시 조회 중...")
@@ -419,13 +486,23 @@ def main():
         except ValueError:
             iso_date = rdt
 
-        # event_stats 조회
-        ev_key = str(row.get("event_type") or "").upper()
+        # event_stats 조회 + 시총 버킷 기반 Z-score E 컴포넌트
+        ev_key  = str(row.get("event_type") or "").upper()
         ev_info = event_stats.get(ev_key, {})
+        bucket  = get_cap_bucket(cap_map.get(code))
 
-        s   = compute_s(row.get("sentiment_score"))
-        i_  = compute_i(row.get("short_term_impact_score"))
-        e   = compute_e(ev_info.get("avg_5d_return"), ev_info.get("sample_size"))
+        z_key = f"z_{bucket.lower()}"   # z_large / z_mid / z_small
+        n_key = f"n_{bucket.lower()}"   # n_large / n_mid / n_small
+        z_score  = ev_info.get(z_key)
+        n_bucket = ev_info.get(n_key, 0)
+
+        s  = compute_s(row.get("sentiment_score"))
+        i_ = compute_i(row.get("short_term_impact_score"))
+        # Z-score 데이터 있으면 버킷별 Z-score 사용, 없으면 레거시 fallback
+        if z_score is not None:
+            e = compute_e_zscore(z_score, n_bucket)
+        else:
+            e = compute_e(ev_info.get("avg_5d_return"), ev_info.get("sample_size"))
         raw, bs = compute_base_score(s, i_, e)
 
         lps         = lps_map.get((code, rdt))
