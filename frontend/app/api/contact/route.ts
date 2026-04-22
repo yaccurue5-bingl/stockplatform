@@ -5,7 +5,8 @@ export const runtime = 'nodejs';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const SUPPORT_EMAIL = 'support@k-marketinsight.com';
+// 수신: 실제 받은편지함 (Gmail 등) — CONTACT_RECIPIENT_EMAIL 환경변수로 지정
+const SUPPORT_EMAIL = process.env.CONTACT_RECIPIENT_EMAIL ?? '';
 const FROM_EMAIL    = 'K-MarketInsight <support@k-marketinsight.com>';
 
 function buildContactHtml(name: string, email: string, message: string): string {
@@ -69,6 +70,11 @@ export async function POST(request: Request) {
       email?: string;
       message?: string;
     };
+
+    if (!SUPPORT_EMAIL) {
+      console.error('[contact] CONTACT_RECIPIENT_EMAIL not set');
+      return NextResponse.json({ error: 'Server configuration error.' }, { status: 500 });
+    }
 
     if (!name?.trim() || !email?.trim() || !message?.trim()) {
       return NextResponse.json({ error: 'All fields are required.' }, { status: 400 });

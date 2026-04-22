@@ -1,23 +1,31 @@
 /**
  * Next.js Instrumentation Hook (Next.js 15+ stable)
- *
- * - Node.js 런타임에서만 실행 (Edge runtime 제외)
- * - "type": "module" ESM 프로젝트이므로:
- *     newrelic.cjs  → CJS config 파일 (newrelic.js는 ESM으로 인식되어 오류)
- *     NEW_RELIC_CONFIG_FILE 환경변수로 위치 명시
+ * - Sentry: 서버/엣지 에러 캡처
+ * - New Relic: 연결 시도 (Vercel 서버리스에서는 제한적)
  */
+import * as Sentry from '@sentry/nextjs';
+
 export async function register() {
+  // ── Sentry ──────────────────────────────────────────────
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    if (!process.env.NEW_RELIC_LICENSE_KEY) {
-      console.warn('[newrelic] NEW_RELIC_LICENSE_KEY not set — skipping agent init');
-      return;
+    await import('./sentry.server.config');
+  }
+  if (process.env.NEXT_RUNTIME === 'edge') {
+    await import('./sentry.edge.config');
+  }
+
+  // ── New Relic (Node.js only, Vercel 서버리스 제한 있음) ──
+  if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.NEW_RELIC_LICENSE_KEY) {
+    process.env.NEW_RELIC_APP_NAME                            ??= 'k-marketinsight';
+    process.env.NEW_RELIC_NO_CONFIG_FILE                      ??= 'true';
+    process.env.NEW_RELIC_DISTRIBUTED_TRACING_ENABLED         ??= 'true';
+    process.env.NEW_RELIC_LOG_LEVEL                           ??= 'info';
+    process.env.NEW_RELIC_APPLICATION_LOGGING_FORWARDING_ENABLED ??= 'true';
+    if (process.env.VERCEL) {
+      process.env.NEW_RELIC_SERVERLESS_MODE_ENABLED ??= 'true';
     }
-
-    // ESM 프로젝트: config 파일을 .cjs로 명시해야 CJS로 로드됨
-    process.env.NEW_RELIC_CONFIG_FILE =
-      process.env.NEW_RELIC_CONFIG_FILE ?? `${process.cwd()}/newrelic.cjs`;
-
     await import('newrelic');
-    console.log('[newrelic] agent initialized — app: k-marketinsight');
   }
 }
+
+export const onRequestError = Sentry.captureRequestError;
