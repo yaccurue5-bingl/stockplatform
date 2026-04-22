@@ -27,21 +27,23 @@ scripts/run_daily_batch.py
 
 정식 일배치 실행 순서 (장 중, trigger.py 에서 호출):
   1. dart_crawler.py               : 오늘 공시 수집
-  2. fetch_market_data.py          : 오늘 시세/거래량 수집
-  3. fetch_ecos_foreign_flow.py    : 한국은행 ECOS API 외국인 순매수 KOSPI+KOSDAQ 수집
-  4. auto_analyst.py               : AI 분석 (pending → completed, 신규 공시 전용)
-  5. compute_base_score.py         : BaseScore / FinalScore 계산
+  2. fetch_corp_name_en.py --limit 20 : 신규 상장사 영문명 즉시 보강 (Groq 프롬프트 품질↑)
+  3. fetch_market_data.py          : 오늘 시세/거래량 수집
+  4. fetch_ecos_foreign_flow.py    : 한국은행 ECOS API 외국인 순매수 KOSPI+KOSDAQ 수집
+  5. auto_analyst.py               : AI 분석 (pending → completed, 신규 공시 전용)
+  6. compute_base_score.py         : BaseScore / FinalScore 계산
 
 EOD 배치 실행 순서 (장 마감 후 ~16:30 KST, cron/trigger.py 에서 1일 1회):
   1. fetch_market_data.py          : 당일 종가/거래량 확정 수집
   2. fetch_ecos_foreign_flow.py    : 한국은행 ECOS API 외국인 순매수 KOSPI+KOSDAQ 수집
-  3. backfill_scores.py --limit N  : 누락 AI 분석 보완 (completed but no sentiment)
-  4. compute_base_score.py         : FinalScore 갱신
-  5. compute_sector_signals.py     : 섹터 시그널 업데이트
-  6. compute_market_radar.py       : 시장 레이더 집계 (외국인 순매수 포함)
-  7. compute_alpha_score.py        : 통합 알파 스코어 (Base+Sector+Market+Regime)
-  8. backfill_prices.py --days 30  : 최근 30일 공시 T+3/T+5 수익률 백필 + event_stats 재집계
-  9. compute_backtest.py           : event_macro_v1 백테스트 업데이트
+  3. fetch_corp_name_en.py --limit 100 : 영문사명 누락 기업 보강 (매일 100건씩 점진 채움)
+  4. backfill_scores.py --limit N  : 누락 AI 분석 보완 (completed but no sentiment)
+  5. compute_base_score.py         : FinalScore 갱신
+  6. compute_sector_signals.py     : 섹터 시그널 업데이트
+  7. compute_market_radar.py       : 시장 레이더 집계 (외국인 순매수 포함)
+  8. compute_alpha_score.py        : 통합 알파 스코어 (Base+Sector+Market+Regime)
+  9. backfill_prices.py --days 30  : 최근 30일 공시 T+3/T+5 수익률 백필 + event_stats 재집계
+ 10. compute_backtest.py           : event_macro_v1 백테스트 업데이트
 """
 
 import sys
@@ -160,26 +162,32 @@ def run_prod(args):
          [],
          False),
 
-        # Step 2: 시세/거래량 수집
+        # Step 2: 신규 상장사 영문명 즉시 보강 (AI 분석 전에 실행 → Groq 프롬프트 품질↑)
+        ("영문사명 보강",
+         "fetch_corp_name_en.py",
+         ["--limit", "20"],
+         False),
+
+        # Step 3: 시세/거래량 수집
         ("시세/거래량 수집",
          "fetch_market_data.py",
          [],
          False),
 
-        # Step 3: 한국은행 ECOS API → 외국인 순매수 KOSPI+KOSDAQ 수집
+        # Step 4: 한국은행 ECOS API → 외국인 순매수 KOSPI+KOSDAQ 수집
         # (fetch_mofe_indicator.py 대체 — CloudConvert/pdfplumber 불필요)
         ("외국인지표 수집",
          "fetch_ecos_foreign_flow.py",
          [],
          False),
 
-        # Step 4: AI 분석 (pending → sentiment_score + completed)
+        # Step 5: AI 분석 (pending → sentiment_score + completed)
         ("AI 분석",
          "auto_analyst.py",
          [],
          False),
 
-        # Step 5: BaseScore / FinalScore
+        # Step 6: BaseScore / FinalScore
         ("BaseScore 계산",
          "compute_base_score.py",
          dry_flag,
@@ -231,7 +239,13 @@ def run_eod(args):
          [],
          False),
 
-        # Step 3: 당일 completed 공시 중 sentiment_score 누락 건 AI 보완
+        # Step 3: 영문사명 누락 기업 점진 보강 (매일 100건씩 채워나감)
+        ("영문사명 보강",
+         "fetch_corp_name_en.py",
+         ["--limit", "100"],
+         False),
+
+        # Step 4: 당일 completed 공시 중 sentiment_score 누락 건 AI 보완
         ("AI 백필",
          "backfill_scores.py",
          ["--limit", limit] + dry_flag,
