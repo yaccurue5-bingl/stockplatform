@@ -32,6 +32,7 @@ interface Disclosure {
   investment_implications?: string;
   risk_factors?: string[];
   key_metrics?: string[];
+  key_numbers?: Record<string, string> | null;
 }
 
 interface GroupedStock {
@@ -693,6 +694,21 @@ function DisclosuresContent() {
                       )}
                     </div>
                   </div>
+
+                  {/* Key Numbers */}
+                  {selectedDisclosure.key_numbers && Object.keys(selectedDisclosure.key_numbers).length > 0 && (
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                      <h3 className="text-lg font-bold mb-4">Key Numbers</h3>
+                      <dl className="grid grid-cols-2 gap-3">
+                        {Object.entries(selectedDisclosure.key_numbers).map(([k, v]) => (
+                          <div key={k} className="bg-gray-800/60 rounded-lg px-4 py-3">
+                            <dt className="text-xs text-gray-500 mb-1">{k}</dt>
+                            <dd className="text-sm font-semibold text-white">{String(v)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  )}
 
                   {/* Investor Impact Analysis */}
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">

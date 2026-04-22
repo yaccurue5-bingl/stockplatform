@@ -48,6 +48,16 @@ function transformDisclosure(item: any, corpNameEnMap: Record<string, string>, s
   const mappedEn = Object.entries(KR_REPORT_MAP).find(([kr]) => reportNmKr.includes(kr))?.[1] || null;
   const translated = item.report_nm_en || mappedEn;
 
+  // key_numbers: DB에서 JSON string 또는 object로 올 수 있음
+  const keyNumbers = (() => {
+    try {
+      const raw = item.key_numbers;
+      if (!raw) return null;
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, string> : null;
+    } catch { return null; }
+  })();
+
   return {
     id: item.id,
     rcept_no: safeString(item.rcept_no, ''),
@@ -66,6 +76,7 @@ function transformDisclosure(item: any, corpNameEnMap: Record<string, string>, s
     sector_en: sectorEn,
     detailed_analysis: safeString(item.financial_impact || item.ai_summary),
     risk_factors: item.risk_factors ? [item.risk_factors] : [],
+    key_numbers: keyNumbers,
   };
 }
 

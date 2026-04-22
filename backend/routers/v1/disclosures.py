@@ -14,12 +14,13 @@ disclosure_insights 테이블 데이터를 반환합니다.
     TTL 300 초 (5 min)  —  키: plan + 쿼리 파라미터 전체 해시
 """
 
+import json
 import logging
 from datetime import date, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from backend.routers.v1.auth import require_plan, PLAN_HISTORY_DAYS
 from backend.core.cache import make_cache_key, cache_get, cache_set, TTL_DISCLOSURES
@@ -46,7 +47,25 @@ class DisclosureItem(BaseModel):
     base_score:      Optional[float] = None
     final_score:     Optional[float] = None
     signal_tag:      Optional[str]   = None
+    # AI 추출 핵심 수치 (developer+): {"Revenue": "1.2T KRW", ...}
+    key_numbers:     Optional[dict]  = None
     # pro 전용: 상세 분석
+
+    @field_validator("key_numbers", mode="before")
+    @classmethod
+    def parse_key_numbers(cls, v: Any) -> Optional[dict]:
+        """DB에서 JSON string으로 올 경우 dict로 변환"""
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, dict) else None
+            except (json.JSONDecodeError, ValueError):
+                return None
+        return None
     headline:        Optional[str]   = None
     financial_impact: Optional[str]  = None
     base_score_raw:  Optional[float] = None
@@ -62,11 +81,11 @@ class DisclosuresResponse(BaseModel):
 
 # ── 컬럼 정의 ─────────────────────────────────────────────────────────────────
 
-# developer: 기본 컬럼 + 스코어
+# developer: 기본 컬럼 + 스코어 + key_numbers
 _DEV_COLUMNS = (
     "id, rcept_no, corp_name, stock_code, report_nm, rcept_dt, "
     "sentiment_score, short_term_impact_score, event_type, ai_summary, "
-    "base_score, final_score, signal_tag"
+    "base_score, final_score, signal_tag, key_numbers"
 )
 # pro: 상세 분석 추가
 _PRO_COLUMNS = _DEV_COLUMNS + (
