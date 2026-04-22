@@ -254,33 +254,42 @@ SENTIMENT SCORE GUIDE (sentiment_score):
 """
         }
 
-    # ✅ 공시 유형 자동 분류
-    def classify_disclosure(self, title: str) -> str:
-        title = title.lower()
+    # ✅ 공시 유형 힌트 분류 (복수 매칭 허용 — Groq에 분석 지침 제공용)
+    def classify_disclosure(self, title: str) -> list[str]:
+        """
+        title 키워드 기반으로 분석 지침(type_rule)에 사용할 유형 힌트 반환.
+        복수 매칭 가능 (e.g. "유상증자 + 신규시설" → [DILUTION, CAPEX]).
+        최종 event_type 결정은 Groq가 content 기반으로 수행.
+        """
+        t = title.lower()
+        matched: list[str] = []
 
-        # DILUTION 최우선 — 희석 이벤트는 가장 강한 시그널
-        if "전환사채" in title or "bw" in title or "cb" in title or "유상증자" in title:
-            return "DILUTION"
-        elif "단일판매" in title or "공급계약" in title:
-            return "CONTRACT"
-        elif "자기주식" in title:
-            return "BUYBACK"
-        elif "합병" in title or "분할" in title or "지분" in title:
-            return "MNA"
-        elif "소송" in title or "횡령" in title or "배임" in title:
-            return "LEGAL"
-        elif "신규시설" in title or "투자" in title:
-            return "CAPEX"
-        elif "분기" in title or "사업보고서" in title or "잠정" in title or "실적" in title:
-            return "EARNINGS"
-        else:
-            return "OTHER"
+        if "전환사채" in t or "bw" in t or "cb" in t or "유상증자" in t:
+            matched.append("DILUTION")
+        if "단일판매" in t or "공급계약" in t or "수주" in t or "mou" in t:
+            matched.append("CONTRACT")
+        if "자기주식" in t:
+            matched.append("BUYBACK")
+        if "합병" in t or "인수" in t or "분할" in t or ("지분" in t and "취득" in t):
+            matched.append("MNA")
+        if "소송" in t or "횡령" in t or "배임" in t or "과징금" in t or "수사" in t:
+            matched.append("LEGAL")
+        if "신규시설" in t or "공장" in t or ("투자" in t and "유상증자" not in t):
+            matched.append("CAPEX")
+        if "분기" in t or "사업보고서" in t or "잠정" in t or "실적" in t or "결산" in t:
+            matched.append("EARNINGS")
+
+        return matched if matched else ["OTHER"]
 
     # ✅ 프롬프트 생성
     def build_prompt(self, corp_name, report_nm, content):
-
-        disclosure_type = self.classify_disclosure(report_nm)
-        type_rule = self.type_rules.get(disclosure_type, "")
+        # 복수 유형 힌트 → 해당 분석 규칙 모두 포함 (content 기반 최종 분류는 Groq 담당)
+        hint_types = self.classify_disclosure(report_nm)
+        type_rules_text = ""
+        for ht in hint_types:
+            rule = self.type_rules.get(ht, "")
+            if rule:
+                type_rules_text += f"\n[Analysis guidance for potential {ht}]:{rule}"
 
         is_empty = not content or str(content).strip() == ""
         is_not_available = str(content) == "CONTENT_NOT_AVAILABLE"
@@ -291,7 +300,13 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             clean_content = str(content).replace('\x00', '').replace('\u0000', '')
             input_text = f"Title: {report_nm}\n\nContent:\n{clean_content}"
 
-        final_system_prompt = self.core_prompt + "\n" + type_rule
+        # event_type은 반드시 content 내용 기준으로 판단 (title 키워드에 종속 금지)
+        type_hint_note = (
+            f"\nTITLE-BASED HINT (for reference only): {', '.join(hint_types)}. "
+            "IMPORTANT: set event_type based on the PRIMARY theme of the CONTENT, not the title."
+        ) if hint_types != ["OTHER"] else ""
+
+        final_system_prompt = self.core_prompt + type_rules_text + type_hint_note
 
         return final_system_prompt, f"Company: {corp_name}\n\n{input_text}"
 
