@@ -16,14 +16,23 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
   loan_weight    = min(lps / 100, 0.4)               # 최대 40% 패널티
   final_score    = base_score * (1 - loan_weight)    # 0~100
 
-시그널 태그:
-  "⚠️ Smart Money Selling" : LPS ≥ 70 AND base_score ≥ 60
-  "🔥 Short Covering + Momentum": LPS ≤ 20 AND base_score ≥ 70
-  "❌ High Risk Zone"       : LPS ≥ 80 AND base_score ≤ 40
+시그널 태그 (2026-04-20 재설계 — LPS 수집 중단으로 event_type + sentiment 기반으로 전환):
+  부정 우선:
+    "⚖️ Legal Alert"    : event_type = LEGAL
+    "⚠️ Dilution Risk"  : event_type = DILUTION AND sentiment ≤ -0.2
+    "📉 Earnings Miss"  : event_type = EARNINGS AND sentiment ≤ -0.4 AND base_score ≤ 45
+  고신뢰 긍정:
+    "🔥 High Conviction": base_score ≥ 78 AND sentiment ≥ 0.5
+    "🚀 Earnings Beat"  : event_type = EARNINGS AND sentiment ≥ 0.5 AND base_score ≥ 70
+    "📋 Major Contract" : event_type = CONTRACT AND sentiment ≥ 0.4 AND base_score ≥ 70
+    "🔄 Buyback Signal" : event_type = BUYBACK  AND sentiment ≥ 0.3 AND base_score ≥ 62
+    "🤝 M&A Activity"   : event_type = MNA      AND sentiment ≥ 0.35 AND base_score ≥ 65
+    "🏭 Growth Capex"   : event_type = CAPEX    AND sentiment ≥ 0.45 AND base_score ≥ 70
+  전반 하방:
+    "⛔ High Risk"       : base_score ≤ 28 AND sentiment ≤ -0.5
 
 사전 조건:
   - auto_analyst.py 가 완료되어 sentiment_score, short_term_impact_score, event_type 이 채워져 있어야 함
-  - compute_loan_pressure.py 가 완료되어 loan_stats.lps 가 채워져 있어야 함
 
 사용법:
   python scripts/compute_base_score.py             # 전체 미계산 처리
@@ -135,16 +144,58 @@ def compute_final_score(base_score: float, lps: float | None, reliability: float
     return round(max(0.0, min(100.0, final)), 4)
 
 
-def compute_signal_tag(base_score: float, lps: float | None) -> str | None:
-    """시그널 태그 결정"""
-    if lps is None:
-        return None
-    if lps >= 80 and base_score <= 40:
-        return "❌ High Risk Zone"
-    if lps >= 70 and base_score >= 60:
-        return "⚠️ Smart Money Selling"
-    if lps <= 20 and base_score >= 70:
-        return "🔥 Short Covering + Momentum"
+def compute_signal_tag(
+    base_score: float,
+    lps: float | None,                    # 하위 호환 유지 (현재 미사용)
+    event_type: str | None = None,
+    sentiment_score: float | None = None,
+) -> str | None:
+    """
+    시그널 태그 결정.
+    LPS 데이터 수집 중단(2026-04-20) 이후 event_type + sentiment_score + base_score 기반으로 재설계.
+
+    우선순위 (앞에서 먼저 매칭):
+      1. 부정 이벤트 (event_type 확정적)
+      2. 고신뢰 긍정 시그널 (base_score × sentiment 조합)
+      3. 전반적 하방 위험 (catchall)
+    """
+    et = str(event_type or "").upper()
+    ss = float(sentiment_score) if sentiment_score is not None else 0.0
+    bs = float(base_score)
+
+    # ── 1순위: 부정 이벤트 ────────────────────────────────────────────────────
+    if et == "LEGAL":
+        return "⚖️ Legal Alert"
+
+    if et == "DILUTION" and ss <= -0.2:
+        return "⚠️ Dilution Risk"
+
+    if et == "EARNINGS" and ss <= -0.4 and bs <= 45:
+        return "📉 Earnings Miss"
+
+    # ── 2순위: 고신뢰 긍정 시그널 ────────────────────────────────────────────
+    if bs >= 78 and ss >= 0.5:
+        return "🔥 High Conviction"
+
+    if et == "EARNINGS" and ss >= 0.5 and bs >= 70:
+        return "🚀 Earnings Beat"
+
+    if et == "CONTRACT" and ss >= 0.4 and bs >= 70:
+        return "📋 Major Contract"
+
+    if et == "BUYBACK" and ss >= 0.3 and bs >= 62:
+        return "🔄 Buyback Signal"
+
+    if et == "MNA" and ss >= 0.35 and bs >= 65:
+        return "🤝 M&A Activity"
+
+    if et == "CAPEX" and ss >= 0.45 and bs >= 70:
+        return "🏭 Growth Capex"
+
+    # ── 3순위: 전반적 하방 위험 ──────────────────────────────────────────────
+    if bs <= 28 and ss <= -0.5:
+        return "⛔ High Risk"
+
     return None
 
 
@@ -384,7 +435,11 @@ def main():
         lps         = lps_map.get((code, rdt))
         reliability = compute_reliability(row.get("key_numbers"))
         fs  = compute_final_score(bs, lps, reliability)
-        tag = compute_signal_tag(bs, lps)
+        tag = compute_signal_tag(
+            bs, lps,
+            event_type=ev_key,
+            sentiment_score=row.get("sentiment_score"),
+        )
 
         insight_updates.append({
             "id":             row["id"],

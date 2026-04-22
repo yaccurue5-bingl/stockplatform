@@ -106,7 +106,11 @@ def _compute_scores_inline(
 
         lps = None  # 금융위원회 대차거래 데이터 수집 중단 (2026-04-20 상업용 금지)
         fs  = compute_final_score(bs, lps)
-        tag = compute_signal_tag(bs, lps)
+        tag = compute_signal_tag(
+            bs, lps,
+            event_type=event_type,
+            sentiment_score=sentiment_score,
+        )
 
         logging.getLogger(__name__).info(
             f"  [score] bs={bs:.1f} fs={fs:.1f} lps={lps} tag={tag or '-'}"
