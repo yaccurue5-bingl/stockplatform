@@ -65,6 +65,12 @@ T3_CALENDAR_DAYS  = 5    # 3 영업일 ≒ 5 달력일 (주말 포함 보정)
 T5_CALENDAR_DAYS  = 7    # 5 영업일 ≒ 7 달력일
 T20_CALENDAR_DAYS = 28   # 20 영업일 ≒ 28 달력일
 
+# 시총 버킷 기준 (KRW) — companies.market_cap 분포 P33/P67 기반
+# P33 ≈ 65B KRW, P67 ≈ 245B KRW  (2026-04 기준)
+CAP_LARGE = 245_000_000_000   # 2,450억 이상 → 대형주
+CAP_MID   =  65_000_000_000   # 650억 이상   → 중형주
+# 650억 미만                                 → 소형주
+
 
 # ── 영업일 헬퍼 ───────────────────────────────────────────────────────────────
 
@@ -89,6 +95,17 @@ def offset_business_day(base: date, calendar_days: int) -> date:
     """base + calendar_days 달력일 → 가장 가까운 영업일"""
     target = base + timedelta(days=calendar_days)
     return next_business_day(target)
+
+
+def get_cap_bucket(market_cap: int | None) -> str:
+    """시총 기준 버킷 분류: LARGE / MID / SMALL"""
+    if not market_cap or market_cap <= 0:
+        return 'SMALL'
+    if market_cap >= CAP_LARGE:
+        return 'LARGE'
+    if market_cap >= CAP_MID:
+        return 'MID'
+    return 'SMALL'
 
 
 # ── data.go.kr 가격 조회 ──────────────────────────────────────────────────────
@@ -342,7 +359,7 @@ def compute_event_stats(sb, dry_run: bool) -> int:
 
     def _sl_filters(q):
         return (
-            q.select("disclosure_id, future_return_5d, future_return_20d")
+            q.select("disclosure_id, stock_code, future_return_5d, future_return_20d")
              .not_.is_("future_return_5d", "null")
         )
     log_rows = _paginate(sb, "scores_log", _sl_filters)
@@ -367,19 +384,50 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         for r in (dr.data or []):
             id_to_event[r["id"]] = r["event_type"]
 
-    # 이벤트별 raw 버킷
-    buckets:   dict[str, list[float]] = defaultdict(list)
-    buckets20: dict[str, list[float]] = defaultdict(list)
+    # 시총 맵 로드 (Z-score 버킷 분류용)
+    logger.info("  → 시총 데이터 로드 중...")
+    cap_resp = sb.table("companies").select("stock_code, market_cap").not_.is_("market_cap", "null").execute()
+    cap_map: dict[str, int] = {}
+    for c in (cap_resp.data or []):
+        if c.get("market_cap"):
+            cap_map[c["stock_code"]] = int(c["market_cap"])
+
+    # 버킷별 전체 수익률 수집 (시장 베이스라인 계산용 — 이벤트 무관)
+    bucket_all: dict[str, list[float]] = {'LARGE': [], 'MID': [], 'SMALL': []}
+    for row in log_rows:
+        code   = row.get("stock_code", "")
+        bucket = get_cap_bucket(cap_map.get(code))
+        r5     = row.get("future_return_5d")
+        if r5 is not None:
+            bucket_all[bucket].append(float(r5))
+
+    # 버킷별 시장 평균/표준편차 (Z-score 분모)
+    bucket_baseline: dict[str, dict] = {}
+    for bkt, rets in bucket_all.items():
+        if len(rets) >= 10:
+            mean = sum(rets) / len(rets)
+            std  = _std(rets)
+            bucket_baseline[bkt] = {'mean': mean, 'std': max(std, 0.01)}
+            logger.info(f"    {bkt}: n={len(rets)} mean={mean:+.2f}% std={std:.2f}%")
+
+    # 이벤트별 raw 버킷 (수익률 + 버킷 레이블 함께 보관)
+    buckets:      dict[str, list[float]] = defaultdict(list)
+    buckets20:    dict[str, list[float]] = defaultdict(list)
+    # 버킷별 수익률: {event_type: {bucket: [returns]}}
+    ev_bucket_r5: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
     for row in log_rows:
-        eid = row.get("disclosure_id")
-        ev  = id_to_event.get(eid)
+        eid    = row.get("disclosure_id")
+        ev     = id_to_event.get(eid)
+        code   = row.get("stock_code", "")
+        bucket = get_cap_bucket(cap_map.get(code))
         if not ev:
             continue
         r5  = row.get("future_return_5d")
         r20 = row.get("future_return_20d")
         if r5 is not None:
             buckets[ev].append(float(r5))
+            ev_bucket_r5[ev][bucket].append(float(r5))
         if r20 is not None:
             buckets20[ev].append(float(r20))
 
@@ -415,6 +463,21 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             n_clean=n_clean,
         )
 
+        # 버킷별 Z-score 계산
+        z_by_bucket: dict[str, float | None] = {}
+        n_by_bucket: dict[str, int] = {}
+        for bkt in ('LARGE', 'MID', 'SMALL'):
+            raw_bkt = ev_bucket_r5.get(ev, {}).get(bkt, [])
+            base = bucket_baseline.get(bkt)
+            n_by_bucket[bkt] = len(raw_bkt)
+            if len(raw_bkt) >= 5 and base:
+                clean_bkt = _winsorize(raw_bkt) if len(raw_bkt) >= 10 else raw_bkt
+                avg_bkt   = sum(clean_bkt) / len(clean_bkt)
+                z = (avg_bkt - base['mean']) / base['std']
+                z_by_bucket[bkt] = round(max(-3.0, min(3.0, z)), 4)
+            else:
+                z_by_bucket[bkt] = None
+
         stats_rows.append({
             "event_type":        ev,
             "avg_5d_return":     round(avg5,  4),
@@ -428,6 +491,12 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             "signal_confidence": sig_conf,
             "signal_grade":      sig_grade,
             "risk_adj_return":   risk_adj,
+            "avg_z_5d_large":    z_by_bucket.get('LARGE'),
+            "avg_z_5d_mid":      z_by_bucket.get('MID'),
+            "avg_z_5d_small":    z_by_bucket.get('SMALL'),
+            "n_large":           n_by_bucket.get('LARGE', 0),
+            "n_mid":             n_by_bucket.get('MID',   0),
+            "n_small":           n_by_bucket.get('SMALL', 0),
             "updated_at":        now_iso,
         })
 
@@ -522,8 +591,11 @@ def main():
         # → 주말 공시여도 날짜 조정 없이 원본 사용해야 upsert 충돌키가 일치
         rcept_dt_iso = rdt_date.isoformat()   # scores_log 저장용 (raw)
 
-        # 가격 조회용 날짜는 영업일 보정 (주말/공휴일에는 시세 없음)
-        t0  = next_business_day(rdt_date)
+        # 가격 조회용 날짜: 공시일 D 다음 영업일(D+1)을 기준가로 사용
+        # (data.go.kr는 D+1 오후에 D+1 종가를 제공하므로 D+1이 시장 반응가)
+        # ※ next_business_day(D)는 D가 영업일이면 D 그대로 반환하므로
+        #   반드시 D+1(= D + 1일)부터 탐색해야 진짜 D+1 영업일이 됨
+        t0  = next_business_day(rdt_date + timedelta(days=1))
         t3  = offset_business_day(t0, T3_CALENDAR_DAYS)
         t5  = offset_business_day(t0, T5_CALENDAR_DAYS)
         t20 = offset_business_day(t0, T20_CALENDAR_DAYS)
