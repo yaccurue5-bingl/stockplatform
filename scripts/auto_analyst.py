@@ -247,10 +247,6 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             "LEGAL": """
 - Specify litigation/penalty amounts and impact on capital.
 - Assess possibility of loss provisions and reputation risk.
-""",
-            "CAPEX": """
-- Specify investment amount and ratio to recent revenue.
-- Mention expected payback period and short-term liquidity impact.
 """
         }
 
@@ -258,7 +254,7 @@ SENTIMENT SCORE GUIDE (sentiment_score):
     def classify_disclosure(self, title: str) -> list[str]:
         """
         title 키워드 기반으로 분석 지침(type_rule)에 사용할 유형 힌트 반환.
-        복수 매칭 가능 (e.g. "유상증자 + 신규시설" → [DILUTION, CAPEX]).
+        복수 매칭 가능 (e.g. "유상증자 + 합병" → [DILUTION, MNA]).
         최종 event_type 결정은 Groq가 content 기반으로 수행.
         """
         t = title.lower()
@@ -274,8 +270,6 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             matched.append("MNA")
         if "소송" in t or "횡령" in t or "배임" in t or "과징금" in t or "수사" in t:
             matched.append("LEGAL")
-        if "신규시설" in t or "공장" in t or ("투자" in t and "유상증자" not in t):
-            matched.append("CAPEX")
         if "분기" in t or "사업보고서" in t or "잠정" in t or "실적" in t or "결산" in t:
             matched.append("EARNINGS")
 
