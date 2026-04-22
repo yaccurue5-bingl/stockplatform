@@ -55,6 +55,36 @@ const rows = (data ?? []) as unknown as Tables<'table_name'>[]
 
 ---
 
+## 빌드 검증 (필수)
+
+**코드 작성 후 커밋 전에 반드시 TypeScript 타입 체크를 통과시킨다.**
+
+```bash
+cd ~/stockplatform/frontend && npx tsc --noEmit 2>&1 | grep -E "error TS"
+# 출력이 없어야 커밋 가능
+```
+
+- 에러가 있으면 수정 후 재확인 → 통과 후 커밋
+- `git push` 전에 항상 위 명령 실행
+- 빌드 에러를 사용자에게 보고하지 않고 먼저 해결한다
+
+### 자주 발생하는 빌드 에러 패턴
+
+| 에러 | 원인 | 해결 |
+|---|---|---|
+| `Could not find declaration file for module 'X'` | 타입 미포함 패키지 | `types/X.d.ts` 에 `declare module 'X';` 추가 |
+| `GenericStringError` (Supabase) | `database.ts` 구식 | Supabase MCP `generate_typescript_types` 재생성 |
+| `implicitly has 'any' type` | 타입 누락 | 명시적 타입 지정 또는 `.d.ts` stub 추가 |
+
+### 새 패키지 설치 시 체크리스트
+
+1. `npm install --save 패키지명` (dependencies에 저장 필수 — Vercel 빌드 대상)
+2. 패키지에 타입 포함 여부 확인: `ls node_modules/패키지명/index.d.ts`
+3. 타입 없으면 `@types/패키지명` 시도 → 없으면 `types/패키지명.d.ts` stub 작성
+4. `npx tsc --noEmit` 통과 확인 후 커밋
+
+---
+
 ## 보안 규칙 (필수)
 
 ### 시크릿·API 키 절대 하드코딩 금지

@@ -17,6 +17,7 @@
     "@supabase/supabase-js": "^2.89.0",
     "ioredis": "^5.10.1",
     "lucide-react": "^0.400.0",
+    "newrelic": "^13.19.2",
     "next": "^16.1.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
