@@ -27,7 +27,6 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
     "📋 Major Contract" : event_type = CONTRACT AND sentiment ≥ 0.4 AND base_score ≥ 70
     "🔄 Buyback Signal" : event_type = BUYBACK  AND sentiment ≥ 0.3 AND base_score ≥ 62
     "🤝 M&A Activity"   : event_type = MNA      AND sentiment ≥ 0.35 AND base_score ≥ 65
-    "🏭 Growth Capex"   : event_type = CAPEX    AND sentiment ≥ 0.45 AND base_score ≥ 70
   전반 하방:
     "⛔ High Risk"       : base_score ≤ 28 AND sentiment ≤ -0.5
 
@@ -188,9 +187,6 @@ def compute_signal_tag(
 
     if et == "MNA" and ss >= 0.35 and bs >= 65:
         return "🤝 M&A Activity"
-
-    if et == "CAPEX" and ss >= 0.45 and bs >= 70:
-        return "🏭 Growth Capex"
 
     # ── 3순위: 전반적 하방 위험 ──────────────────────────────────────────────
     if bs <= 28 and ss <= -0.5:
