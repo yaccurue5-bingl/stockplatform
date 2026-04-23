@@ -11,7 +11,7 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
   #    n < 30: 중립(15), 30~99: 부분 적용, ≥100: 완전 적용
 
   base_score_raw = s + i + e                          # 0~100 (정규화 전)
-  base_score     = sigmoid((raw - 50) / 10) * 100     # sigmoid 정규화 (0~100)
+  base_score     = clamp(raw, 0, 100)                 # 선형 (sigmoid 제거 — 40raw→27 압축 비직관적)
 
   lps            = loan_stats 에서 조회 (rcept_dt 기준 당일 또는 최근일)
   loan_weight    = min(lps / 100, 0.4)               # 최대 40% 패널티
@@ -23,13 +23,13 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
     "⚠️ Dilution Risk"  : event_type = DILUTION AND sentiment ≤ -0.2
     "📉 Earnings Miss"  : event_type = EARNINGS AND sentiment ≤ -0.4 AND base_score ≤ 45
   고신뢰 긍정:
-    "🔥 High Conviction": base_score ≥ 78 AND sentiment ≥ 0.5
-    "🚀 Earnings Beat"  : event_type = EARNINGS AND sentiment ≥ 0.5 AND base_score ≥ 70
-    "📋 Major Contract" : event_type = CONTRACT AND sentiment ≥ 0.4 AND base_score ≥ 70
-    "🔄 Buyback Signal" : event_type = BUYBACK  AND sentiment ≥ 0.3 AND base_score ≥ 62
-    "🤝 M&A Activity"   : event_type = MNA      AND sentiment ≥ 0.35 AND base_score ≥ 65
+    "🔥 High Conviction": base_score ≥ 63 AND sentiment ≥ 0.5
+    "🚀 Earnings Beat"  : event_type = EARNINGS AND sentiment ≥ 0.5 AND base_score ≥ 59
+    "📋 Major Contract" : event_type = CONTRACT AND sentiment ≥ 0.4 AND base_score ≥ 59
+    "🔄 Buyback Signal" : event_type = BUYBACK  AND sentiment ≥ 0.3 AND base_score ≥ 55
+    "🤝 M&A Activity"   : event_type = MNA      AND sentiment ≥ 0.35 AND base_score ≥ 56
   전반 하방:
-    "⛔ High Risk"       : base_score ≤ 28 AND sentiment ≤ -0.5
+    "⛔ High Risk"       : base_score ≤ 40 AND sentiment ≤ -0.5
 
 사전 조건:
   - auto_analyst.py 가 완료되어 sentiment_score, short_term_impact_score, event_type 이 채워져 있어야 함
@@ -44,7 +44,6 @@ import asyncio
 import json
 import os
 import sys
-import math
 import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -66,13 +65,6 @@ load_env()
 BATCH_SIZE = 100
 # LPS 조회 시 rcept_dt 전후 허용 범위 (영업일 미일치 보정)
 LPS_DATE_TOLERANCE_DAYS = 5
-
-
-# ── 수학 헬퍼 ─────────────────────────────────────────────────────────────────
-
-def sigmoid(x: float) -> float:
-    x = max(-500.0, min(500.0, x))
-    return 1.0 / (1.0 + math.exp(-x))
 
 
 # ── 스코어 계산 함수 ──────────────────────────────────────────────────────────
@@ -146,9 +138,14 @@ def compute_e_zscore(z_score: float | None, sample_size: int | None) -> float:
 
 
 def compute_base_score(s: float, i: float, e: float) -> tuple[float, float]:
-    """(base_score_raw, base_score) 반환"""
+    """
+    (base_score_raw, base_score) 반환.
+
+    선형 정규화: base_score = clamp(raw, 0, 100)
+    (구: sigmoid 정규화 — 40점 raw → 26.8점 압축 등 비직관적 왜곡으로 제거)
+    """
     raw = s + i + e                              # 0~100
-    normalized = sigmoid((raw - 50.0) / 10.0) * 100.0
+    normalized = max(0.0, min(100.0, raw))       # 선형: raw 그대로 사용
     return round(raw, 4), round(normalized, 4)
 
 
@@ -202,27 +199,28 @@ def compute_signal_tag(
     if et == "DILUTION" and ss <= -0.2:
         return "⚠️ Dilution Risk"
 
-    if et == "EARNINGS" and ss <= -0.4 and bs <= 45:
+    if et == "EARNINGS" and ss <= -0.4 and bs <= 48:
         return "📉 Earnings Miss"
 
     # ── 2순위: 고신뢰 긍정 시그널 ────────────────────────────────────────────
-    if bs >= 78 and ss >= 0.5:
+    # 임계값: sigmoid 등가 raw 값으로 재보정 (선형 정규화 전환에 따른 조정)
+    if bs >= 63 and ss >= 0.5:
         return "🔥 High Conviction"
 
-    if et == "EARNINGS" and ss >= 0.5 and bs >= 70:
+    if et == "EARNINGS" and ss >= 0.5 and bs >= 59:
         return "🚀 Earnings Beat"
 
-    if et == "CONTRACT" and ss >= 0.4 and bs >= 70:
+    if et == "CONTRACT" and ss >= 0.4 and bs >= 59:
         return "📋 Major Contract"
 
-    if et == "BUYBACK" and ss >= 0.3 and bs >= 62:
+    if et == "BUYBACK" and ss >= 0.3 and bs >= 55:
         return "🔄 Buyback Signal"
 
-    if et == "MNA" and ss >= 0.35 and bs >= 65:
+    if et == "MNA" and ss >= 0.35 and bs >= 56:
         return "🤝 M&A Activity"
 
     # ── 3순위: 전반적 하방 위험 ──────────────────────────────────────────────
-    if bs <= 28 and ss <= -0.5:
+    if bs <= 40 and ss <= -0.5:
         return "⛔ High Risk"
 
     return None
