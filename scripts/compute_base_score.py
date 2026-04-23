@@ -6,8 +6,9 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
 계산 공식:
   s   = ((sentiment_score + 1) / 2) * 40            # 0~40  (감성 컴포넌트)
   i   = (short_term_impact_score / 5) * 30           # 0~30  (중요도 컴포넌트)
-  e   = min(max((avg_5d_return + 3) / 6 * 30, 0), 30) # 0~30 (이벤트 수익률 컴포넌트)
-  # ※ sample_size < 10: e=0, 10~29: confidence 0.5~1.0 부분 적용, ≥30: 완전 적용
+  e   = (z_clipped + 3) / 6 * 30                       # 0~30 (이벤트 강도 컴포넌트, Z-score 기반)
+  # ※ z = clip(open_return_z, -3, +3), entry=D+1 open, exit=D+5 close
+  #    n < 30: 중립(15), 30~99: 부분 적용, ≥100: 완전 적용
 
   base_score_raw = s + i + e                          # 0~100 (정규화 전)
   base_score     = sigmoid((raw - 50) / 10) * 100     # sigmoid 정규화 (0~100)
@@ -117,25 +118,29 @@ def compute_e_zscore(z_score: float | None, sample_size: int | None) -> float:
     """
     시총 버킷 Z-score 기반 E 컴포넌트: 0~30 (중립=15)
 
-    Z-score = (이벤트유형 평균수익률 - 버킷시장평균) / 버킷시장표준편차
-    z 범위 [-2.5, +2.5] → E [0, 30]
-      z = -2.5 → E = 0   (강한 음수 시그널)
-      z =  0.0 → E = 15  (중립)
-      z = +2.5 → E = 30  (강한 양수 시그널)
+    Z-score = (이벤트유형 open평균수익률 - 버킷시장open평균) / 버킷시장open표준편차
+    스펙 (절대 고정):
+      z_clipped = clip(z, -3, +3)
+      E = (z_clipped + 3) / 6 * 30
+      z = -3 → E = 0   (매우 부정)
+      z =  0 → E = 15  (중립)
+      z = +3 → E = 30  (매우 긍정)
 
-    sample_size < 5  : 중립(15) 반환
-    sample_size 5~29 : 중립 방향으로 부분 수렴
-    sample_size >= 30: 완전 적용
+    샘플 기준 (스펙 §8.4):
+      n < 30  : 통계 신뢰 불가 → 중립(15) 반환
+      30~99   : 약한 신호 — 중립 방향 부분 수렴
+      100+    : 완전 적용
     """
     if z_score is None:
         return 15.0
     n = int(sample_size) if sample_size is not None else 0
-    if n < 5:
-        return 15.0
-    z     = max(-2.5, min(2.5, float(z_score)))
-    e_full = (z + 2.5) / 5.0 * 30.0   # [-2.5, +2.5] → [0, 30]
     if n < 30:
-        confidence = min(1.0, 0.5 + 0.5 * (n - 5) / 25.0)   # 5→0.5, 30→1.0
+        return 15.0   # 스펙: n<30 신뢰 불가
+    z      = max(-3.0, min(3.0, float(z_score)))
+    e_full = (z + 3.0) / 6.0 * 30.0   # [-3, +3] → [0, 30]
+    if n < 100:
+        # 약한 신호 구간: 중립(15)에서 e_full 방향 선형 보간
+        confidence = (n - 30) / 70.0   # 30→0.0, 100→1.0
         return round(15.0 + (e_full - 15.0) * confidence, 4)
     return round(e_full, 4)
 

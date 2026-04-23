@@ -417,30 +417,31 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         if c.get("market_cap"):
             cap_map[c["stock_code"]] = int(c["market_cap"])
 
-    # 버킷별 전체 수익률 수집 (시장 베이스라인 계산용 — 이벤트 무관)
+    # ── 시장 베이스라인 (Z-score 분모) — open 수익률 기준 ──────────────────────
+    # 스펙 정의: z = (event_avg - market_avg) / market_std
+    # entry = D+1 open, exit = D+5 close → future_return_5d_open 사용
     bucket_all: dict[str, list[float]] = {'LARGE': [], 'MID': [], 'SMALL': []}
     for row in log_rows:
         code   = row.get("stock_code", "")
         bucket = get_cap_bucket(cap_map.get(code))
-        r5     = row.get("future_return_5d")
-        if r5 is not None:
-            bucket_all[bucket].append(float(r5))
+        r5_op  = row.get("future_return_5d_open")
+        if r5_op is not None:
+            bucket_all[bucket].append(float(r5_op))
 
-    # 버킷별 시장 평균/표준편차 (Z-score 분모)
     bucket_baseline: dict[str, dict] = {}
     for bkt, rets in bucket_all.items():
         if len(rets) >= 10:
             mean = sum(rets) / len(rets)
             std  = _std(rets)
             bucket_baseline[bkt] = {'mean': mean, 'std': max(std, 0.01)}
-            logger.info(f"    {bkt}: n={len(rets)} mean={mean:+.2f}% std={std:.2f}%")
+            logger.info(f"    {bkt} (open-based): n={len(rets)} mean={mean:+.2f}% std={std:.2f}%")
 
-    # 이벤트별 raw 버킷 (수익률 + 버킷 레이블 함께 보관)
-    buckets:      dict[str, list[float]] = defaultdict(list)
-    buckets20:    dict[str, list[float]] = defaultdict(list)
-    buckets_open: dict[str, list[float]] = defaultdict(list)   # open-based returns
-    # 버킷별 수익률: {event_type: {bucket: [returns]}}
-    ev_bucket_r5: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    # ── 이벤트별 수익률 수집 ──────────────────────────────────────────────────
+    buckets:      dict[str, list[float]] = defaultdict(list)   # close (signal_score v2용)
+    buckets20:    dict[str, list[float]] = defaultdict(list)   # close 20d
+    buckets_open: dict[str, list[float]] = defaultdict(list)   # open (집계 + hit_ratio)
+    # Z-score용 버킷별 open 수익률: {event_type: {bucket: [open_returns]}}
+    ev_bucket_open: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
     for row in log_rows:
         eid    = row.get("disclosure_id")
@@ -449,16 +450,16 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         bucket = get_cap_bucket(cap_map.get(code))
         if not ev:
             continue
-        r5     = row.get("future_return_5d")
-        r20    = row.get("future_return_20d")
-        r5_op  = row.get("future_return_5d_open")
+        r5    = row.get("future_return_5d")
+        r20   = row.get("future_return_20d")
+        r5_op = row.get("future_return_5d_open")
         if r5 is not None:
             buckets[ev].append(float(r5))
-            ev_bucket_r5[ev][bucket].append(float(r5))
         if r20 is not None:
             buckets20[ev].append(float(r20))
         if r5_op is not None:
             buckets_open[ev].append(float(r5_op))
+            ev_bucket_open[ev][bucket].append(float(r5_op))
 
     now_iso    = datetime.now().isoformat()
     stats_rows = []
@@ -498,11 +499,16 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             n_clean=n_clean,
         )
 
-        # 버킷별 Z-score 계산
+        # hit_ratio: open return > 0 비율 (winsorize 전 raw 기준)
+        vals_open_raw = buckets_open.get(ev, [])
+        hit_count = sum(1 for r in vals_open_raw if r > 0)
+        hit_ratio = round(hit_count / len(vals_open_raw), 4) if vals_open_raw else None
+
+        # 버킷별 Z-score 계산 — open 수익률 기준 (스펙 일치)
         z_by_bucket: dict[str, float | None] = {}
         n_by_bucket: dict[str, int] = {}
         for bkt in ('LARGE', 'MID', 'SMALL'):
-            raw_bkt = ev_bucket_r5.get(ev, {}).get(bkt, [])
+            raw_bkt = ev_bucket_open.get(ev, {}).get(bkt, [])
             base = bucket_baseline.get(bkt)
             n_by_bucket[bkt] = len(raw_bkt)
             if len(raw_bkt) >= 5 and base:
@@ -521,6 +527,7 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             "median_20d_return":     round(med20, 4) if med20 is not None else None,
             "avg_5d_open_return":    round(avg_open, 4) if avg_open is not None else None,
             "median_5d_open_return": round(med_open, 4) if med_open is not None else None,
+            "hit_ratio":             hit_ratio,
             "std_5d":                round(std5,  4),
             "sample_size":           n_raw,
             "sample_size_clean":     n_clean,
@@ -542,15 +549,18 @@ def compute_event_stats(sb, dry_run: bool) -> int:
 
     logger.info(f"  → {len(stats_rows)}개 이벤트 유형 집계 완료")
     for r in stats_rows:
-        med_str     = f"{r['median_5d_return']:+.2f}%"    if r["median_5d_return"]      is not None else "N/A"
-        open_str    = f"{r['avg_5d_open_return']:+.2f}%"  if r["avg_5d_open_return"]    is not None else "N/A"
-        med_op_str  = f"{r['median_5d_open_return']:+.2f}%" if r["median_5d_open_return"] is not None else "N/A"
+        med_str    = f"{r['median_5d_return']:+.2f}%"     if r["median_5d_return"]      is not None else "N/A"
+        open_str   = f"{r['avg_5d_open_return']:+.2f}%"  if r["avg_5d_open_return"]    is not None else "N/A"
+        hit_str    = f"{r['hit_ratio']*100:.1f}%"         if r["hit_ratio"]             is not None else "N/A"
+        z_l = f"{r['avg_z_5d_large']:+.2f}" if r["avg_z_5d_large"] is not None else " N/A"
+        z_m = f"{r['avg_z_5d_mid']:+.2f}"   if r["avg_z_5d_mid"]   is not None else " N/A"
+        z_s = f"{r['avg_z_5d_small']:+.2f}" if r["avg_z_5d_small"] is not None else " N/A"
         logger.info(
             f"    {r['event_type']:20s} "
-            f"n={r['sample_size']:4d}(→{r['sample_size_clean']:4d})  "
-            f"avg5d(close)={r['avg_5d_return']:+.2f}%  med={med_str}  "
-            f"avg5d(open)={open_str}  med={med_op_str}  "
-            f"std={r['std_5d']:.2f}  score={r['signal_score']}({r['signal_grade']})"
+            f"n={r['sample_size']:4d}  "
+            f"avg(open)={open_str}  hit={hit_str}  "
+            f"z[L={z_l} M={z_m} S={z_s}]  "
+            f"score={r['signal_score']}({r['signal_grade']})"
         )
 
     if dry_run:
