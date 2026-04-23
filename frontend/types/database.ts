@@ -610,12 +610,14 @@ export type Database = {
           avg_1d_return: number | null
           avg_20d_return: number | null
           avg_3d_return: number | null
+          avg_5d_open_return: number | null
           avg_5d_return: number | null
           avg_z_5d_large: number | null
           avg_z_5d_mid: number | null
           avg_z_5d_small: number | null
           event_type: string
           median_20d_return: number | null
+          median_5d_open_return: number | null
           median_5d_return: number | null
           n_large: number | null
           n_mid: number | null
@@ -633,12 +635,14 @@ export type Database = {
           avg_1d_return?: number | null
           avg_20d_return?: number | null
           avg_3d_return?: number | null
+          avg_5d_open_return?: number | null
           avg_5d_return?: number | null
           avg_z_5d_large?: number | null
           avg_z_5d_mid?: number | null
           avg_z_5d_small?: number | null
           event_type: string
           median_20d_return?: number | null
+          median_5d_open_return?: number | null
           median_5d_return?: number | null
           n_large?: number | null
           n_mid?: number | null
@@ -656,12 +660,14 @@ export type Database = {
           avg_1d_return?: number | null
           avg_20d_return?: number | null
           avg_3d_return?: number | null
+          avg_5d_open_return?: number | null
           avg_5d_return?: number | null
           avg_z_5d_large?: number | null
           avg_z_5d_mid?: number | null
           avg_z_5d_small?: number | null
           event_type?: string
           median_20d_return?: number | null
+          median_5d_open_return?: number | null
           median_5d_return?: number | null
           n_large?: number | null
           n_mid?: number | null

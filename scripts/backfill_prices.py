@@ -72,6 +72,10 @@ CAP_LARGE = 245_000_000_000   # 2,450억 이상 → 대형주
 CAP_MID   =  65_000_000_000   # 650억 이상   → 중형주
 # 650억 미만                                 → 소형주
 
+# 이상치 캡 — 5영업일 내 ±500% 초과 수익률은 데이터 오류/거래정지로 판단해 None 처리
+# (잡주 급등, 거래정지 후 재개 등이 평균을 심각하게 왜곡)
+MAX_RAW_RETURN_PCT = 500.0
+
 
 # ── 영업일 헬퍼 ───────────────────────────────────────────────────────────────
 
@@ -96,6 +100,19 @@ def offset_business_day(base: date, calendar_days: int) -> date:
     """base + calendar_days 달력일 → 가장 가까운 영업일"""
     target = base + timedelta(days=calendar_days)
     return next_business_day(target)
+
+
+def _cap_return(r: float | None) -> float | None:
+    """
+    이상치 필터: ±MAX_RAW_RETURN_PCT 초과 수익률 → None 처리.
+    잡주 급등·거래정지 후 재개·데이터 오류로 인한 극단값이
+    event_stats 평균을 심각하게 왜곡하므로 raw 저장 단계에서 제거.
+    """
+    if r is None:
+        return None
+    if abs(r) > MAX_RAW_RETURN_PCT:
+        return None
+    return r
 
 
 def get_cap_bucket(market_cap: int | None) -> str:
@@ -367,7 +384,7 @@ def compute_event_stats(sb, dry_run: bool) -> int:
 
     def _sl_filters(q):
         return (
-            q.select("disclosure_id, stock_code, future_return_5d, future_return_20d")
+            q.select("disclosure_id, stock_code, future_return_5d, future_return_20d, future_return_5d_open")
              .not_.is_("future_return_5d", "null")
         )
     log_rows = _paginate(sb, "scores_log", _sl_filters)
@@ -421,6 +438,7 @@ def compute_event_stats(sb, dry_run: bool) -> int:
     # 이벤트별 raw 버킷 (수익률 + 버킷 레이블 함께 보관)
     buckets:      dict[str, list[float]] = defaultdict(list)
     buckets20:    dict[str, list[float]] = defaultdict(list)
+    buckets_open: dict[str, list[float]] = defaultdict(list)   # open-based returns
     # 버킷별 수익률: {event_type: {bucket: [returns]}}
     ev_bucket_r5: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
@@ -431,13 +449,16 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         bucket = get_cap_bucket(cap_map.get(code))
         if not ev:
             continue
-        r5  = row.get("future_return_5d")
-        r20 = row.get("future_return_20d")
+        r5     = row.get("future_return_5d")
+        r20    = row.get("future_return_20d")
+        r5_op  = row.get("future_return_5d_open")
         if r5 is not None:
             buckets[ev].append(float(r5))
             ev_bucket_r5[ev][bucket].append(float(r5))
         if r20 is not None:
             buckets20[ev].append(float(r20))
+        if r5_op is not None:
+            buckets_open[ev].append(float(r5_op))
 
     now_iso    = datetime.now().isoformat()
     stats_rows = []
@@ -464,6 +485,12 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         avg20 = sum(vals20) / len(vals20) if vals20 else None
         med20 = _median(vals20) if vals20 else None
 
+        # Open-entry 수익률 집계 (winsorize 적용)
+        vals_open_raw = buckets_open.get(ev, [])
+        vals_open = _winsorize(vals_open_raw) if len(vals_open_raw) >= 10 else vals_open_raw
+        avg_open = sum(vals_open) / len(vals_open) if vals_open else None
+        med_open = _median(vals_open) if vals_open else None
+
         # Signal Score v2 (risk-adjusted)
         sig_score, sig_conf, sig_grade, risk_adj = _compute_signal_v2(
             median_5d=med5 or 0.0,
@@ -487,25 +514,27 @@ def compute_event_stats(sb, dry_run: bool) -> int:
                 z_by_bucket[bkt] = None
 
         stats_rows.append({
-            "event_type":        ev,
-            "avg_5d_return":     round(avg5,  4),
-            "avg_20d_return":    round(avg20, 4) if avg20 is not None else None,
-            "median_5d_return":  round(med5,  4) if med5  is not None else None,
-            "median_20d_return": round(med20, 4) if med20 is not None else None,
-            "std_5d":            round(std5,  4),
-            "sample_size":       n_raw,
-            "sample_size_clean": n_clean,
-            "signal_score":      sig_score,
-            "signal_confidence": sig_conf,
-            "signal_grade":      sig_grade,
-            "risk_adj_return":   risk_adj,
-            "avg_z_5d_large":    z_by_bucket.get('LARGE'),
-            "avg_z_5d_mid":      z_by_bucket.get('MID'),
-            "avg_z_5d_small":    z_by_bucket.get('SMALL'),
-            "n_large":           n_by_bucket.get('LARGE', 0),
-            "n_mid":             n_by_bucket.get('MID',   0),
-            "n_small":           n_by_bucket.get('SMALL', 0),
-            "updated_at":        now_iso,
+            "event_type":            ev,
+            "avg_5d_return":         round(avg5,  4),
+            "avg_20d_return":        round(avg20, 4) if avg20 is not None else None,
+            "median_5d_return":      round(med5,  4) if med5  is not None else None,
+            "median_20d_return":     round(med20, 4) if med20 is not None else None,
+            "avg_5d_open_return":    round(avg_open, 4) if avg_open is not None else None,
+            "median_5d_open_return": round(med_open, 4) if med_open is not None else None,
+            "std_5d":                round(std5,  4),
+            "sample_size":           n_raw,
+            "sample_size_clean":     n_clean,
+            "signal_score":          sig_score,
+            "signal_confidence":     sig_conf,
+            "signal_grade":          sig_grade,
+            "risk_adj_return":       risk_adj,
+            "avg_z_5d_large":        z_by_bucket.get('LARGE'),
+            "avg_z_5d_mid":          z_by_bucket.get('MID'),
+            "avg_z_5d_small":        z_by_bucket.get('SMALL'),
+            "n_large":               n_by_bucket.get('LARGE', 0),
+            "n_mid":                 n_by_bucket.get('MID',   0),
+            "n_small":               n_by_bucket.get('SMALL', 0),
+            "updated_at":            now_iso,
         })
 
     if skipped:
@@ -513,12 +542,15 @@ def compute_event_stats(sb, dry_run: bool) -> int:
 
     logger.info(f"  → {len(stats_rows)}개 이벤트 유형 집계 완료")
     for r in stats_rows:
-        med_str = f"{r['median_5d_return']:+.2f}%" if r["median_5d_return"] is not None else "N/A"
+        med_str     = f"{r['median_5d_return']:+.2f}%"    if r["median_5d_return"]      is not None else "N/A"
+        open_str    = f"{r['avg_5d_open_return']:+.2f}%"  if r["avg_5d_open_return"]    is not None else "N/A"
+        med_op_str  = f"{r['median_5d_open_return']:+.2f}%" if r["median_5d_open_return"] is not None else "N/A"
         logger.info(
             f"    {r['event_type']:20s} "
             f"n={r['sample_size']:4d}(→{r['sample_size_clean']:4d})  "
-            f"avg5d={r['avg_5d_return']:+.2f}%  med5d={med_str}  std={r['std_5d']:.2f}  "
-            f"score={r['signal_score']}({r['signal_grade']})  conf={r['signal_confidence']:.2f}"
+            f"avg5d(close)={r['avg_5d_return']:+.2f}%  med={med_str}  "
+            f"avg5d(open)={open_str}  med={med_op_str}  "
+            f"std={r['std_5d']:.2f}  score={r['signal_score']}({r['signal_grade']})"
         )
 
     if dry_run:
@@ -678,14 +710,14 @@ def main():
             skipped += 1
             continue
 
-        # Close-to-Close 수익률 (기존)
-        r3  = round((p3_close  - p0_close) / p0_close * 100, 4)
-        r5  = round((p5_close  - p0_close) / p0_close * 100, 4) if p5_close  else None
-        r20 = round((p20_close - p0_close) / p0_close * 100, 4) if p20_close else None
+        # Close-to-Close 수익률 (기존) — ±500% 초과 이상치는 None
+        r3  = _cap_return(round((p3_close  - p0_close) / p0_close * 100, 4))
+        r5  = _cap_return(round((p5_close  - p0_close) / p0_close * 100, 4)) if p5_close  else None
+        r20 = _cap_return(round((p20_close - p0_close) / p0_close * 100, 4)) if p20_close else None
 
-        # Open-to-Close 수익률: entry = D+1 open, exit = D+5 close
+        # Open-to-Close 수익률: entry = D+1 open, exit = D+5 close — 동일 캡 적용
         r5_open = (
-            round((p5_close - p0_open) / p0_open * 100, 4)
+            _cap_return(round((p5_close - p0_open) / p0_open * 100, 4))
             if p5_close and p0_open else None
         )
 
