@@ -25,25 +25,27 @@ const SITE_URL = 'https://k-marketinsight.com';
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
 const EVENT_LABELS: Record<string, string> = {
-  EARNINGS:  'Earnings Release',
-  CONTRACT:  'Strategic Contract',
-  DILUTION:  'Capital Increase / Dilution',
-  BUYBACK:   'Share Buyback',
-  MNA:       'M&A / Merger',
-  LEGAL:     'Legal / Regulatory',
-  CAPEX:     'Capital Investment',
-  OTHER:     'Corporate Disclosure',
+  EARNINGS:         'Earnings Release',
+  CONTRACT:         'Strategic Contract',
+  DILUTION:         'Capital Increase / Dilution',
+  BUYBACK:          'Share Buyback',
+  MNA:              'M&A / Merger',
+  LEGAL:            'Legal / Regulatory',
+  CAPEX:            'Capital Investment',
+  EXECUTIVE_CHANGE: 'Executive Change',
+  OTHER:            'Corporate Disclosure',
 };
 
 const EVENT_COLORS: Record<string, string> = {
-  EARNINGS:  'text-blue-400 bg-blue-400/10 border-blue-400/20',
-  CONTRACT:  'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
-  DILUTION:  'text-orange-400 bg-orange-400/10 border-orange-400/20',
-  BUYBACK:   'text-purple-400 bg-purple-400/10 border-purple-400/20',
-  MNA:       'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
-  LEGAL:     'text-red-400 bg-red-400/10 border-red-400/20',
-  CAPEX:     'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
-  OTHER:     'text-gray-400 bg-gray-400/10 border-gray-400/20',
+  EARNINGS:         'text-blue-400 bg-blue-400/10 border-blue-400/20',
+  CONTRACT:         'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+  DILUTION:         'text-orange-400 bg-orange-400/10 border-orange-400/20',
+  BUYBACK:          'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  MNA:              'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
+  LEGAL:            'text-red-400 bg-red-400/10 border-red-400/20',
+  CAPEX:            'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
+  EXECUTIVE_CHANGE: 'text-pink-400 bg-pink-400/10 border-pink-400/20',
+  OTHER:            'text-gray-400 bg-gray-400/10 border-gray-400/20',
 };
 
 // ── 타입 ──────────────────────────────────────────────────────────────────────

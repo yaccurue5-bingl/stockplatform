@@ -36,19 +36,14 @@ interface RadarData {
   top_sectors: TopSector[];
 }
 
-// ---- Fallback (하드코딩) ----
+// ---- Fallback (API 오류 시 최소 렌더링용 — 시세값은 null 처리) ----
 const FALLBACK: RadarData = {
-  date: 'Mar 10, 2026',
+  date: null,
   regime: 'RISK_ON',
-  kospi: { value: 2748, change: 1.2 },
-  kosdaq: { value: 891, change: 0.8 },
-  foreign_net_buy: 5438,
-  flow_trend: [
-    { date: '', value: 10 }, { date: '', value: 25 }, { date: '', value: 18 },
-    { date: '', value: 40 }, { date: '', value: 32 }, { date: '', value: 52 },
-    { date: '', value: 48 }, { date: '', value: 60 }, { date: '', value: 55 },
-    { date: '', value: 72 }, { date: '', value: 68 }, { date: '', value: 80 },
-  ],
+  kospi: null,
+  kosdaq: null,
+  foreign_net_buy: 0,
+  flow_trend: [],
   top_sectors: [],
 };
 
