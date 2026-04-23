@@ -734,14 +734,15 @@ def main():
     logger.info(f"  → 수익률 산출: {len(return_rows)}건 / 스킵(가격없음): {skipped}건")
 
     if return_rows:
-        r3_vals   = [r["future_return_3d"] for r in return_rows]
+        r3_vals   = [r["future_return_3d"]      for r in return_rows if r["future_return_3d"]      is not None]
         r5_vals   = [r["future_return_5d"]      for r in return_rows if r["future_return_5d"]      is not None]
         r5op_vals = [r["future_return_5d_open"] for r in return_rows if r["future_return_5d_open"] is not None]
-        logger.info(f"  return_3d: min={min(r3_vals):.2f}%  max={max(r3_vals):.2f}%  "
-                    f"avg={sum(r3_vals)/len(r3_vals):.2f}%")
+        if r3_vals:
+            logger.info(f"  return_3d: min={min(r3_vals):.2f}%  max={max(r3_vals):.2f}%  "
+                        f"avg={sum(r3_vals)/len(r3_vals):.2f}%  n={len(r3_vals)}")
         if r5_vals:
             logger.info(f"  return_5d (close): min={min(r5_vals):.2f}%  max={max(r5_vals):.2f}%  "
-                        f"avg={sum(r5_vals)/len(r5_vals):.2f}%")
+                        f"avg={sum(r5_vals)/len(r5_vals):.2f}%  n={len(r5_vals)}")
         if r5op_vals:
             logger.info(f"  return_5d (open):  min={min(r5op_vals):.2f}%  max={max(r5op_vals):.2f}%  "
                         f"avg={sum(r5op_vals)/len(r5op_vals):.2f}%  n={len(r5op_vals)}")
