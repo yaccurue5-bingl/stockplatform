@@ -100,3 +100,9 @@ jobs:
       # → 섹터 시그널 → event_stats 재집계
       - name: "EOD 장 마감 배치 (--eod)"
         run: python scripts/run_daily_batch.py --eod
+
+      # 처리 지연 메트릭 — 당일 파이프라인 품질 점검
+      # P90 > 30분 또는 당일 수집률 < 80% 시 Actions 경고 (비블로킹)
+      - name: "처리 지연 메트릭 점검"
+        run: python scripts/check_processing_lag.py --today --alert || true
+        continue-on-error: true
