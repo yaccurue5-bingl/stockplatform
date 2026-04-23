@@ -12,7 +12,8 @@ event_stats 테이블을 갱신하는 백필 스크립트.
   Step 1 : disclosure_insights 에서 event_type 있는 공시 조회 (return 없는 것)
   Step 2 : 필요한 날짜 목록 수집 (t0, t0+5일, t0+7일, t0+28일 영업일 보정)
   Step 3 : data.go.kr 에서 날짜별 종가 수집 (배치, 날짜 × 종목)
-  Step 4 : return_3d / return_5d / return_20d 계산 → scores_log upsert
+  Step 4 : return_3d / return_5d / return_20d / return_5d_open 계산 → scores_log upsert
+           (return_5d_open = entry D+1 시가, exit D+5 종가 — close entry 대비 비교용)
   Step 5 : scores_log 집계 → event_stats upsert
 
 [API 제한]
@@ -110,10 +111,10 @@ def get_cap_bucket(market_cap: int | None) -> str:
 
 # ── data.go.kr 가격 조회 ──────────────────────────────────────────────────────
 
-def fetch_prices_for_date(bas_dt: str, api_key: str) -> dict[str, float]:
+def fetch_prices_for_date(bas_dt: str, api_key: str) -> dict[str, dict]:
     """
-    특정 날짜(YYYYMMDD)의 전 종목 종가 조회.
-    반환: {stock_code: close_price}
+    특정 날짜(YYYYMMDD)의 전 종목 시가/종가 조회.
+    반환: {stock_code: {"close": float, "open": float | None}}
     공휴일/주말은 빈 dict 반환.
     """
     params = {
@@ -143,13 +144,17 @@ def fetch_prices_for_date(bas_dt: str, api_key: str) -> dict[str, float]:
     if not items:
         return {}
 
-    prices: dict[str, float] = {}
+    prices: dict[str, dict] = {}
     for item in items:
-        code  = str(item.get("srtnCd") or "").strip().lstrip("A")
-        clpr  = item.get("clpr")   # 종가
+        code = str(item.get("srtnCd") or "").strip().lstrip("A")
+        clpr = item.get("clpr")   # 종가
+        mkp  = item.get("mkp")    # 시가 (open)
         if code and clpr is not None:
             try:
-                prices[code] = float(clpr)
+                entry: dict = {"close": float(clpr), "open": None}
+                if mkp is not None:
+                    entry["open"] = float(mkp)
+                prices[code] = entry
             except (ValueError, TypeError):
                 pass
 
@@ -230,6 +235,7 @@ def fetch_disclosures(sb, days: int) -> list[dict]:
             .in_("disclosure_id", batch)
             .not_.is_("future_return_3d", "null")
             .not_.is_("future_return_5d", "null")
+            .not_.is_("future_return_5d_open", "null")
             .execute()
         )
         for r in (ex_resp.data or []):
@@ -246,13 +252,15 @@ def upsert_returns(sb, rows: list[dict], dry_run: bool) -> tuple[int, int]:
     if dry_run:
         logger.info(f"  [DRY] {len(rows)}건 수익률 저장 생략")
         for r in rows[:3]:
-            r3  = r.get('future_return_3d')
-            r5  = r.get('future_return_5d')
-            r20 = r.get('future_return_20d')
+            r3   = r.get('future_return_3d')
+            r5   = r.get('future_return_5d')
+            r20  = r.get('future_return_20d')
+            r5op = r.get('future_return_5d_open')
             logger.info(f"    {r['stock_code']} {r['date']} "
                         f"r3={f'{r3:.2f}%' if r3 is not None else 'N/A'}  "
                         f"r5={f'{r5:.2f}%' if r5 is not None else 'N/A'}  "
-                        f"r20={f'{r20:.2f}%' if r20 is not None else 'N/A'}")
+                        f"r20={f'{r20:.2f}%' if r20 is not None else 'N/A'}  "
+                        f"r5_open={f'{r5op:.2f}%' if r5op is not None else 'N/A'}")
         return len(rows), 0
 
     success = failure = 0
@@ -632,7 +640,7 @@ def main():
     # ── Step 3: data.go.kr 날짜별 가격 수집 ──────────────────────────────────
     logger.info(f"\n  [3/5] data.go.kr 가격 수집 ({len(needed_dates)}일)...")
 
-    price_cache: dict[str, dict[str, float]] = {}   # {YYYYMMDD: {stock_code: close}}
+    price_cache: dict[str, dict[str, dict]] = {}   # {YYYYMMDD: {stock_code: {"close": float, "open": float|None}}}
 
     for i, bas_dt in enumerate(sorted(needed_dates), 1):
         logger.info(f"    ({i}/{len(needed_dates)}) {bas_dt} 조회 중...")
@@ -654,39 +662,57 @@ def main():
         dt5  = d["date_t5"]
         dt20 = d["date_t20"]
 
-        p0  = price_cache.get(dt0, {}).get(code)
-        p3  = price_cache.get(dt3, {}).get(code)
-        p5  = price_cache.get(dt5, {}).get(code) if dt5 else None
-        p20 = price_cache.get(dt20, {}).get(code) if dt20 else None
+        p0_entry  = price_cache.get(dt0, {}).get(code)
+        p3_entry  = price_cache.get(dt3, {}).get(code)
+        p5_entry  = price_cache.get(dt5, {}).get(code) if dt5 else None
+        p20_entry = price_cache.get(dt20, {}).get(code) if dt20 else None
 
-        # t0(기준가) 또는 t3(최소 exit) 없으면 스킵
-        if not p0 or not p3:
+        p0_close  = (p0_entry  or {}).get("close")
+        p0_open   = (p0_entry  or {}).get("open")    # D+1 시가 (entry 비교용)
+        p3_close  = (p3_entry  or {}).get("close")
+        p5_close  = (p5_entry  or {}).get("close") if p5_entry  else None
+        p20_close = (p20_entry or {}).get("close") if p20_entry else None
+
+        # t0(기준 종가) 또는 t3(최소 exit) 없으면 스킵
+        if not p0_close or not p3_close:
             skipped += 1
             continue
 
-        r3  = round((p3  - p0) / p0 * 100, 4)
-        r5  = round((p5  - p0) / p0 * 100, 4) if p5  and p0 else None
-        r20 = round((p20 - p0) / p0 * 100, 4) if p20 and p0 else None
+        # Close-to-Close 수익률 (기존)
+        r3  = round((p3_close  - p0_close) / p0_close * 100, 4)
+        r5  = round((p5_close  - p0_close) / p0_close * 100, 4) if p5_close  else None
+        r20 = round((p20_close - p0_close) / p0_close * 100, 4) if p20_close else None
+
+        # Open-to-Close 수익률: entry = D+1 open, exit = D+5 close
+        r5_open = (
+            round((p5_close - p0_open) / p0_open * 100, 4)
+            if p5_close and p0_open else None
+        )
 
         return_rows.append({
-            "stock_code":        code,
-            "date":              d["rcept_dt_iso"],
-            "disclosure_id":     d["id"],
-            "future_return_3d":  r3,
-            "future_return_5d":  r5,
-            "future_return_20d": r20,
+            "stock_code":            code,
+            "date":                  d["rcept_dt_iso"],
+            "disclosure_id":         d["id"],
+            "future_return_3d":      r3,
+            "future_return_5d":      r5,
+            "future_return_20d":     r20,
+            "future_return_5d_open": r5_open,
         })
 
     logger.info(f"  → 수익률 산출: {len(return_rows)}건 / 스킵(가격없음): {skipped}건")
 
     if return_rows:
-        r3_vals = [r["future_return_3d"] for r in return_rows]
-        r5_vals = [r["future_return_5d"] for r in return_rows if r["future_return_5d"] is not None]
+        r3_vals   = [r["future_return_3d"] for r in return_rows]
+        r5_vals   = [r["future_return_5d"]      for r in return_rows if r["future_return_5d"]      is not None]
+        r5op_vals = [r["future_return_5d_open"] for r in return_rows if r["future_return_5d_open"] is not None]
         logger.info(f"  return_3d: min={min(r3_vals):.2f}%  max={max(r3_vals):.2f}%  "
                     f"avg={sum(r3_vals)/len(r3_vals):.2f}%")
         if r5_vals:
-            logger.info(f"  return_5d: min={min(r5_vals):.2f}%  max={max(r5_vals):.2f}%  "
+            logger.info(f"  return_5d (close): min={min(r5_vals):.2f}%  max={max(r5_vals):.2f}%  "
                         f"avg={sum(r5_vals)/len(r5_vals):.2f}%")
+        if r5op_vals:
+            logger.info(f"  return_5d (open):  min={min(r5op_vals):.2f}%  max={max(r5op_vals):.2f}%  "
+                        f"avg={sum(r5op_vals)/len(r5op_vals):.2f}%  n={len(r5op_vals)}")
 
     # ── Step 5: DB 저장 + event_stats 집계 ───────────────────────────────────
     logger.info(f"\n  [5/5] scores_log 저장 + event_stats 집계...")

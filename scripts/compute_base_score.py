@@ -294,22 +294,38 @@ def fetch_unscored(sb, recompute: bool) -> list[dict]:
     """
     base_score 가 null 인 공시 (또는 recompute=True 이면 전체) 조회.
     sentiment_score IS NOT NULL + analysis_status = 'completed' 조건 포함.
+    Supabase 1000행 제한을 우회하기 위해 페이지네이션 적용.
     """
-    query = (
-        sb.table("disclosure_insights")
-        .select(
-            "id, stock_code, rcept_dt, "
-            "sentiment_score, short_term_impact_score, event_type, key_numbers"
+    PAGE = 1000
+    all_rows: list[dict] = []
+    offset = 0
+
+    while True:
+        query = (
+            sb.table("disclosure_insights")
+            .select(
+                "id, stock_code, rcept_dt, "
+                "sentiment_score, short_term_impact_score, event_type, key_numbers"
+            )
+            .eq("analysis_status", "completed")
+            .not_.is_("sentiment_score", "null")
         )
-        .eq("analysis_status", "completed")
-        .not_.is_("sentiment_score", "null")
-    )
+        if not recompute:
+            query = query.is_("base_score", "null")
 
-    if not recompute:
-        query = query.is_("base_score", "null")
+        page = (
+            query
+            .order("rcept_dt", desc=True)
+            .range(offset, offset + PAGE - 1)
+            .execute()
+        )
+        rows = page.data or []
+        all_rows.extend(rows)
+        if len(rows) < PAGE:
+            break
+        offset += PAGE
 
-    resp = query.order("rcept_dt", desc=True).limit(2000).execute()
-    return resp.data or []
+    return all_rows
 
 
 def fetch_lps_for_disclosures(sb, rows: list[dict]) -> dict[tuple[str, str], float | None]:
