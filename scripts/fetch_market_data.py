@@ -253,14 +253,16 @@ def transform(items: list[dict]) -> tuple[list[dict], list[dict]]:
             "updated_at":          datetime.now().isoformat(),
         })
 
-        # 종가(clpr) + 거래량(trqu) → price_history 테이블
+        # 종가(clpr) + 시가(mkp) + 거래량(trqu) → price_history 테이블
         close  = parse_float(item.get("clpr"))
+        open_p = parse_float(item.get("mkp"))    # 시가 (Hot Stocks M_score용)
         volume = parse_int(item.get("trqu"))
         if close is not None or volume is not None:
             price_rows.append({
                 "stock_code": stock_code,
                 "date":       None,   # save_to_db에서 bas_dt 주입
                 "close":      close,
+                "open":       open_p,
                 "volume":     volume,
             })
 
