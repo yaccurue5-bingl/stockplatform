@@ -10,6 +10,8 @@ on:
     - cron: "*/15 0-6 * * 1-5"
     # ── EOD 장 마감 후 1회 (KST 16:35  =  UTC 07:35) ──────────────────────────
     - cron: "35 7 * * 1-5"
+    # ── 매월 15일 sector_macro 갱신 알림 (KST 10:00 = UTC 01:00) ──────────────
+    - cron: "0 1 15 * *"
 
   workflow_dispatch:
     inputs:
@@ -36,15 +38,44 @@ env:
 jobs:
 
   # ════════════════════════════════════════════════════════════════════════════
+  # MONTHLY — 매월 15일 sector_macro 갱신 알림
+  #   트리거: '0 1 15 * *' cron만
+  # ════════════════════════════════════════════════════════════════════════════
+  monthly-sector-macro:
+    name: "Monthly sector_macro Staleness Check"
+    if: >-
+      github.event_name == 'schedule' && github.event.schedule == '0 1 15 * *'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      # 스테일 시 Actions 경고 (빨간 X) — 수동 업데이트 필요 신호
+      - name: "sector_macro 스테일니스 점검 (--alert)"
+        run: python scripts/backfill_sector_macro.py --status --alert
+
+  # ════════════════════════════════════════════════════════════════════════════
   # PROD — 장 전·장 중 배치 (15분마다)
   #   트리거: 장 전/장 중 cron 3개  또는  workflow_dispatch(mode=prod)
   # ════════════════════════════════════════════════════════════════════════════
   prod-batch:
     name: "Intraday Prod Batch"
-    # EOD cron('35 7 * * 1-5') 이 아닌 schedule 이거나, 수동 실행(mode != eod)일 때만 실행
+    # EOD/월별 cron 이 아닌 schedule 이거나, 수동 실행(mode != eod)일 때만 실행
     if: >-
       (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
-      (github.event_name == 'schedule' && github.event.schedule != '35 7 * * 1-5')
+      (github.event_name == 'schedule' && github.event.schedule != '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
 
     steps:
@@ -78,7 +109,7 @@ jobs:
     name: "EOD End-of-Day Batch"
     if: >-
       (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'eod') ||
-      (github.event_name == 'schedule' && github.event.schedule == '35 7 * * 1-5')
+      (github.event_name == 'schedule' && github.event.schedule == '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
 
     steps:
@@ -105,4 +136,9 @@ jobs:
       # P90 > 30분 또는 당일 수집률 < 80% 시 Actions 경고 (비블로킹)
       - name: "처리 지연 메트릭 점검"
         run: python scripts/check_processing_lag.py --today --alert || true
+        continue-on-error: true
+
+      # sector_macro 스테일니스 점검 (매월 15일 이후 실행 시 유효)
+      - name: "sector_macro 데이터 현황 점검"
+        run: python scripts/backfill_sector_macro.py --status
         continue-on-error: true
