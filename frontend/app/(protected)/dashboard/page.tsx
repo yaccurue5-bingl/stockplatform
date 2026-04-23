@@ -1,5 +1,6 @@
 import AppShell from '@/components/app/AppShell';
 import MarketRadar from '@/components/landing/MarketRadar';
+import HotStocksWidget from '@/components/dashboard/HotStocksWidget';
 import { Zap, TrendingUp, FileText, Bell, Clock } from 'lucide-react';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import Link from 'next/link';
@@ -107,8 +108,9 @@ export default async function DashboardPage() {
 
       {/* Middle row */}
       <div className="grid lg:grid-cols-3 gap-6 mb-8">
-        {/* Market Radar */}
-        <div className="lg:col-span-1">
+        {/* Hot Stocks + Market Radar */}
+        <div className="lg:col-span-1 flex flex-col gap-4">
+          <HotStocksWidget />
           <MarketRadar />
         </div>
 

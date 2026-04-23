@@ -1,6 +1,7 @@
 import Navbar from '@/components/landing/Navbar';
 import Hero from '@/components/landing/Hero';
 import Problem from '@/components/landing/Problem';
+import HotStocks from '@/components/landing/HotStocks';
 import LiveEvents from '@/components/landing/LiveEvents';
 import DataProducts from '@/components/landing/DataProducts';
 import HowItWorks from '@/components/landing/HowItWorks';
@@ -17,6 +18,7 @@ export default function LandingPage() {
       <Navbar />
       <Hero />
       <Problem />
+      <HotStocks />
       <LiveEvents />
       <DataProducts />
       <HowItWorks />
