@@ -138,3 +138,7 @@ ipython_config.py
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+# Temporary API test files
+tmp_*.json
+tmp_*.csv
