@@ -17,41 +17,36 @@ export async function GET() {
 
     if (error) {
       console.error('Error fetching market indices:', error);
-      // 에러 발생 시 기본값 반환
-      return NextResponse.json({
-        KOSPI: { value: 2645.38, change: 1.24 },
-        KOSDAQ: { value: 876.52, change: -0.68 },
-        USDKRW: { value: 1332.50, change: 0.15 }
-      });
+      return NextResponse.json({ KOSPI: null, KOSDAQ: null, USDKRW: null }, { status: 503 });
     }
 
     // 데이터를 symbol별로 정리
-    const result: any = {
-      KOSPI: { value: 2645.38, change: 1.24 },
-      KOSDAQ: { value: 876.52, change: -0.68 },
-      USDKRW: { value: 1332.50, change: 0.15 }
+    const result: Record<string, { value: number; change: number } | null> = {
+      KOSPI: null,
+      KOSDAQ: null,
+      USDKRW: null,
     };
 
     if (indices && indices.length > 0) {
       indices.forEach((index: any) => {
         // price는 "2,645.38" 형식의 문자열이므로 파싱 필요
-        const priceValue = parseFloat(index.price.replace(/,/g, ''));
-
+        const priceValue = parseFloat(String(index.price).replace(/,/g, ''));
         result[index.symbol] = {
           value: priceValue,
-          change: index.change_rate
+          change: index.change_rate,
         };
       });
+    }
+
+    // 데이터가 하나도 없으면 503 (캐시 유지 유도)
+    const hasData = Object.values(result).some((v) => v !== null);
+    if (!hasData) {
+      return NextResponse.json({ KOSPI: null, KOSDAQ: null, USDKRW: null }, { status: 503 });
     }
 
     return NextResponse.json(result);
   } catch (error) {
     console.error('Unexpected error:', error);
-    // 에러 발생 시 기본값 반환
-    return NextResponse.json({
-      KOSPI: { value: 2645.38, change: 1.24 },
-      KOSDAQ: { value: 876.52, change: -0.68 },
-      USDKRW: { value: 1332.50, change: 0.15 }
-    });
+    return NextResponse.json({ KOSPI: null, KOSDAQ: null, USDKRW: null }, { status: 503 });
   }
 }
