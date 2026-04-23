@@ -56,7 +56,8 @@ _NOISE_KEYWORDS = [
     "기업설명회", "증권발행실적보고서", "의결권대리행사권유", "소액공모",
     "주주명부폐쇄기준일", "배당기준일", "명의개서정지",
     "사외이사의선임", "사외이사의해임", "사외이사의중도퇴임",
-    "임원의변동", "대표이사의변동",
+    # "임원의변동"    ← 제거: CEO 취임/외부영입은 핵심 재료 — is_executive_noise()로 2차 필터링
+    # "대표이사의변동" ← 제거: CEO 변동은 핵심 재료
 ]
 
 # 종목명 필터 — 스팩/펀드/부동산리츠 등 투자 시그널 무의미 종목 제외
@@ -68,6 +69,33 @@ _NOISE_CORP_KEYWORDS = [
 def is_noise_disclosure(report_nm: str) -> bool:
     t = (report_nm or "").lower()
     return any(kw.lower() in t for kw in _NOISE_KEYWORDS)
+
+
+# ── 임원 변동 2차 필터 ────────────────────────────────────────────────────────
+# "임원의변동" / "대표이사의변동" 공시 중 사외이사·감사만 언급 → 노이즈
+# CEO / C-Level 포함 공시 → 신호로 통과
+
+_EXEC_SIGNAL_KEYWORDS = [
+    "대표이사", "CEO", "사장", "부사장",
+    "CFO", "COO", "CTO", "CSO", "CCO",
+    "전무이사", "전무", "상무이사", "상무",
+]
+_EXEC_CHANGE_REPORT_NMS = ("임원의변동", "대표이사의변동")
+
+def is_executive_noise(report_nm: str, content: str = "") -> bool:
+    """
+    임원 변동 공시 중 CEO/C-Level 신호가 없는 경우 True(노이즈) 반환.
+    - report_nm이 임원변동 계열이 아니면 False (해당 없음)
+    - 본문 없으면 일단 통과(False) — 내용 확인 불가
+    - CEO/C-Level 키워드 존재 → False (신호, 통과)
+    - 없으면 True (사외이사/감사만 → 노이즈)
+    """
+    if not any(nm in (report_nm or "") for nm in _EXEC_CHANGE_REPORT_NMS):
+        return False
+    if not content:
+        return False
+    return not any(kw in content for kw in _EXEC_SIGNAL_KEYWORDS)
+
 
 def is_noise_corp(corp_name: str) -> bool:
     t = (corp_name or "").lower()
@@ -342,6 +370,11 @@ def run_crawler():
 
             # 정제된 본문 추출 함수 호출 (내부에서 sleep + 재시도 처리)
             content = get_clean_content(rcept_no)
+
+            # 임원 변동 2차 필터: CEO/C-Level 신호 없으면 스킵 (사외이사/감사만 → 노이즈)
+            if is_executive_noise(report_nm, content):
+                logger.info(f"⏭ 임원변동 노이즈 스킵 (CEO/C-Level 없음): {report_nm} / {corp_name_val}")
+                continue
 
             payload = {
                 "is_visible": True,

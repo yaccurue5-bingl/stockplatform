@@ -52,8 +52,25 @@ NOISE_KEYWORDS = [
     "기업설명회", "증권발행실적보고서", "의결권대리행사권유", "소액공모",
     "주주명부폐쇄기준일", "배당기준일", "명의개서정지",
     "사외이사의선임", "사외이사의해임", "사외이사의중도퇴임",
-    "임원의변동", "대표이사의변동",
+    # "임원의변동"    ← 제거: CEO/C-Level 포함 공시는 신호 — is_executive_noise()로 2차 필터
+    # "대표이사의변동" ← 제거: CEO 변동은 핵심 재료
 ]
+
+# 임원 변동 2차 필터 (dart_crawler.py와 동일 로직)
+_EXEC_SIGNAL_KEYWORDS = [
+    "대표이사", "CEO", "사장", "부사장",
+    "CFO", "COO", "CTO", "CSO", "CCO",
+    "전무이사", "전무", "상무이사", "상무",
+]
+_EXEC_CHANGE_REPORT_NMS = ("임원의변동", "대표이사의변동")
+
+def is_executive_noise(report_nm: str, content: str = "") -> bool:
+    """CEO/C-Level 없는 임원 변동 공시 → True (노이즈)"""
+    if not any(nm in (report_nm or "") for nm in _EXEC_CHANGE_REPORT_NMS):
+        return False
+    if not content:
+        return False
+    return not any(kw in content for kw in _EXEC_SIGNAL_KEYWORDS)
 
 # 종목명 필터 — 스팩/펀드/부동산리츠/비상장금융기관 등 투자 시그널 무의미 종목 제외
 NOISE_CORP_KEYWORDS = [
@@ -231,6 +248,15 @@ def _run_analysis(analyst, sb: Client, rows: list[dict], tag: str, dry_run: bool
         corp = item.get("corp_name", "")
         report = item.get("report_nm", "")
         content = item.get("content") or ""
+
+        # 임원 변동 2차 필터: 본문에 CEO/C-Level 없으면 skipped 처리
+        if is_executive_noise(report, content):
+            logger.info(f"  ⏭ 임원변동 노이즈 (CEO/C-Level 없음): {corp} — {report[:40]}")
+            sb.table("disclosure_insights").update({
+                "analysis_status": "skipped",
+                "updated_at": datetime.now().isoformat(),
+            }).eq("id", cid).execute()
+            continue
 
         if dry_run:
             logger.info(f"  [DRY] {tag} {corp} — {report[:40]}")
