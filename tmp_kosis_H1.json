@@ -1,0 +1,110 @@
+[
+  {
+    "LIST_NM": "초중고사교육비조사",
+    "LIST_ID": "H1_10",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "교육기관(고등교육기관및직업계고)졸업자취업통계",
+    "LIST_ID": "H1_1",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "교육기본통계",
+    "LIST_ID": "H1_2",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국가기술자격통계",
+    "LIST_ID": "H1_3",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "진로교육현황조사",
+    "LIST_ID": "H1_9",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "특수교육실태조사",
+    "LIST_ID": "H1_11",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "평생학습개인실태조사",
+    "LIST_ID": "H1_13",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "평생교육통계",
+    "LIST_ID": "H1_12",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "대학산학협력활동실태조사",
+    "LIST_ID": "H1_6",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국내신규박사학위취득자조사",
+    "LIST_ID": "H1_5",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "한국교육고용패널조사",
+    "LIST_ID": "H1_14",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "성인문해능력조사",
+    "LIST_ID": "H1_8",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국가영재교육통계",
+    "LIST_ID": "H1_4",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "사립대학재정통계",
+    "LIST_ID": "H1_7",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "유아교육실태조사",
+    "LIST_ID": "H1_001",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "성인역량조사",
+    "LIST_ID": "H1_002",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "학교안전사고및보상통계",
+    "LIST_ID": "H1_003",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "성인디지털문해능력조사",
+    "LIST_ID": "H1_004",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  }
+]

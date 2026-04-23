@@ -1,0 +1,224 @@
+[
+  {
+    "LIST_NM": "ICT기업경기조사",
+    "LIST_ID": "N1_1",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "ICT수출입통계",
+    "LIST_ID": "N1_3",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "ICT실태조사",
+    "LIST_ID": "N1_4",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "ICT인력동향실태조사",
+    "LIST_ID": "N1_5",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "ICT전문인력수급실태조사",
+    "LIST_ID": "N1_6",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "ICT주요품목동향조사",
+    "LIST_ID": "N1_7",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "ICT중소기업실태조사",
+    "LIST_ID": "N1_8",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "SW융합실태조사",
+    "LIST_ID": "N1_9",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "가상증강현실(VR·AR)산업실태조사",
+    "LIST_ID": "N1_002",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "데이터산업현황조사",
+    "LIST_ID": "N1_11",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "디지털정보격차실태조사",
+    "LIST_ID": "N1_12",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "디지털산업실태조사",
+    "LIST_ID": "127_127021",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "방송매체이용행태조사",
+    "LIST_ID": "N1_13",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "방송산업실태조사",
+    "LIST_ID": "N1_14",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "블록체인산업실태조사",
+    "LIST_ID": "N1_001",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "사물인터넷산업실태조사",
+    "LIST_ID": "N1_15",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "스마트미디어산업실태조사",
+    "LIST_ID": "N1_16",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "스마트폰과의존실태조사",
+    "LIST_ID": "N1_17",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "스팸수신량조사",
+    "LIST_ID": "N1_18",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "우편물통계",
+    "LIST_ID": "N1_19",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "웹접근성실태조사",
+    "LIST_ID": "N1_20",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "이러닝산업실태조사",
+    "LIST_ID": "N1_21",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "인터넷이용실태조사",
+    "LIST_ID": "N1_23",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "인터넷주소자원통계",
+    "LIST_ID": "N1_22",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "전자문서산업실태조사",
+    "LIST_ID": "N1_24",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "전자정부서비스이용실태조사",
+    "LIST_ID": "N1_25",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "전자정부수출실적조사",
+    "LIST_ID": "N1_26",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "정보보호산업실태조사",
+    "LIST_ID": "N1_27",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "정보보호실태조사",
+    "LIST_ID": "N1_28",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "정보통신기술산업(ICT)통계",
+    "LIST_ID": "N1_30",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "기업정보화통계조사",
+    "LIST_ID": "N1_31",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "중소기업정보화수준조사",
+    "LIST_ID": "N1_32",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "클라우드산업실태조사",
+    "LIST_ID": "N1_33",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "한국미디어패널조사",
+    "LIST_ID": "N1_34",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "지능정보사회이용자패널조사",
+    "LIST_ID": "N1_004",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "위치정보사업자실태조사",
+    "LIST_ID": "N1_003",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "사이버보안인력수급실태조사",
+    "LIST_ID": "127_205",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  }
+]

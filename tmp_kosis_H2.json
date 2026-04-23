@@ -1,0 +1,194 @@
+[
+  {
+    "LIST_NM": "국민여가활동조사",
+    "LIST_ID": "H2_6",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "한국관광통계",
+    "LIST_ID": "H2_19",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국민독서실태조사",
+    "LIST_ID": "H2_3",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국민여행조사",
+    "LIST_ID": "H2_7",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국민생활체육조사",
+    "LIST_ID": "H2_5",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "외래관광객조사",
+    "LIST_ID": "H2_13",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국민문화예술활동조사",
+    "LIST_ID": "H2_4",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국가유산관리현황",
+    "LIST_ID": "H2_10",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "전국도서관통계",
+    "LIST_ID": "H2_15",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "문화예술활동현황조사",
+    "LIST_ID": "H2_9",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국립공원기본통계",
+    "LIST_ID": "H2_2",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "공연예술조사",
+    "LIST_ID": "H2_1",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "예술인실태조사",
+    "LIST_ID": "H2_12",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "주요관광지점입장객통계",
+    "LIST_ID": "H2_16",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "저작권통계",
+    "LIST_ID": "H2_14",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "청소년방과후활동수요및현황조사",
+    "LIST_ID": "H2_18",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "근로자휴가조사",
+    "LIST_ID": "H2_8",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "지역문화현황통계",
+    "LIST_ID": "113_002",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "한국수어활용조사",
+    "LIST_ID": "H2_20",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "여행사국제관광객유치·송출통계",
+    "LIST_ID": "H2_11",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국제문화교류실태조사",
+    "LIST_ID": "H2_21",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "산림휴양복지활동조사",
+    "LIST_ID": "H2_22",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "문화체육관광일자리현황조사",
+    "LIST_ID": "H2_23",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국민문화예술교육조사",
+    "LIST_ID": "H2_001",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "어린이·청소년 미디어 이용 조사",
+    "LIST_ID": "H2_002",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국가유산(문화재)산업조사",
+    "LIST_ID": "H2_003",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "국제회의현황조사",
+    "LIST_ID": "H2_004",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "문화다양성실태조사",
+    "LIST_ID": "H2_005",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "체육인실태조사",
+    "LIST_ID": "H2_006",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "콘텐츠이용행태조사",
+    "LIST_ID": "H2_007",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "웹툰산업실태조사",
+    "LIST_ID": "H2_008",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  },
+  {
+    "LIST_NM": "고고유산조사연구서비스업실태조사",
+    "LIST_ID": "472",
+    "VW_NM": "국내통계 주제별",
+    "VW_CD": "MT_ZTITLE"
+  }
+]
