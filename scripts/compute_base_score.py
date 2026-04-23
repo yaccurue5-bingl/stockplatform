@@ -6,11 +6,12 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
 계산 공식:
   s   = ((sentiment_score + 1) / 2) * 40            # 0~40  (감성 컴포넌트)
   i   = (short_term_impact_score / 5) * 30           # 0~30  (중요도 컴포넌트)
-  e   = min(max((avg_5d_return + 3) / 6 * 30, 0), 30) # 0~30 (이벤트 수익률 컴포넌트)
-  # ※ sample_size < 10: e=0, 10~29: confidence 0.5~1.0 부분 적용, ≥30: 완전 적용
+  e   = (z_clipped + 3) / 6 * 30                       # 0~30 (이벤트 강도 컴포넌트, Z-score 기반)
+  # ※ z = clip(open_return_z, -3, +3), entry=D+1 open, exit=D+5 close
+  #    n < 30: 중립(15), 30~99: 부분 적용, ≥100: 완전 적용
 
   base_score_raw = s + i + e                          # 0~100 (정규화 전)
-  base_score     = sigmoid((raw - 50) / 10) * 100     # sigmoid 정규화 (0~100)
+  base_score     = clamp(raw, 0, 100)                 # 선형 (sigmoid 제거 — 40raw→27 압축 비직관적)
 
   lps            = loan_stats 에서 조회 (rcept_dt 기준 당일 또는 최근일)
   loan_weight    = min(lps / 100, 0.4)               # 최대 40% 패널티
@@ -22,13 +23,13 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
     "⚠️ Dilution Risk"  : event_type = DILUTION AND sentiment ≤ -0.2
     "📉 Earnings Miss"  : event_type = EARNINGS AND sentiment ≤ -0.4 AND base_score ≤ 45
   고신뢰 긍정:
-    "🔥 High Conviction": base_score ≥ 78 AND sentiment ≥ 0.5
-    "🚀 Earnings Beat"  : event_type = EARNINGS AND sentiment ≥ 0.5 AND base_score ≥ 70
-    "📋 Major Contract" : event_type = CONTRACT AND sentiment ≥ 0.4 AND base_score ≥ 70
-    "🔄 Buyback Signal" : event_type = BUYBACK  AND sentiment ≥ 0.3 AND base_score ≥ 62
-    "🤝 M&A Activity"   : event_type = MNA      AND sentiment ≥ 0.35 AND base_score ≥ 65
+    "🔥 High Conviction": base_score ≥ 63 AND sentiment ≥ 0.5
+    "🚀 Earnings Beat"  : event_type = EARNINGS AND sentiment ≥ 0.5 AND base_score ≥ 59
+    "📋 Major Contract" : event_type = CONTRACT AND sentiment ≥ 0.4 AND base_score ≥ 59
+    "🔄 Buyback Signal" : event_type = BUYBACK  AND sentiment ≥ 0.3 AND base_score ≥ 55
+    "🤝 M&A Activity"   : event_type = MNA      AND sentiment ≥ 0.35 AND base_score ≥ 56
   전반 하방:
-    "⛔ High Risk"       : base_score ≤ 28 AND sentiment ≤ -0.5
+    "⛔ High Risk"       : base_score ≤ 40 AND sentiment ≤ -0.5
 
 사전 조건:
   - auto_analyst.py 가 완료되어 sentiment_score, short_term_impact_score, event_type 이 채워져 있어야 함
@@ -43,7 +44,6 @@ import asyncio
 import json
 import os
 import sys
-import math
 import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -65,13 +65,6 @@ load_env()
 BATCH_SIZE = 100
 # LPS 조회 시 rcept_dt 전후 허용 범위 (영업일 미일치 보정)
 LPS_DATE_TOLERANCE_DAYS = 5
-
-
-# ── 수학 헬퍼 ─────────────────────────────────────────────────────────────────
-
-def sigmoid(x: float) -> float:
-    x = max(-500.0, min(500.0, x))
-    return 1.0 / (1.0 + math.exp(-x))
 
 
 # ── 스코어 계산 함수 ──────────────────────────────────────────────────────────
@@ -117,33 +110,42 @@ def compute_e_zscore(z_score: float | None, sample_size: int | None) -> float:
     """
     시총 버킷 Z-score 기반 E 컴포넌트: 0~30 (중립=15)
 
-    Z-score = (이벤트유형 평균수익률 - 버킷시장평균) / 버킷시장표준편차
-    z 범위 [-2.5, +2.5] → E [0, 30]
-      z = -2.5 → E = 0   (강한 음수 시그널)
-      z =  0.0 → E = 15  (중립)
-      z = +2.5 → E = 30  (강한 양수 시그널)
+    Z-score = (이벤트유형 open평균수익률 - 버킷시장open평균) / 버킷시장open표준편차
+    스펙 (절대 고정):
+      z_clipped = clip(z, -3, +3)
+      E = (z_clipped + 3) / 6 * 30
+      z = -3 → E = 0   (매우 부정)
+      z =  0 → E = 15  (중립)
+      z = +3 → E = 30  (매우 긍정)
 
-    sample_size < 5  : 중립(15) 반환
-    sample_size 5~29 : 중립 방향으로 부분 수렴
-    sample_size >= 30: 완전 적용
+    샘플 기준 (스펙 §8.4):
+      n < 30  : 통계 신뢰 불가 → 중립(15) 반환
+      30~99   : 약한 신호 — 중립 방향 부분 수렴
+      100+    : 완전 적용
     """
     if z_score is None:
         return 15.0
     n = int(sample_size) if sample_size is not None else 0
-    if n < 5:
-        return 15.0
-    z     = max(-2.5, min(2.5, float(z_score)))
-    e_full = (z + 2.5) / 5.0 * 30.0   # [-2.5, +2.5] → [0, 30]
     if n < 30:
-        confidence = min(1.0, 0.5 + 0.5 * (n - 5) / 25.0)   # 5→0.5, 30→1.0
+        return 15.0   # 스펙: n<30 신뢰 불가
+    z      = max(-3.0, min(3.0, float(z_score)))
+    e_full = (z + 3.0) / 6.0 * 30.0   # [-3, +3] → [0, 30]
+    if n < 100:
+        # 약한 신호 구간: 중립(15)에서 e_full 방향 선형 보간
+        confidence = (n - 30) / 70.0   # 30→0.0, 100→1.0
         return round(15.0 + (e_full - 15.0) * confidence, 4)
     return round(e_full, 4)
 
 
 def compute_base_score(s: float, i: float, e: float) -> tuple[float, float]:
-    """(base_score_raw, base_score) 반환"""
+    """
+    (base_score_raw, base_score) 반환.
+
+    선형 정규화: base_score = clamp(raw, 0, 100)
+    (구: sigmoid 정규화 — 40점 raw → 26.8점 압축 등 비직관적 왜곡으로 제거)
+    """
     raw = s + i + e                              # 0~100
-    normalized = sigmoid((raw - 50.0) / 10.0) * 100.0
+    normalized = max(0.0, min(100.0, raw))       # 선형: raw 그대로 사용
     return round(raw, 4), round(normalized, 4)
 
 
@@ -197,27 +199,28 @@ def compute_signal_tag(
     if et == "DILUTION" and ss <= -0.2:
         return "⚠️ Dilution Risk"
 
-    if et == "EARNINGS" and ss <= -0.4 and bs <= 45:
+    if et == "EARNINGS" and ss <= -0.4 and bs <= 48:
         return "📉 Earnings Miss"
 
     # ── 2순위: 고신뢰 긍정 시그널 ────────────────────────────────────────────
-    if bs >= 78 and ss >= 0.5:
+    # 임계값: sigmoid 등가 raw 값으로 재보정 (선형 정규화 전환에 따른 조정)
+    if bs >= 63 and ss >= 0.5:
         return "🔥 High Conviction"
 
-    if et == "EARNINGS" and ss >= 0.5 and bs >= 70:
+    if et == "EARNINGS" and ss >= 0.5 and bs >= 59:
         return "🚀 Earnings Beat"
 
-    if et == "CONTRACT" and ss >= 0.4 and bs >= 70:
+    if et == "CONTRACT" and ss >= 0.4 and bs >= 59:
         return "📋 Major Contract"
 
-    if et == "BUYBACK" and ss >= 0.3 and bs >= 62:
+    if et == "BUYBACK" and ss >= 0.3 and bs >= 55:
         return "🔄 Buyback Signal"
 
-    if et == "MNA" and ss >= 0.35 and bs >= 65:
+    if et == "MNA" and ss >= 0.35 and bs >= 56:
         return "🤝 M&A Activity"
 
     # ── 3순위: 전반적 하방 위험 ──────────────────────────────────────────────
-    if bs <= 28 and ss <= -0.5:
+    if bs <= 40 and ss <= -0.5:
         return "⛔ High Risk"
 
     return None
@@ -294,22 +297,38 @@ def fetch_unscored(sb, recompute: bool) -> list[dict]:
     """
     base_score 가 null 인 공시 (또는 recompute=True 이면 전체) 조회.
     sentiment_score IS NOT NULL + analysis_status = 'completed' 조건 포함.
+    Supabase 1000행 제한을 우회하기 위해 페이지네이션 적용.
     """
-    query = (
-        sb.table("disclosure_insights")
-        .select(
-            "id, stock_code, rcept_dt, "
-            "sentiment_score, short_term_impact_score, event_type, key_numbers"
+    PAGE = 1000
+    all_rows: list[dict] = []
+    offset = 0
+
+    while True:
+        query = (
+            sb.table("disclosure_insights")
+            .select(
+                "id, stock_code, rcept_dt, "
+                "sentiment_score, short_term_impact_score, event_type, key_numbers"
+            )
+            .eq("analysis_status", "completed")
+            .not_.is_("sentiment_score", "null")
         )
-        .eq("analysis_status", "completed")
-        .not_.is_("sentiment_score", "null")
-    )
+        if not recompute:
+            query = query.is_("base_score", "null")
 
-    if not recompute:
-        query = query.is_("base_score", "null")
+        page = (
+            query
+            .order("rcept_dt", desc=True)
+            .range(offset, offset + PAGE - 1)
+            .execute()
+        )
+        rows = page.data or []
+        all_rows.extend(rows)
+        if len(rows) < PAGE:
+            break
+        offset += PAGE
 
-    resp = query.order("rcept_dt", desc=True).limit(2000).execute()
-    return resp.data or []
+    return all_rows
 
 
 def fetch_lps_for_disclosures(sb, rows: list[dict]) -> dict[tuple[str, str], float | None]:

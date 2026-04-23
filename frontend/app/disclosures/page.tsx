@@ -622,15 +622,6 @@ function DisclosuresContent() {
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span className={`text-xs px-3 py-1 rounded-full font-medium ${
                       selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE'
-                        ? 'bg-green-600 text-white'
-                        : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE'
-                        ? 'bg-red-600 text-white'
-                        : 'bg-gray-600 text-white'
-                    }`}>
-                      {selectedDisclosure.sentiment || 'NEUTRAL'}
-                    </span>
-                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                      selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE'
                         ? 'bg-green-500/20 text-green-400 border border-green-500'
                         : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE'
                         ? 'bg-red-500/20 text-red-400 border border-red-500'
@@ -645,14 +636,18 @@ function DisclosuresContent() {
                     }`}>
                       {selectedDisclosure.importance || 'MEDIUM'} Importance
                     </span>
+                    <span className="text-xs px-3 py-1 rounded-full font-medium bg-gray-800 text-gray-400">
+                      {selectedStock.market}
+                    </span>
                   </div>
 
                   {/* Company Info */}
-                  <div className="text-sm text-gray-400">
-                    <p><span className="text-gray-500">corp_name</span></p>
-                    <p>{selectedStock.corp_name_en || selectedStock.corp_name}</p>
-                    <p><span className="text-gray-500">sector</span> {selectedDisclosure.sector_en || selectedDisclosure.sector || 'Others'}</p>
-                    <p>{formatDateTime(selectedDisclosure.updated_at)}</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-400">
+                    <span>{selectedStock.corp_name_en || selectedStock.corp_name}</span>
+                    <span className="text-gray-700">·</span>
+                    <span>{selectedDisclosure.sector_en || selectedDisclosure.sector || 'Others'}</span>
+                    <span className="text-gray-700">·</span>
+                    <span>{formatDateTime(selectedDisclosure.updated_at)}</span>
                   </div>
                 </div>
               </div>
@@ -661,21 +656,11 @@ function DisclosuresContent() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column - Analysis */}
                 <div className="lg:col-span-2 space-y-6">
-                  {/* Tabs */}
+                  {/* Section Label */}
                   <div className="flex gap-2">
-                    <button className="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                    <span className="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
                       AI Analysis
-                    </button>
-                    {selectedDisclosure.rcept_no && (
-                      <a
-                        href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-gray-800 text-gray-400 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 hover:text-white transition flex items-center gap-1.5"
-                      >
-                        Original Text ↗
-                      </a>
-                    )}
+                    </span>
                   </div>
 
                   {/* Key Takeaways */}
@@ -740,6 +725,32 @@ function DisclosuresContent() {
 
                 {/* Right Column */}
                 <div className="space-y-6">
+                  {/* 0. DART 원문 */}
+                  {selectedDisclosure.rcept_no && (
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+                        Source Document
+                      </p>
+                      <p className="text-sm text-gray-200 font-medium leading-snug mb-1 line-clamp-2">
+                        {selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
+                      </p>
+                      <p className="text-xs text-gray-600 font-mono mb-4">
+                        접수번호 {selectedDisclosure.rcept_no}
+                      </p>
+                      <a
+                        href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        DART 원문 보기
+                      </a>
+                    </div>
+                  )}
+
                   {/* 1. Signal Strength */}
                   <SignalStrength
                     sentimentScore={selectedDisclosure.sentiment_score ?? 0}

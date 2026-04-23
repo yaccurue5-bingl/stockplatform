@@ -413,6 +413,7 @@ export type Database = {
       disclosure_insights: {
         Row: {
           ai_summary: string | null
+          alpha_score: number | null
           analysis: string | null
           analysis_retry_count: number | null
           analysis_status: string | null
@@ -463,6 +464,7 @@ export type Database = {
         }
         Insert: {
           ai_summary?: string | null
+          alpha_score?: number | null
           analysis?: string | null
           analysis_retry_count?: number | null
           analysis_status?: string | null
@@ -513,6 +515,7 @@ export type Database = {
         }
         Update: {
           ai_summary?: string | null
+          alpha_score?: number | null
           analysis?: string | null
           analysis_retry_count?: number | null
           analysis_status?: string | null
@@ -607,10 +610,18 @@ export type Database = {
           avg_1d_return: number | null
           avg_20d_return: number | null
           avg_3d_return: number | null
+          avg_5d_open_return: number | null
           avg_5d_return: number | null
+          avg_z_5d_large: number | null
+          avg_z_5d_mid: number | null
+          avg_z_5d_small: number | null
           event_type: string
           median_20d_return: number | null
+          median_5d_open_return: number | null
           median_5d_return: number | null
+          n_large: number | null
+          n_mid: number | null
+          n_small: number | null
           risk_adj_return: number | null
           sample_size: number | null
           sample_size_clean: number | null
@@ -624,10 +635,18 @@ export type Database = {
           avg_1d_return?: number | null
           avg_20d_return?: number | null
           avg_3d_return?: number | null
+          avg_5d_open_return?: number | null
           avg_5d_return?: number | null
+          avg_z_5d_large?: number | null
+          avg_z_5d_mid?: number | null
+          avg_z_5d_small?: number | null
           event_type: string
           median_20d_return?: number | null
+          median_5d_open_return?: number | null
           median_5d_return?: number | null
+          n_large?: number | null
+          n_mid?: number | null
+          n_small?: number | null
           risk_adj_return?: number | null
           sample_size?: number | null
           sample_size_clean?: number | null
@@ -641,10 +660,18 @@ export type Database = {
           avg_1d_return?: number | null
           avg_20d_return?: number | null
           avg_3d_return?: number | null
+          avg_5d_open_return?: number | null
           avg_5d_return?: number | null
+          avg_z_5d_large?: number | null
+          avg_z_5d_mid?: number | null
+          avg_z_5d_small?: number | null
           event_type?: string
           median_20d_return?: number | null
+          median_5d_open_return?: number | null
           median_5d_return?: number | null
+          n_large?: number | null
+          n_mid?: number | null
+          n_small?: number | null
           risk_adj_return?: number | null
           sample_size?: number | null
           sample_size_clean?: number | null
@@ -715,7 +742,7 @@ export type Database = {
           corp_code: string
           corp_name: string
           created_at?: string | null
-          expires_at: string
+          expires_at?: string
           id?: string
           is_active?: boolean | null
           level?: string
@@ -1085,6 +1112,7 @@ export type Database = {
         Row: {
           close: number | null
           date: string
+          open: number | null
           stock_code: string
           updated_at: string
           volume: number | null
@@ -1092,6 +1120,7 @@ export type Database = {
         Insert: {
           close?: number | null
           date: string
+          open?: number | null
           stock_code: string
           updated_at?: string
           volume?: number | null
@@ -1099,6 +1128,7 @@ export type Database = {
         Update: {
           close?: number | null
           date?: string
+          open?: number | null
           stock_code?: string
           updated_at?: string
           volume?: number | null
@@ -1134,6 +1164,7 @@ export type Database = {
       }
       scores_log: {
         Row: {
+          alpha_score: number | null
           base_score: number | null
           base_score_raw: number | null
           created_at: string | null
@@ -1143,12 +1174,14 @@ export type Database = {
           future_return_20d: number | null
           future_return_3d: number | null
           future_return_5d: number | null
+          future_return_5d_open: number | null
           id: string
           lps: number | null
           signal_tag: string | null
           stock_code: string
         }
         Insert: {
+          alpha_score?: number | null
           base_score?: number | null
           base_score_raw?: number | null
           created_at?: string | null
@@ -1158,12 +1191,14 @@ export type Database = {
           future_return_20d?: number | null
           future_return_3d?: number | null
           future_return_5d?: number | null
+          future_return_5d_open?: number | null
           id?: string
           lps?: number | null
           signal_tag?: string | null
           stock_code: string
         }
         Update: {
+          alpha_score?: number | null
           base_score?: number | null
           base_score_raw?: number | null
           created_at?: string | null
@@ -1173,6 +1208,7 @@ export type Database = {
           future_return_20d?: number | null
           future_return_3d?: number | null
           future_return_5d?: number | null
+          future_return_5d_open?: number | null
           id?: string
           lps?: number | null
           signal_tag?: string | null
@@ -1277,6 +1313,7 @@ export type Database = {
           signal: string | null
           top_stocks: Json | null
           win_rate: number | null
+          window_days: number
         }
         Insert: {
           avg_return_3d?: number | null
@@ -1296,6 +1333,7 @@ export type Database = {
           signal?: string | null
           top_stocks?: Json | null
           win_rate?: number | null
+          window_days?: number
         }
         Update: {
           avg_return_3d?: number | null
@@ -1315,6 +1353,7 @@ export type Database = {
           signal?: string | null
           top_stocks?: Json | null
           win_rate?: number | null
+          window_days?: number
         }
         Relationships: []
       }

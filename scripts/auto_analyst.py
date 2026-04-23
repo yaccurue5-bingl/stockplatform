@@ -175,6 +175,8 @@ STRICT RULES:
      * '현금·현물배당결정' -> 'Decision on Cash and Property Dividend'
      * '주식등의대량보유상황보고서' -> 'Large Shareholding Report'
      * '임원ㆍ주요주주특정증권등소유상황보고서' -> 'Report on Shareholding Status of Executives and Major Shareholders'
+     * '임원의변동' -> 'Executive Personnel Change'
+     * '대표이사의변동' -> 'CEO / Representative Director Change'
      * '사업보고서 / 분기보고서 / 반기보고서' -> 'Annual Report / Quarterly Report / Half-yearly Report'
      * '결산실적공시' -> 'Earnings Release'
    - For other titles, ensure professional financial phrasing (e.g., use 'Acquisition' instead of 'Buying', 'Disposal' instead of 'Selling').
@@ -188,7 +190,7 @@ Return JSON format:
     "• Key figure 2 (with unit)",
     "• Key figure 3 (with unit)"
   ],
-  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | MNA | LEGAL | CAPEX | OTHER",
+  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | MNA | LEGAL | CAPEX | EXECUTIVE_CHANGE | OTHER",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
   "sentiment_score": <float -1.0 to +1.0>,
@@ -202,9 +204,11 @@ EVENT TYPE GUIDE (event_type) — pick exactly one:
 - DILUTION : 유상증자, CB(전환사채), BW(신주인수권부사채) 발행
 - BUYBACK  : 자기주식 취득 또는 소각 결정
 - MNA      : 합병, 인수, 분할, 지분 취득
-- LEGAL    : 소송, 규제 조치, 과징금, 수사
-- CAPEX    : 설비투자, 공장 신증설, R&D 투자
-- OTHER    : 위 어느 항목에도 해당하지 않는 공시
+- LEGAL             : 소송, 규제 조치, 과징금, 수사
+- CAPEX             : 설비투자, 공장 신증설, R&D 투자
+- EXECUTIVE_CHANGE  : 대표이사·CEO·C-Level(CFO/COO/CTO 등) 선임·취임·사임·해임
+                      (사외이사·감사만의 변동은 이 공시가 도달하지 않음)
+- OTHER             : 위 어느 항목에도 해당하지 않는 공시
 
 SENTIMENT SCORE GUIDE (sentiment_score):
 - A continuous float between -1.0 (strongly bearish) and +1.0 (strongly bullish).
@@ -247,6 +251,27 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             "LEGAL": """
 - Specify litigation/penalty amounts and impact on capital.
 - Assess possibility of loss provisions and reputation risk.
+""",
+            "EXECUTIVE_CHANGE": """
+Classify EACH executive mentioned along three axes and compute a composite signal:
+
+ROLE WEIGHT  : CEO/대표이사/사장 = 1.0 | CFO/COO/CTO/부사장/전무/상무 = 0.6 | Other = 0.2
+ACTION WEIGHT: appoint/취임/선임/임명 = +1 | resign/사임/해임/퇴임 = -1 | reappoint/재선임 = 0
+ORIGIN WEIGHT: external/외부영입/타사출신 = +1.2 | internal/내부승진 = +0.3 | unknown = 0
+
+composite_score = role_weight × action_weight × origin_weight
+If action=resign AND origin=unknown → apply additional penalty (-1.5)
+
+sentiment_score guidance:
+- External CEO appointment (영입)  : +0.5 ~ +0.8
+- Internal CEO promotion           : +0.2 ~ +0.4
+- Sudden CEO resignation           : -0.5 ~ -0.8
+- C-Level reshuffle (routine)      : -0.1 ~ +0.2
+
+In ai_summary:
+- State the role, action, and origin explicitly
+- Flag if the departure is sudden/unexplained
+- Note if this signals strategic pivot (new external CEO = bullish signal)
 """
         }
 
@@ -272,6 +297,8 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             matched.append("LEGAL")
         if "분기" in t or "사업보고서" in t or "잠정" in t or "실적" in t or "결산" in t:
             matched.append("EARNINGS")
+        if "임원의변동" in t or "대표이사의변동" in t:
+            matched.append("EXECUTIVE_CHANGE")
 
         return matched if matched else ["OTHER"]
 
