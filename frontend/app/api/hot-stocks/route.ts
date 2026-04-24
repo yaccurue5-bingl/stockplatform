@@ -1,18 +1,28 @@
 /**
  * GET /api/hot-stocks
  * ===================
- * Hot Score = E_score × sigmoid(M_score) 기반 Top 10 종목 반환.
+ * Hot_score = E_adj × sigmoid(max(0, M_score)) × F_adjustment
  *
+ * E_adj   = E_score × (sample_size < 100 ? 0.7 : 1.0)
  * M_score = 0.6 × price_z + 0.4 × volume_z
- *   price_z  = (price_1d − 0) / cap_sigma  (D+1 open→close 수익률 z-score 근사)
- *   volume_z = (volume_ratio − 1.0) / 0.5   (1.5x→1.0, 2x→2.0)
+ * M_sig   = sigmoid(max(0, M_score))  — 음수 M_score → 0 (탈락)
+ * F_adj   = 0.5 + F_score/200         — F없으면 0.6 (약한 패널티), F<20 → 탈락
  *
- * 필터:
- *   E_score ≥ 20  (event_stats.signal_score × 0.3)
- *   sample_size ≥ 50
- *   volume_ratio ≥ 1.5  (거래량 1.5배 이상)
+ * 필터 순서:
+ *   ① sample_size ≥ 50
+ *   ② E_adj ≥ 20  (0.7 보정 후)
+ *   ③ volume_ratio ≥ 1.5
+ *   ④ M_score > 0  (시장 반응 확인)
+ *   ⑤ F_score ≥ 20 (데이터 있을 때만)
  *
- * 캐시: 15분 (장중 배치 주기와 일치)
+ * 라벨 (우선순위):
+ *   Breakout    E_adj≥22 + M_score≥1.5
+ *   Re-rating   E_adj≥22 + F_score≥65
+ *   Quality     F_score≥70
+ *   Momentum    M_score≥2.0
+ *   Event Driven 그 외
+ *
+ * 캐시: 15분 (s-maxage=900)
  */
 
 import { NextResponse } from 'next/server'
@@ -34,17 +44,13 @@ const EVENT_LABELS: Record<string, string> = {
   OTHER:            'Disclosure',
 }
 
-// 시총 버킷별 일일 변동성 시그마 (price_z 정규화용)
-// 한국 시장 평균: LARGE≈1.5%, MID≈2.5%, SMALL≈4.0%
 const CAP_SIGMA: Record<string, number> = {
   LARGE: 0.015,
   MID:   0.025,
   SMALL: 0.040,
 }
-
-// 시총 버킷 기준 (KRW) — companies.market_cap 분포 P33/P67
-const CAP_LARGE = 245_000_000_000  // 2,450억+
-const CAP_MID   =  65_000_000_000  // 650억+
+const CAP_LARGE = 245_000_000_000
+const CAP_MID   =  65_000_000_000
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────
 
@@ -59,9 +65,7 @@ function capBucket(marketCap: number | null): 'LARGE' | 'MID' | 'SMALL' {
   return 'SMALL'
 }
 
-/** 영업일 기준 D+N date 목록 (간단 근사: 주말 skip) */
 function tradingDaysAfter(baseDateStr: string, offset: number): string {
-  // baseDateStr: "YYYYMMDD"
   const y = parseInt(baseDateStr.slice(0, 4))
   const m = parseInt(baseDateStr.slice(4, 6)) - 1
   const d = parseInt(baseDateStr.slice(6, 8))
@@ -72,7 +76,25 @@ function tradingDaysAfter(baseDateStr: string, offset: number): string {
     const dow = dt.getDay()
     if (dow !== 0 && dow !== 6) added++
   }
-  return dt.toISOString().slice(0, 10)  // YYYY-MM-DD
+  return dt.toISOString().slice(0, 10)
+}
+
+type LabelType = 'BREAKOUT' | 'RE_RATING' | 'QUALITY' | 'MOMENTUM' | 'EVENT_DRIVEN'
+
+function computeLabel(e_adj: number, m_score: number, f_score: number | null): LabelType {
+  if (e_adj >= 22 && m_score >= 1.5)          return 'BREAKOUT'
+  if (e_adj >= 22 && (f_score ?? 0) >= 65)    return 'RE_RATING'
+  if ((f_score ?? 0) >= 70)                   return 'QUALITY'
+  if (m_score >= 2.0)                          return 'MOMENTUM'
+  return 'EVENT_DRIVEN'
+}
+
+const LABEL_TEXT: Record<LabelType, string> = {
+  BREAKOUT:     'Breakout',
+  RE_RATING:    'Re-rating',
+  QUALITY:      'Quality',
+  MOMENTUM:     'Momentum',
+  EVENT_DRIVEN: 'Event Driven',
 }
 
 // ── 메인 핸들러 ───────────────────────────────────────────────────────────────
@@ -82,7 +104,7 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createServiceClient() as any
 
-    // ── 1. event_stats — 이벤트 품질 필터 ────────────────────────────────────
+    // ── 1. event_stats ────────────────────────────────────────────────────────
     const { data: statsRows, error: e1 } = await sb
       .from('event_stats')
       .select('event_type, signal_score, signal_grade, sample_size_clean, median_5d_return')
@@ -106,7 +128,7 @@ export async function GET() {
       })
     }
 
-    // ── 2. 최근 공시 조회 (최근 3일, E_score 기준 유효 이벤트만) ─────────────
+    // ── 2. 최근 공시 (3일) ────────────────────────────────────────────────────
     const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: discRows, error: e2 } = await sb
@@ -129,7 +151,7 @@ export async function GET() {
       })
     }
 
-    // ── 3. 필요한 종목코드 + 날짜 목록 수집 ──────────────────────────────────
+    // ── 3. 1차 필터: sample_size ≥ 50, E_score ≥ 20 (보정 전 기준) ───────────
     type DiscRow = {
       id: string; corp_name: string; stock_code: string; event_type: string
       headline: string | null; signal_tag: string | null
@@ -137,20 +159,15 @@ export async function GET() {
       rcept_dt: string; created_at: string
     }
 
-    // 1차 필터: E_score + sample_size
-    const qualified: DiscRow[] = (discRows as DiscRow[]).filter(r => {
-      const et = (r.event_type ?? '').toUpperCase()
-      const meta = eventMap.get(et)
-      return meta && meta.sample_size >= 50 && meta.e_score >= 20
-    })
+    const qualify = (rows: DiscRow[], minSample: number, minE: number): DiscRow[] =>
+      rows.filter(r => {
+        const et = (r.event_type ?? '').toUpperCase()
+        const meta = eventMap.get(et)
+        return meta && meta.sample_size >= minSample && meta.e_score >= minE
+      })
 
-    // Fallback: 부족 시 완화
-    const pool = qualified.length >= 3 ? qualified
-      : (discRows as DiscRow[]).filter(r => {
-          const et = (r.event_type ?? '').toUpperCase()
-          const meta = eventMap.get(et)
-          return meta && meta.sample_size >= 30 && meta.e_score >= 15
-        })
+    const strict = qualify(discRows as DiscRow[], 50, 20)
+    const pool   = strict.length >= 3 ? strict : qualify(discRows as DiscRow[], 30, 15)
 
     if (!pool.length) {
       return NextResponse.json([], {
@@ -158,11 +175,10 @@ export async function GET() {
       })
     }
 
-    // ── 4. price_history 조회 (D+1 가격 + 최근 21일 거래량) ─────────────────
+    // ── 4. price_history ─────────────────────────────────────────────────────
     const stockCodes = [...new Set(pool.map(r => r.stock_code).filter(Boolean))]
 
-    // D+1 날짜 목록
-    const d1DateMap = new Map<string, string>()  // stock_code → D+1 YYYY-MM-DD
+    const d1DateMap = new Map<string, string>()
     for (const row of pool) {
       if (!d1DateMap.has(row.stock_code) && row.rcept_dt) {
         d1DateMap.set(row.stock_code, tradingDaysAfter(String(row.rcept_dt), 1))
@@ -181,17 +197,17 @@ export async function GET() {
 
     if (e3) throw e3
 
-    // 인덱스: stock_code → { date → { open, close, volume } }
     type PriceEntry = { open: number | null; close: number | null; volume: number | null }
     const priceIndex = new Map<string, Map<string, PriceEntry>>()
-    for (const p of (priceRows ?? []) as Array<{ stock_code: string; date: string; open: number | null; close: number | null; volume: number | null }>) {
+    for (const p of (priceRows ?? []) as Array<{
+      stock_code: string; date: string
+      open: number | null; close: number | null; volume: number | null
+    }>) {
       if (!priceIndex.has(p.stock_code)) priceIndex.set(p.stock_code, new Map())
-      priceIndex.get(p.stock_code)!.set(p.date, {
-        open: p.open, close: p.close, volume: p.volume,
-      })
+      priceIndex.get(p.stock_code)!.set(p.date, { open: p.open, close: p.close, volume: p.volume })
     }
 
-    // ── 5. 시총 조회 (cap_bucket 결정용) ─────────────────────────────────────
+    // ── 5. 시총 (cap_bucket) ──────────────────────────────────────────────────
     const { data: capRows } = await sb
       .from('companies')
       .select('stock_code, market_cap')
@@ -202,15 +218,32 @@ export async function GET() {
         .map(r => [r.stock_code, r.market_cap])
     )
 
-    // ── 6. M_score + Hot_score 계산 ──────────────────────────────────────────
+    // ── 6. financials (F_score) ───────────────────────────────────────────────
+    const { data: finRows } = await sb
+      .from('financials')
+      .select('stock_code, fiscal_year, f_score')
+      .in('stock_code', stockCodes)
+      .order('fiscal_year', { ascending: false })
+
+    const finMap = new Map<string, number | null>()
+    for (const f of (finRows ?? []) as Array<{
+      stock_code: string; fiscal_year: number; f_score: number | null
+    }>) {
+      if (!finMap.has(f.stock_code)) finMap.set(f.stock_code, f.f_score ?? null)
+    }
+
+    // ── 7. EMF 계산 ──────────────────────────────────────────────────────────
     type Result = {
       id: string; corp_name: string; stock_code: string
       event_type: string; event_label: string
-      e_score: number; signal_grade: string | null; median_return: number | null
+      label: string; label_type: LabelType
+      e_score: number; e_adj: number
+      signal_grade: string | null; median_return: number | null
       headline: string | null; signal_tag: string | null
       final_score: number | null; sentiment_score: number | null
       price_1d: number | null; volume_ratio: number | null
-      m_score: number; hot_score: number
+      m_score: number; f_score: number | null; f_adj: number
+      hot_score: number
     }
 
     const seen = new Set<string>()
@@ -219,24 +252,23 @@ export async function GET() {
     for (const row of pool) {
       if (seen.has(row.stock_code)) continue
 
-      const et = (row.event_type ?? '').toUpperCase()
+      const et   = (row.event_type ?? '').toUpperCase()
       const meta = eventMap.get(et)!
 
-      // price_history 데이터
+      // ── E_adj (① sample_size 보정 → ② 20 필터) ──────────────────────────
+      const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
+      if (e_adj < 20) continue
+
+      // ── M_score ──────────────────────────────────────────────────────────
       const stockPrices = priceIndex.get(row.stock_code)
       const d1Date = d1DateMap.get(row.stock_code)
-      const d1 = d1Date ? stockPrices?.get(d1Date) : null
+      const d1     = d1Date ? stockPrices?.get(d1Date) : null
 
-      // price_1d = D+1 close / D+1 open - 1
       let price_1d: number | null = null
       if (d1?.close != null && d1?.open != null && d1.open > 0) {
         price_1d = d1.close / d1.open - 1
-      } else if (d1?.close != null) {
-        // open 없으면 skip price signal (open 컬럼 아직 backfill 전)
-        price_1d = null
       }
 
-      // volume_ratio = today_volume / avg_20d_volume
       let volume_ratio: number | null = null
       if (stockPrices) {
         const recentVols = [...stockPrices.values()]
@@ -249,18 +281,36 @@ export async function GET() {
         }
       }
 
-      // 거래량 필터: volume_ratio >= 1.5
+      // ③ volume_ratio ≥ 1.5 필터
       if (volume_ratio !== null && volume_ratio < 1.5) continue
 
-      // M_score
-      const bucket = capBucket(capMap.get(row.stock_code) ?? null)
-      const sigma  = CAP_SIGMA[bucket]
-
+      const bucket   = capBucket(capMap.get(row.stock_code) ?? null)
+      const sigma    = CAP_SIGMA[bucket]
       const price_z  = price_1d !== null ? price_1d / sigma : 0
       const volume_z = volume_ratio !== null ? (volume_ratio - 1.0) / 0.5 : 0
-
       const m_score  = 0.6 * price_z + 0.4 * volume_z
-      const hot_score = Math.round(meta.e_score * sigmoid(m_score) * 10) / 10
+
+      // ④ M_score > 0 필터 (시장 반응 없으면 탈락)
+      if (m_score <= 0) continue
+      const m_sig = sigmoid(m_score)
+
+      // ── F_adj ────────────────────────────────────────────────────────────
+      const f_score_val = finMap.get(row.stock_code) ?? null
+      let f_adj: number
+
+      if (f_score_val === null) {
+        f_adj = 0.6  // fallback: 약한 패널티 (데이터 없음)
+      } else if (f_score_val < 20) {
+        continue     // ⑤ F_score < 20 탈락
+      } else {
+        f_adj = 0.5 + f_score_val / 200
+      }
+
+      // ── Hot_score ─────────────────────────────────────────────────────────
+      const hot_score = Math.round(e_adj * m_sig * f_adj * 10) / 10
+
+      // ── Label ─────────────────────────────────────────────────────────────
+      const label_type = computeLabel(e_adj, m_score, f_score_val)
 
       seen.add(row.stock_code)
       results.push({
@@ -269,24 +319,28 @@ export async function GET() {
         stock_code:     row.stock_code,
         event_type:     et,
         event_label:    EVENT_LABELS[et] ?? EVENT_LABELS.OTHER,
+        label:          LABEL_TEXT[label_type],
+        label_type,
         e_score:        meta.e_score,
+        e_adj:          Math.round(e_adj * 10) / 10,
         signal_grade:   meta.grade,
         median_return:  meta.median_return,
         headline:       row.headline ?? null,
         signal_tag:     row.signal_tag ?? null,
         final_score:    row.final_score ?? null,
         sentiment_score: row.sentiment_score ?? null,
-        price_1d:       price_1d !== null ? Math.round(price_1d * 10000) / 100 : null,  // %
+        price_1d:       price_1d !== null ? Math.round(price_1d * 10000) / 100 : null,
         volume_ratio:   volume_ratio !== null ? Math.round(volume_ratio * 10) / 10 : null,
         m_score:        Math.round(m_score * 100) / 100,
+        f_score:        f_score_val !== null ? Math.round(f_score_val) : null,
+        f_adj:          Math.round(f_adj * 100) / 100,
         hot_score,
       })
 
-      if (results.length >= 20) break  // 정렬 후 10개 컷
+      if (results.length >= 20) break
     }
 
-    // 정렬: hot_score DESC (m_score 데이터 없으면 e_score로 fallback)
-    results.sort((a, b) => b.hot_score - a.hot_score || b.e_score - a.e_score)
+    results.sort((a, b) => b.hot_score - a.hot_score || b.e_adj - a.e_adj)
 
     return NextResponse.json(results.slice(0, 10), {
       headers: { 'Cache-Control': 's-maxage=900, stale-while-revalidate=1800' },
