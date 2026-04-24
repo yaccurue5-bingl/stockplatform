@@ -3,7 +3,7 @@
  *
  * Hot_score = E_adj × sigmoid(max(0, M_score)) × F_adjustment
  *
- * 필터: sample_size≥50 → E_adj≥20 → vol_ratio≥1.5 → M_score>0 → F_score≥20(있을 때)
+ * 필터: sample_size≥50 → E_adj≥15 → vol_ratio≥1.5 → M_score>0 → F_score≥20(있을 때)
  * 라벨: Breakout / Re-rating / Quality / Momentum / Event Driven
  */
 
@@ -151,8 +151,8 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
         return meta && meta.sample_size >= ms && meta.e_score >= me
       })
 
-    const strict = qualify(discRows as DiscRow[], 50, 20)
-    const pool   = strict.length >= 3 ? strict : qualify(discRows as DiscRow[], 30, 15)
+    const strict = qualify(discRows as DiscRow[], 50, 15)
+    const pool   = strict.length >= 3 ? strict : qualify(discRows as DiscRow[], 30, 10)
     if (!pool.length) return []
 
     // 4. price_history
@@ -207,7 +207,7 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
 
       // E_adj
       const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
-      if (e_adj < 20) continue
+      if (e_adj < 15) continue
 
       // M_score
       const sp   = priceIndex.get(row.stock_code)

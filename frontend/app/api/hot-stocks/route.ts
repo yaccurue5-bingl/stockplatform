@@ -10,7 +10,7 @@
  *
  * 필터 순서:
  *   ① sample_size ≥ 50
- *   ② E_adj ≥ 20  (0.7 보정 후)
+ *   ② E_adj ≥ 15  (0.7 보정 후; signal_score max≈62 → ×0.3 구조상 20 불가)
  *   ③ volume_ratio ≥ 1.5
  *   ④ M_score > 0  (시장 반응 확인)
  *   ⑤ F_score ≥ 20 (데이터 있을 때만)
@@ -166,8 +166,8 @@ export async function GET() {
         return meta && meta.sample_size >= minSample && meta.e_score >= minE
       })
 
-    const strict = qualify(discRows as DiscRow[], 50, 20)
-    const pool   = strict.length >= 3 ? strict : qualify(discRows as DiscRow[], 30, 15)
+    const strict = qualify(discRows as DiscRow[], 50, 15)
+    const pool   = strict.length >= 3 ? strict : qualify(discRows as DiscRow[], 30, 10)
 
     if (!pool.length) {
       return NextResponse.json([], {
@@ -255,9 +255,9 @@ export async function GET() {
       const et   = (row.event_type ?? '').toUpperCase()
       const meta = eventMap.get(et)!
 
-      // ── E_adj (① sample_size 보정 → ② 20 필터) ──────────────────────────
+      // ── E_adj (① sample_size 보정 → ② 15 필터) ──────────────────────────
       const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
-      if (e_adj < 20) continue
+      if (e_adj < 15) continue
 
       // ── M_score ──────────────────────────────────────────────────────────
       const stockPrices = priceIndex.get(row.stock_code)

@@ -97,8 +97,8 @@ async function fetchItems(): Promise<WidgetItem[]> {
     const qualify = (rows: DiscRow[], ms: number, me: number): DiscRow[] =>
       rows.filter(r => { const et = (r.event_type ?? '').toUpperCase(); const m = eventMap.get(et); return m && m.sample_size >= ms && m.e_score >= me })
 
-    const strict = qualify(discRows as DiscRow[], 50, 20)
-    const pool   = strict.length >= 2 ? strict : qualify(discRows as DiscRow[], 30, 15)
+    const strict = qualify(discRows as DiscRow[], 50, 15)
+    const pool   = strict.length >= 2 ? strict : qualify(discRows as DiscRow[], 30, 10)
     if (!pool.length) return []
 
     const stockCodes = [...new Set(pool.map(r => r.stock_code).filter(Boolean))]
@@ -134,7 +134,7 @@ async function fetchItems(): Promise<WidgetItem[]> {
       if (seen.has(row.stock_code)) continue
 
       const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
-      if (e_adj < 20) continue
+      if (e_adj < 15) continue
 
       const sp = priceIndex.get(row.stock_code)
       const d1 = d1DateMap.get(row.stock_code) ? sp?.get(d1DateMap.get(row.stock_code)!) : null
