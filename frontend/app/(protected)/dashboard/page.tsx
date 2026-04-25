@@ -1,5 +1,6 @@
 import AppShell from '@/components/app/AppShell';
 import MarketRadar from '@/components/landing/MarketRadar';
+import HotStocksWidget from '@/components/dashboard/HotStocksWidget';
 import { Zap, TrendingUp, FileText, Bell, Clock } from 'lucide-react';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import Link from 'next/link';
@@ -66,13 +67,13 @@ export default async function DashboardPage() {
 
   const quota = PLAN_QUOTA[plan] ?? PLAN_QUOTA.free;
 
-  // quota 표시용 (실제 usage tracking 미구현 → 0 표시)
-  const usedCalls  = 0;
+  // quota 표시: 유료 플랜은 월 누적, 무료 플랜은 당일 사용량
+  const usedCalls  = quota.monthly ? usedMonth : usedToday;
   const limitLabel = quota.monthly
     ? `${quota.monthly.toLocaleString()} / month`
     : `${quota.dailyFree} / day`;
-  const limitNum   = quota.monthly ?? (quota.dailyFree! * 30);
-  const usedPct    = limitNum > 0 ? Math.round((usedCalls / limitNum) * 100) : 0;
+  const limitNum   = quota.monthly ?? quota.dailyFree!;
+  const usedPct    = limitNum > 0 ? Math.min(100, Math.round((usedCalls / limitNum) * 100)) : 0;
 
   // 현재 월 계산
   const now          = new Date();
@@ -107,8 +108,9 @@ export default async function DashboardPage() {
 
       {/* Middle row */}
       <div className="grid lg:grid-cols-3 gap-6 mb-8">
-        {/* Market Radar */}
-        <div className="lg:col-span-1">
+        {/* Hot Stocks + Market Radar */}
+        <div className="lg:col-span-1 flex flex-col gap-4">
+          <HotStocksWidget />
           <MarketRadar />
         </div>
 

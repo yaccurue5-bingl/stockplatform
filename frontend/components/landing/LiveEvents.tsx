@@ -8,14 +8,15 @@ import { generateTicker } from '@/lib/generateTicker';
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
 const EVENT_LABELS: Record<string, string> = {
-  EARNINGS: 'Earnings Release',
-  CONTRACT: 'Strategic Contract',
-  DILUTION: 'Capital Increase',
-  BUYBACK:  'Share Buyback',
-  MNA:      'M&A / Merger',
-  LEGAL:    'Legal / Regulatory',
-  CAPEX:    'Capital Investment',
-  OTHER:    'Disclosure',
+  EARNINGS:         'Earnings Release',
+  CONTRACT:         'Strategic Contract',
+  DILUTION:         'Capital Increase',
+  BUYBACK:          'Share Buyback',
+  MNA:              'M&A / Merger',
+  LEGAL:            'Legal / Regulatory',
+  CAPEX:            'Capital Investment',
+  EXECUTIVE_CHANGE: 'Executive Change',
+  OTHER:            'Disclosure',
 };
 
 const SENTIMENT_STYLE: Record<string, string> = {
