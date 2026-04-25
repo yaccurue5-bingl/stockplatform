@@ -10,7 +10,7 @@
  *
  * 필터 순서:
  *   ① sample_size ≥ 50
- *   ② E_adj ≥ 15  (0.7 보정 후; signal_score max≈62 → ×0.3 구조상 20 불가)
+ *   ② E_adj ≥ 20  (percentile×30 기준; 상위 ~28% 통과)
  *   ③ volume_ratio ≥ 1.5
  *   ④ M_score > 0  (시장 반응 확인)
  *   ⑤ F_score ≥ 20 (데이터 있을 때만)
@@ -56,6 +56,19 @@ const CAP_MID   =  65_000_000_000
 
 function sigmoid(x: number): number {
   return 1 / (1 + Math.exp(-x))
+}
+
+/**
+ * percentileRank — signal_score를 0~1 백분위로 변환
+ * E_score = percentileRank × 30  →  [0, 30]
+ * 이벤트 타입 수가 적어도 안정적으로 동작 (tie 처리: mid-rank)
+ */
+function percentileRank(score: number, sortedScores: number[]): number {
+  const n = sortedScores.length
+  if (n === 0) return 0.5
+  const below = sortedScores.filter(v => v < score).length
+  const equal = sortedScores.filter(v => v === score).length
+  return (below + 0.5 * equal) / n
 }
 
 function capBucket(marketCap: number | null): 'LARGE' | 'MID' | 'SMALL' {
@@ -117,9 +130,18 @@ export async function GET() {
       median_return: number | null
       sample_size: number
     }
+
+    // percentile 기반 E_score: signal_score를 이벤트 타입 간 상대 순위로 변환
+    // E_score = percentile(0~1) × 30 → [0, 30]
+    // threshold 20 시 상위 ~28% 통과 (현재 7개 타입: CONTRACT/DILUTION만 통과)
+    const allSignalScores = (statsRows ?? [])
+      .map((r: { signal_score: number | null }) => r.signal_score ?? 0)
+      .sort((a: number, b: number) => a - b)
+
     const eventMap = new Map<string, EventMeta>()
     for (const row of statsRows ?? []) {
-      const e_score = Math.round((row.signal_score ?? 0) * 0.3)
+      const pct     = percentileRank(row.signal_score ?? 0, allSignalScores)
+      const e_score = Math.round(pct * 30 * 10) / 10
       eventMap.set(row.event_type as string, {
         e_score,
         grade:         row.signal_grade ?? null,
@@ -166,7 +188,7 @@ export async function GET() {
         return meta && meta.sample_size >= minSample && meta.e_score >= minE
       })
 
-    const strict = qualify(discRows as DiscRow[], 50, 15)
+    const strict = qualify(discRows as DiscRow[], 50, 20)
     const pool   = strict.length >= 3 ? strict : qualify(discRows as DiscRow[], 30, 10)
 
     if (!pool.length) {
@@ -255,9 +277,9 @@ export async function GET() {
       const et   = (row.event_type ?? '').toUpperCase()
       const meta = eventMap.get(et)!
 
-      // ── E_adj (① sample_size 보정 → ② 15 필터) ──────────────────────────
+      // ── E_adj (① sample_size 보정 → ② 20 필터) ──────────────────────────
       const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
-      if (e_adj < 15) continue
+      if (e_adj < 20) continue
 
       // ── M_score ──────────────────────────────────────────────────────────
       const stockPrices = priceIndex.get(row.stock_code)

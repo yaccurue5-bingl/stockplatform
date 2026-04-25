@@ -37,6 +37,13 @@ const CAP_LARGE = 245_000_000_000
 const CAP_MID   =  65_000_000_000
 
 function sigmoid(x: number) { return 1 / (1 + Math.exp(-x)) }
+function percentileRank(score: number, sorted: number[]): number {
+  const n = sorted.length
+  if (n === 0) return 0.5
+  const below = sorted.filter(v => v < score).length
+  const equal = sorted.filter(v => v === score).length
+  return (below + 0.5 * equal) / n
+}
 function capBucket(mc: number | null): 'LARGE' | 'MID' | 'SMALL' {
   if (!mc || mc <= 0) return 'SMALL'
   if (mc >= CAP_LARGE) return 'LARGE'
@@ -74,10 +81,16 @@ async function fetchItems(): Promise<WidgetItem[]> {
       .select('event_type, signal_score, signal_grade, sample_size_clean, median_5d_return')
 
     type EventMeta = { e_score: number; grade: string | null; median_return: number | null; sample_size: number }
+
+    const allSignalScores = (statsRows ?? [])
+      .map((r: { signal_score: number | null }) => r.signal_score ?? 0)
+      .sort((a: number, b: number) => a - b)
+
     const eventMap = new Map<string, EventMeta>()
     for (const row of statsRows ?? []) {
+      const pct = percentileRank(row.signal_score ?? 0, allSignalScores)
       eventMap.set(row.event_type as string, {
-        e_score: Math.round((row.signal_score ?? 0) * 0.3),
+        e_score: Math.round(pct * 30 * 10) / 10,
         grade: row.signal_grade ?? null, median_return: row.median_5d_return ?? null,
         sample_size: row.sample_size_clean ?? 0,
       })
@@ -97,7 +110,7 @@ async function fetchItems(): Promise<WidgetItem[]> {
     const qualify = (rows: DiscRow[], ms: number, me: number): DiscRow[] =>
       rows.filter(r => { const et = (r.event_type ?? '').toUpperCase(); const m = eventMap.get(et); return m && m.sample_size >= ms && m.e_score >= me })
 
-    const strict = qualify(discRows as DiscRow[], 50, 15)
+    const strict = qualify(discRows as DiscRow[], 50, 20)
     const pool   = strict.length >= 2 ? strict : qualify(discRows as DiscRow[], 30, 10)
     if (!pool.length) return []
 
@@ -134,7 +147,7 @@ async function fetchItems(): Promise<WidgetItem[]> {
       if (seen.has(row.stock_code)) continue
 
       const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
-      if (e_adj < 15) continue
+      if (e_adj < 20) continue
 
       const sp = priceIndex.get(row.stock_code)
       const d1 = d1DateMap.get(row.stock_code) ? sp?.get(d1DateMap.get(row.stock_code)!) : null

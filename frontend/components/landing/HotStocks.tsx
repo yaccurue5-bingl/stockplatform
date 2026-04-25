@@ -3,7 +3,7 @@
  *
  * Hot_score = E_adj × sigmoid(max(0, M_score)) × F_adjustment
  *
- * 필터: sample_size≥50 → E_adj≥15 → vol_ratio≥1.5 → M_score>0 → F_score≥20(있을 때)
+ * 필터: sample_size≥50 → E_adj≥20 (percentile×30, 상위~28%) → vol_ratio≥1.5 → M_score>0 → F_score≥20
  * 라벨: Breakout / Re-rating / Quality / Momentum / Event Driven
  */
 
@@ -62,6 +62,14 @@ const CAP_MID   =  65_000_000_000
 
 function sigmoid(x: number): number { return 1 / (1 + Math.exp(-x)) }
 
+function percentileRank(score: number, sorted: number[]): number {
+  const n = sorted.length
+  if (n === 0) return 0.5
+  const below = sorted.filter(v => v < score).length
+  const equal = sorted.filter(v => v === score).length
+  return (below + 0.5 * equal) / n
+}
+
 function capBucket(mc: number | null): 'LARGE' | 'MID' | 'SMALL' {
   if (!mc || mc <= 0) return 'SMALL'
   if (mc >= CAP_LARGE) return 'LARGE'
@@ -113,10 +121,16 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
       .select('event_type, signal_score, signal_grade, sample_size_clean, median_5d_return')
 
     type EventMeta = { e_score: number; grade: string | null; median_return: number | null; sample_size: number }
+
+    const allSignalScores = (statsRows ?? [])
+      .map((r: { signal_score: number | null }) => r.signal_score ?? 0)
+      .sort((a: number, b: number) => a - b)
+
     const eventMap = new Map<string, EventMeta>()
     for (const row of statsRows ?? []) {
+      const pct = percentileRank(row.signal_score ?? 0, allSignalScores)
       eventMap.set(row.event_type as string, {
-        e_score:       Math.round((row.signal_score ?? 0) * 0.3),
+        e_score:       Math.round(pct * 30 * 10) / 10,
         grade:         row.signal_grade ?? null,
         median_return: row.median_5d_return ?? null,
         sample_size:   row.sample_size_clean ?? 0,
@@ -151,7 +165,7 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
         return meta && meta.sample_size >= ms && meta.e_score >= me
       })
 
-    const strict = qualify(discRows as DiscRow[], 50, 15)
+    const strict = qualify(discRows as DiscRow[], 50, 20)
     const pool   = strict.length >= 3 ? strict : qualify(discRows as DiscRow[], 30, 10)
     if (!pool.length) return []
 
@@ -207,7 +221,7 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
 
       // E_adj
       const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
-      if (e_adj < 15) continue
+      if (e_adj < 20) continue
 
       // M_score
       const sp   = priceIndex.get(row.stock_code)
