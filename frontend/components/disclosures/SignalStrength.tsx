@@ -20,15 +20,15 @@ export default function SignalStrength({ sentimentScore, importance }: SignalStr
     100,
   );
 
-  // 레이블
+  // 레이블 — buy/sell/hold 금지, 방향 신호만 표기
   const label =
     strengthPct >= 70
-      ? direction === 'BULLISH' ? 'Strong Buy'
-      : direction === 'BEARISH' ? 'Strong Sell'
+      ? direction === 'BULLISH' ? 'Strong Bullish'
+      : direction === 'BEARISH' ? 'Strong Bearish'
       : 'Neutral'
     : strengthPct >= 40
-      ? direction === 'BULLISH' ? 'Buy'
-      : direction === 'BEARISH' ? 'Sell'
+      ? direction === 'BULLISH' ? 'Bullish'
+      : direction === 'BEARISH' ? 'Bearish'
       : 'Neutral'
     : 'Neutral';
 

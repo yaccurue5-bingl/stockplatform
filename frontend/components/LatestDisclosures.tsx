@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { generateTicker } from '@/lib/generateTicker';
 
 interface Disclosure {
@@ -19,118 +19,107 @@ interface Disclosure {
 }
 
 export default function LatestDisclosures() {
-  const router = useRouter();
   const [disclosures, setDisclosures] = useState<Disclosure[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
-    fetchDisclosures();
+    fetch('/api/disclosures/latest')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Disclosure[]) => setDisclosures(data.slice(0, 4)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
-
-  const fetchDisclosures = async () => {
-    try {
-      const response = await fetch('/api/disclosures/latest');
-      if (response.ok) {
-        const data = await response.json();
-        setDisclosures(data.slice(0, 4));
-      }
-    } catch (error) {
-      console.error('Failed to fetch disclosures:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getImpactColor = (importance: string) => {
-    switch (importance) {
-      case 'HIGH':   return 'bg-red-900/30 text-red-400';
-      case 'MEDIUM': return 'bg-orange-900/30 text-orange-400';
-      default:       return 'bg-blue-900/30 text-blue-400';
-    }
-  };
-
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment?.toUpperCase()) {
-      case 'POSITIVE': return 'bg-green-900/30 text-green-400';
-      case 'NEGATIVE': return 'bg-red-900/30 text-red-400';
-      default:         return 'bg-gray-800 text-gray-400';
-    }
-  };
 
   const getTimeAgo = (date: string) => {
     if (!date) return '';
-    const diff = Date.now() - new Date(date).getTime();
+    const diff  = Date.now() - new Date(date).getTime();
     const mins  = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days  = Math.floor(diff / 86400000);
-    if (mins  < 60)  return `${mins}m ago`;
-    if (hours < 24)  return `${hours}h ago`;
+    if (mins  < 60) return `${mins}m ago`;
+    if (hours < 24) return `${hours}h ago`;
     return `${days}d ago`;
   };
 
-  const handleCardClick = (disclosure: Disclosure) => {
-    router.push(`/disclosures?stock=${disclosure.stock_code}`);
-  };
-
-  if (loading) return <div className="p-4 text-white">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="flex flex-col space-y-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="bg-gray-900 border border-gray-800 rounded-xl p-5 animate-pulse h-32" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col space-y-4">
-      {disclosures.map((disclosure) => {
-        const isCritical = disclosure.report_name?.includes('30%') || disclosure.importance === 'HIGH';
+      {disclosures.map((d) => {
+        const isHigh   = d.importance === 'HIGH';
+        const sentUp   = d.sentiment?.toUpperCase() === 'POSITIVE';
+        const sentDown = d.sentiment?.toUpperCase() === 'NEGATIVE';
+
+        const sentimentStyle = sentUp
+          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+          : sentDown
+          ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+          : 'bg-gray-800 text-gray-400 border border-gray-700';
+
+        const impactStyle = isHigh
+          ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+          : 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
 
         return (
-          <div
-            key={disclosure.id}
-            onClick={() => handleCardClick(disclosure)}
-            className={`bg-slate-900 border rounded-2xl p-6 transition-all cursor-pointer
-              ${isCritical ? 'border-orange-500/50 shadow-lg' : 'border-slate-800 hover:border-blue-500'}`}
+          <Link
+            key={d.id}
+            href={`/disclosures/${d.id}`}
+            className={`block bg-gray-900 border rounded-xl p-5 transition-all hover:bg-gray-800/60
+              ${isHigh ? 'border-orange-500/40 shadow-lg shadow-orange-500/5' : 'border-gray-800 hover:border-gray-600'}`}
           >
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xs tracking-tight ${isCritical ? 'bg-orange-600' : 'bg-blue-700'} text-white`}>
-                  {generateTicker(disclosure.corp_name_en)}
+            {/* 상단: 회사 정보 + 시간/임팩트 */}
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs tracking-tight text-white flex-shrink-0
+                  ${isHigh ? 'bg-orange-600' : 'bg-blue-600'}`}>
+                  {generateTicker(d.corp_name_en)}
                 </div>
-                <div>
-                  <h4 className="font-bold text-white text-lg">
-                    {disclosure.corp_name_en || disclosure.corp_name}
-                  </h4>
-                  {disclosure.corp_name_en && (
-                    <p className="text-xs text-slate-400">{disclosure.corp_name}</p>
+                <div className="min-w-0">
+                  <p className="font-semibold text-white text-sm truncate">
+                    {d.corp_name_en || d.corp_name}
+                  </p>
+                  {d.corp_name_en && (
+                    <p className="text-xs text-gray-500 truncate">{d.corp_name}</p>
                   )}
-                  <p className="text-xs text-slate-500">{disclosure.stock_code} • {disclosure.market}</p>
+                  <p className="text-xs text-gray-600">{d.stock_code} · {d.market}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-xs text-gray-500 mb-1">{getTimeAgo(disclosure.analyzed_at)}</div>
-                <span className={`inline-block text-[10px] px-2.5 py-1 rounded-md font-black uppercase ${getImpactColor(disclosure.importance || 'MEDIUM')}`}>
-                  {disclosure.importance || 'MEDIUM'} IMPACT
+              <div className="text-right shrink-0">
+                <p className="text-xs text-gray-600 mb-1">{getTimeAgo(d.analyzed_at)}</p>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase ${impactStyle}`}>
+                  {d.importance || 'MEDIUM'}
                 </span>
               </div>
             </div>
 
-            <h5 className={`font-bold text-slate-100 mb-2 ${isCritical ? 'text-lg' : 'text-base'}`}>
-              {disclosure.report_name}
-            </h5>
-
-            <p className="text-sm text-slate-400 line-clamp-2 mb-4">
-              {disclosure.summary}
+            {/* 공시명 */}
+            <p className="text-sm font-medium text-gray-200 mb-1.5 line-clamp-1">
+              {d.report_name}
             </p>
 
-            <div className="flex justify-between items-center pt-4 border-t border-slate-800/50">
-              <div className="flex gap-2">
-                <span className={`text-xs px-3 py-1 rounded-full ${getSentimentColor(disclosure.sentiment)}`}>
-                  {disclosure.sentiment || 'NEUTRAL'}
-                </span>
-                <span className="bg-gray-800 text-gray-300 text-xs px-3 py-1 rounded-full">
-                  {disclosure.sentiment_score === 0 ? 'NEUTRAL' : `Score: ${disclosure.sentiment_score.toFixed(2)}`}
-                </span>
-              </div>
-              <span className="text-blue-500 text-sm font-medium">
+            {/* 요약 */}
+            <p className="text-xs text-gray-500 line-clamp-2 mb-3">
+              {d.summary}
+            </p>
+
+            {/* 하단: 감성 + CTA */}
+            <div className="flex items-center justify-between pt-3 border-t border-gray-800/60">
+              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase ${sentimentStyle}`}>
+                {d.sentiment || 'NEUTRAL'}
+              </span>
+              <span className="text-[#00D4A6] text-xs font-medium">
                 View Analysis →
               </span>
             </div>
-          </div>
+          </Link>
         );
       })}
     </div>

@@ -73,28 +73,21 @@ function DisclosuresContent() {
   const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
 
   // ── 접근 제어: super admin 또는 유료 plan 유저만 허용 ──
+  // getSession() 대신 onAuthStateChange(INITIAL_SESSION) 사용
+  // → 뒤로가기 후 재마운트 시 getSession()이 순간적으로 null 반환해 로그아웃되는 버그 방지
   useEffect(() => {
     const supabase = getSupabase();
     const redirectTo = encodeURIComponent('/disclosures');
 
-    const checkAccess = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session?.user) {
-        router.replace(`/login?redirectTo=${redirectTo}`);
-        return;
-      }
-
-      const email = session.user.email ?? '';
+    const checkPlan = async (userId: string, email: string) => {
       if (isSuperAdmin(email)) {
         setAccessAllowed(true);
         return;
       }
-
       const { data } = await supabase
         .from('users')
         .select('plan, subscription_status')
-        .eq('id', session.user.id)
+        .eq('id', userId)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
       const isPaid =
@@ -104,19 +97,21 @@ function DisclosuresContent() {
         router.replace('/pricing');
         return;
       }
-
       setAccessAllowed(true);
     };
 
-    checkAccess();
-
-    // 세션 만료 시 즉시 로그인 페이지로
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-        if (event === 'SIGNED_OUT') {
-          setAccessAllowed(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') {
+        // 세션이 스토리지에서 완전히 로드된 후 한 번만 실행
+        if (!session?.user) {
           router.replace(`/login?redirectTo=${redirectTo}`);
+          return;
         }
+        void checkPlan(session.user.id, session.user.email ?? '');
+      }
+      if (event === 'SIGNED_OUT') {
+        setAccessAllowed(false);
+        router.replace(`/login?redirectTo=${redirectTo}`);
       }
     });
 
