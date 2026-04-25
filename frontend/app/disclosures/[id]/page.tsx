@@ -13,6 +13,8 @@ import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
+import SignalStrength from '@/components/disclosures/SignalStrength';
+import ShortPressure from '@/components/disclosures/ShortPressure';
 import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
@@ -208,11 +210,16 @@ export default async function DisclosureDetailPage({
     } catch { return null; }
   })();
 
+  // importance 파생: sentiment_score 절댓값 기준
+  const importance =
+    Math.abs(score) >= 0.6 ? 'HIGH' :
+    Math.abs(score) >= 0.3 ? 'MEDIUM' : 'LOW';
+
   return (
     <main className="min-h-screen bg-[#0D1117] text-white">
       {/* 상단 네비 */}
       <div className="border-b border-gray-800 px-4 py-3">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <Link
             href="/disclosures"
             className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
@@ -223,9 +230,9 @@ export default async function DisclosureDetailPage({
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-10 space-y-8">
-        {/* 헤더 */}
-        <div className="space-y-4">
+      <div className="max-w-5xl mx-auto px-4 py-10">
+        {/* ── 헤더 (풀 너비) ── */}
+        <div className="space-y-4 mb-8">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold uppercase tracking-widest text-[#00D4A6]">
               {eventLabel}
@@ -254,102 +261,122 @@ export default async function DisclosureDetailPage({
           </div>
         </div>
 
-        {/* Financial Impact (항상 공개) */}
-        {disclosure.financial_impact && (
-          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-            <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-2">
-              Financial Impact
-            </p>
-            <p className="text-sm text-gray-300 leading-relaxed">{disclosure.financial_impact}</p>
+        {/* ── 2컬럼 그리드 ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* ── 좌: 메인 컨텐츠 ── */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Financial Impact (항상 공개) */}
+            {disclosure.financial_impact && (
+              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-2">
+                  Financial Impact
+                </p>
+                <p className="text-sm text-gray-300 leading-relaxed">{disclosure.financial_impact}</p>
+              </div>
+            )}
+
+            {/* Financial Ratios YoY */}
+            <FinancialRatios
+              stockCode={disclosure.stock_code ?? ''}
+              eventType={disclosure.event_type ?? null}
+            />
+
+            {/* Sector Context */}
+            {sectorContext && <SectorContextCard data={sectorContext} />}
+
+            {/* ── 로그인 유저: 전체 공개 ── */}
+            {isLoggedIn ? (
+              <>
+                {disclosure.ai_summary && (
+                  <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">AI Summary</p>
+                    <p className="text-sm text-gray-300 leading-relaxed">{disclosure.ai_summary}</p>
+                  </div>
+                )}
+
+                {keyNums && Object.keys(keyNums).length > 0 && (
+                  <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">Key Numbers</p>
+                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {Object.entries(keyNums).map(([k, v]) => (
+                        <div key={k} className="bg-gray-800/50 rounded-lg px-4 py-3">
+                          <dt className="text-xs text-gray-500 mb-1">{k}</dt>
+                          <dd className="text-sm font-semibold text-white">{String(v)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )}
+
+                {disclosure.risk_factors && (
+                  <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">Risk Factors</p>
+                    <p className="text-sm text-gray-300 leading-relaxed">{disclosure.risk_factors}</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* ── 비로그인: 블러 + CTA ── */
+              <>
+                <BlurredSection title="AI Summary" />
+                <BlurredSection title="Key Numbers" />
+                <BlurredSection title="Risk Factors" />
+
+                <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
+                  <p className="text-lg font-bold">Get full AI analysis</p>
+                  <p className="text-sm text-gray-400">
+                    Access AI summaries, key financial figures, and risk assessments for every DART disclosure.
+                  </p>
+                  <div className="flex items-center justify-center gap-3 flex-wrap">
+                    <Link
+                      href={`/login?redirectTo=${encodeURIComponent(
+                        disclosure.stock_code
+                          ? `/disclosures?stock=${disclosure.stock_code}&disclosure=${id}`
+                          : '/disclosures'
+                      )}`}
+                      className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
+                    >
+                      Sign in
+                    </Link>
+                    <Link
+                      href="/signup"
+                      className="px-6 py-2.5 rounded-full border border-gray-700 text-sm font-medium hover:border-gray-500 transition"
+                    >
+                      Create account
+                    </Link>
+                  </div>
+                </div>
+
+                <p className="text-center text-xs text-gray-600">
+                  Already have access?{' '}
+                  <Link href="/disclosures" className="text-[#00D4A6] hover:underline">
+                    View all disclosures →
+                  </Link>
+                </p>
+              </>
+            )}
+
+            {/* Data Source Attribution */}
+            <DataSourceNote
+              source="DART"
+              reportName={disclosure.report_nm_en ?? disclosure.report_nm}
+            />
           </div>
-        )}
 
-        {/* Financial Ratios YoY (EARNINGS 타입 + 데이터 있을 때만 표시) */}
-        <FinancialRatios
-          stockCode={disclosure.stock_code ?? ''}
-          eventType={disclosure.event_type ?? null}
-        />
+          {/* ── 우: 사이드바 ── */}
+          <div className="space-y-5">
+            {/* Signal Strength */}
+            <SignalStrength
+              sentimentScore={disclosure.sentiment_score ?? 0}
+              importance={importance}
+            />
 
-        {/* ── Sector Context ── */}
-        {sectorContext && <SectorContextCard data={sectorContext} />}
-
-        {/* ── 로그인 유저: 전체 공개 ── */}
-        {isLoggedIn ? (
-          <>
-            {disclosure.ai_summary && (
-              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">AI Summary</p>
-                <p className="text-sm text-gray-300 leading-relaxed">{disclosure.ai_summary}</p>
-              </div>
+            {/* Short Pressure */}
+            {disclosure.stock_code && (
+              <ShortPressure stockCode={disclosure.stock_code} />
             )}
-
-            {keyNums && Object.keys(keyNums).length > 0 && (
-              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">Key Numbers</p>
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.entries(keyNums).map(([k, v]) => (
-                    <div key={k} className="bg-gray-800/50 rounded-lg px-4 py-3">
-                      <dt className="text-xs text-gray-500 mb-1">{k}</dt>
-                      <dd className="text-sm font-semibold text-white">{String(v)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-            )}
-
-            {disclosure.risk_factors && (
-              <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">Risk Factors</p>
-                <p className="text-sm text-gray-300 leading-relaxed">{disclosure.risk_factors}</p>
-              </div>
-            )}
-          </>
-        ) : (
-          /* ── 비로그인: 블러 + CTA ── */
-          <>
-            <BlurredSection title="AI Summary" />
-            <BlurredSection title="Key Numbers" />
-            <BlurredSection title="Risk Factors" />
-
-            <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
-              <p className="text-lg font-bold">Get full AI analysis</p>
-              <p className="text-sm text-gray-400">
-                Access AI summaries, key financial figures, and risk assessments for every DART disclosure.
-              </p>
-              <div className="flex items-center justify-center gap-3 flex-wrap">
-                <Link
-                  href={`/login?redirectTo=${encodeURIComponent(
-                    disclosure.stock_code
-                      ? `/disclosures?stock=${disclosure.stock_code}&disclosure=${id}`
-                      : '/disclosures'
-                  )}`}
-                  className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  href="/signup"
-                  className="px-6 py-2.5 rounded-full border border-gray-700 text-sm font-medium hover:border-gray-500 transition"
-                >
-                  Create account
-                </Link>
-              </div>
-            </div>
-
-            <p className="text-center text-xs text-gray-600">
-              Already have access?{' '}
-              <Link href="/disclosures" className="text-[#00D4A6] hover:underline">
-                View all disclosures →
-              </Link>
-            </p>
-          </>
-        )}
-
-        {/* Data Source Attribution */}
-        <DataSourceNote
-          source="DART"
-          reportName={disclosure.report_nm_en ?? disclosure.report_nm}
-        />
+          </div>
+        </div>
       </div>
     </main>
   );
