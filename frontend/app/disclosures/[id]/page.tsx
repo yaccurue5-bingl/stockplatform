@@ -199,12 +199,28 @@ export default async function DisclosureDetailPage({
     ? `${disclosure.rcept_dt.slice(0, 4)}-${disclosure.rcept_dt.slice(4, 6)}-${disclosure.rcept_dt.slice(6, 8)}`
     : '';
 
-  // key_numbers JSON 파싱
+  // key_numbers JSON 파싱 — array or object
   const keyNums = (() => {
     try {
       const raw = disclosure.key_numbers;
       if (!raw) return null;
       const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (Array.isArray(parsed)) {
+        // Array format: ["• Label: Value", ...] — extract label/value by splitting on first ':'
+        const obj: Record<string, string> = {};
+        parsed.forEach((item: unknown, i: number) => {
+          const str = String(item).replace(/^[•\-–]\s*/, '');
+          const colonIdx = str.indexOf(':');
+          if (colonIdx > 0) {
+            const k = str.slice(0, colonIdx).trim();
+            const v = str.slice(colonIdx + 1).trim();
+            obj[k] = v;
+          } else {
+            obj[`Item ${i + 1}`] = str;
+          }
+        });
+        return Object.keys(obj).length > 0 ? obj : null;
+      }
       if (typeof parsed === 'object' && parsed !== null) return parsed as Record<string, string>;
       return null;
     } catch { return null; }

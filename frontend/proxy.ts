@@ -53,9 +53,14 @@ export default async function proxy(req: NextRequest) {
     }
   );
 
+  // ⚠️ Must use getUser() not getSession() — getUser() validates the JWT
+  // with the Supabase auth server and refreshes the token if needed.
+  // getSession() only reads from cookies without server-side validation.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const session = user ? { user } : null;
 
   const { pathname } = req.nextUrl;
 
