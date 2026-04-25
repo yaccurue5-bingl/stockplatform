@@ -1,27 +1,28 @@
 /**
- * GET /api/hot-stocks
- * ===================
- * Hot_score = E_adj × sigmoid(max(0, M_score)) × F_adjustment
+ * GET /api/hot-stocks — v1.1
+ * ==========================
+ * Hot_score = E_score × M_score × F_adj
  *
- * E_adj   = E_score × (sample_size < 100 ? 0.7 : 1.0)
- * M_score = 0.6 × price_z + 0.4 × volume_z
- * M_sig   = sigmoid(max(0, M_score))  — 음수 M_score → 0 (탈락)
- * F_adj   = 0.5 + F_score/200         — F없으면 0.6 (약한 패널티), F<20 → 탈락
+ * E_score = percentileRank(signal_score) × 30         — 상위 ~28% ≥ 20
+ * M_score = 1 + 0.5 × tanh(z(foreign_net_buy_kospi))  — market-wide [0.5, 1.5], smooth
+ *   z = (today_flow − mean_20d) / std_20d
+ * F_adj   = 0.6×vol_pct + 0.4×fin_pct                 — [0, 1] per-stock
+ *   vol_pct = cross-sectional percentile(volume_ratio, pool)
+ *   fin_pct = f_score/100  (null → 0.5 fallback)
  *
- * 필터 순서:
- *   ① sample_size ≥ 50
- *   ② E_adj ≥ 20  (percentile×30 기준; 상위 ~28% 통과)
- *   ③ volume_ratio ≥ 1.5
- *   ④ M_score > 0  (시장 반응 확인)
- *   ⑤ F_score ≥ 20 (데이터 있을 때만)
+ * 필터:
+ *   ① E_adj ≥ 20  (sample_size 보정 후)
+ *   ② volume_ratio ≥ 1.5
+ *   ③ Hot_score ≥ 15  (최종 노이즈 제거)
  *
- * 라벨 (우선순위):
- *   Breakout    E_adj≥22 + M_score≥1.5
- *   Re-rating   E_adj≥22 + F_score≥65
- *   Quality     F_score≥70
- *   Momentum    M_score≥2.0
+ * 라벨:
+ *   Breakout    E_adj≥22 + M_score≥1.4
+ *   Re-rating   E_adj≥22 + f_score≥65
+ *   Quality     f_score≥70
+ *   Momentum    M_score≥1.3
  *   Event Driven 그 외
  *
+ * Hot_score 티어: Strong≥30 / Watch≥20 / Weak≥15
  * 캐시: 15분 (s-maxage=900)
  */
 
@@ -44,19 +45,7 @@ const EVENT_LABELS: Record<string, string> = {
   OTHER:            'Disclosure',
 }
 
-const CAP_SIGMA: Record<string, number> = {
-  LARGE: 0.015,
-  MID:   0.025,
-  SMALL: 0.040,
-}
-const CAP_LARGE = 245_000_000_000
-const CAP_MID   =  65_000_000_000
-
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────
-
-function sigmoid(x: number): number {
-  return 1 / (1 + Math.exp(-x))
-}
 
 /**
  * percentileRank — signal_score를 0~1 백분위로 변환
@@ -69,13 +58,6 @@ function percentileRank(score: number, sortedScores: number[]): number {
   const below = sortedScores.filter(v => v < score).length
   const equal = sortedScores.filter(v => v === score).length
   return (below + 0.5 * equal) / n
-}
-
-function capBucket(marketCap: number | null): 'LARGE' | 'MID' | 'SMALL' {
-  if (!marketCap || marketCap <= 0) return 'SMALL'
-  if (marketCap >= CAP_LARGE) return 'LARGE'
-  if (marketCap >= CAP_MID)   return 'MID'
-  return 'SMALL'
 }
 
 function tradingDaysAfter(baseDateStr: string, offset: number): string {
@@ -94,12 +76,20 @@ function tradingDaysAfter(baseDateStr: string, offset: number): string {
 
 type LabelType = 'BREAKOUT' | 'RE_RATING' | 'QUALITY' | 'MOMENTUM' | 'EVENT_DRIVEN'
 
+// M_score는 이제 clip [0.5, 1.5] 범위
 function computeLabel(e_adj: number, m_score: number, f_score: number | null): LabelType {
-  if (e_adj >= 22 && m_score >= 1.5)          return 'BREAKOUT'
-  if (e_adj >= 22 && (f_score ?? 0) >= 65)    return 'RE_RATING'
-  if ((f_score ?? 0) >= 70)                   return 'QUALITY'
-  if (m_score >= 2.0)                          return 'MOMENTUM'
+  if (e_adj >= 22 && m_score >= 1.4)        return 'BREAKOUT'   // strong momentum confirm
+  if (e_adj >= 22 && (f_score ?? 0) >= 65) return 'RE_RATING'
+  if ((f_score ?? 0) >= 70)                return 'QUALITY'
+  if (m_score >= 1.3)                       return 'MOMENTUM'   // above neutral
   return 'EVENT_DRIVEN'
+}
+
+type HotTier = 'STRONG' | 'WATCH' | 'WEAK'
+function hotTier(score: number): HotTier {
+  if (score >= 30) return 'STRONG'
+  if (score >= 20) return 'WATCH'
+  return 'WEAK'
 }
 
 const LABEL_TEXT: Record<LabelType, string> = {
@@ -229,18 +219,7 @@ export async function GET() {
       priceIndex.get(p.stock_code)!.set(p.date, { open: p.open, close: p.close, volume: p.volume })
     }
 
-    // ── 5. 시총 (cap_bucket) ──────────────────────────────────────────────────
-    const { data: capRows } = await sb
-      .from('companies')
-      .select('stock_code, market_cap')
-      .in('stock_code', stockCodes)
-
-    const capMap = new Map<string, number | null>(
-      ((capRows ?? []) as Array<{ stock_code: string; market_cap: number | null }>)
-        .map(r => [r.stock_code, r.market_cap])
-    )
-
-    // ── 6. financials (F_score) ───────────────────────────────────────────────
+    // ── 5. financials (f_score) ──────────────────────────────────────────────
     const { data: finRows } = await sb
       .from('financials')
       .select('stock_code, fiscal_year, f_score')
@@ -254,11 +233,85 @@ export async function GET() {
       if (!finMap.has(f.stock_code)) finMap.set(f.stock_code, f.f_score ?? null)
     }
 
-    // ── 7. EMF 계산 ──────────────────────────────────────────────────────────
+    // ── 7. 시장 외국인 수급 → M_score (market-wide, tanh) ────────────────────
+    const { data: flowRows } = await sb
+      .from('daily_indicators')
+      .select('date, foreign_net_buy_kospi')
+      .order('date', { ascending: false })
+      .limit(25)
+
+    const flowVals  = (flowRows ?? [])
+      .map((r: { foreign_net_buy_kospi: number | null }) => r.foreign_net_buy_kospi ?? 0)
+    const todayFlow = flowVals[0] ?? 0
+    const flowMean  = flowVals.length > 0
+      ? flowVals.reduce((s: number, v: number) => s + v, 0) / flowVals.length
+      : 0
+    const flowStd   = flowVals.length > 1
+      ? Math.sqrt(flowVals.reduce((s: number, v: number) => s + (v - flowMean) ** 2, 0) / flowVals.length)
+      : 1
+    const z_flow    = flowStd > 0 ? (todayFlow - flowMean) / flowStd : 0
+    // M_score: 하락장→0.5~0.8, 중립→1.0, 상승장→1.2~1.5 (tanh, 극단값도 부드럽게)
+    const m_score   = 1 + 0.5 * Math.tanh(z_flow)
+
+    // ── 8. 후보 수집 (Pass 1) — E/volume 필터 ────────────────────────────────
+    type CandidateState = {
+      row: DiscRow; e_adj: number; price_1d: number | null
+      volume_ratio: number | null; f_score_val: number | null
+    }
+
+    const seen       = new Set<string>()
+    const candidates: CandidateState[] = []
+
+    for (const row of pool) {
+      if (seen.has(row.stock_code)) continue
+
+      const et   = (row.event_type ?? '').toUpperCase()
+      const meta = eventMap.get(et)
+      if (!meta) continue
+
+      // ① E_adj ≥ 20
+      const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
+      if (e_adj < 20) continue
+
+      // price_1d, volume_ratio
+      const stockPrices = priceIndex.get(row.stock_code)
+      const d1Date = d1DateMap.get(row.stock_code)
+      const d1     = d1Date ? stockPrices?.get(d1Date) : null
+
+      let price_1d: number | null = null
+      if (d1?.close != null && d1?.open != null && d1.open > 0)
+        price_1d = d1.close / d1.open - 1
+
+      let volume_ratio: number | null = null
+      if (stockPrices) {
+        const recentVols = [...stockPrices.values()]
+          .map(p => p.volume).filter((v): v is number => v !== null).slice(0, 20)
+        if (recentVols.length >= 5 && d1?.volume != null) {
+          const avg20 = recentVols.reduce((s, v) => s + v, 0) / recentVols.length
+          volume_ratio = avg20 > 0 ? d1.volume / avg20 : null
+        }
+      }
+
+      // ② volume_ratio ≥ 1.5
+      if (volume_ratio !== null && volume_ratio < 1.5) continue
+
+      seen.add(row.stock_code)
+      candidates.push({
+        row, e_adj, price_1d, volume_ratio,
+        f_score_val: finMap.get(row.stock_code) ?? null,
+      })
+    }
+
+    // ── 9. cross-sectional volume percentile (Pass 2) ────────────────────────
+    const sortedVolRatios = candidates
+      .map(c => c.volume_ratio ?? 0)
+      .sort((a, b) => a - b)
+
+    // ── 10. Hot_score 계산 (Pass 3) ──────────────────────────────────────────
     type Result = {
       id: string; corp_name: string; stock_code: string
       event_type: string; event_label: string
-      label: string; label_type: LabelType
+      label: string; label_type: LabelType; hot_tier: HotTier
       e_score: number; e_adj: number
       signal_grade: string | null; median_return: number | null
       headline: string | null; signal_tag: string | null
@@ -268,73 +321,26 @@ export async function GET() {
       hot_score: number
     }
 
-    const seen = new Set<string>()
     const results: Result[] = []
 
-    for (const row of pool) {
-      if (seen.has(row.stock_code)) continue
-
+    for (const c of candidates) {
+      const { row, e_adj, price_1d, volume_ratio, f_score_val } = c
       const et   = (row.event_type ?? '').toUpperCase()
       const meta = eventMap.get(et)!
 
-      // ── E_adj (① sample_size 보정 → ② 20 필터) ──────────────────────────
-      const e_adj = meta.e_score * (meta.sample_size < 100 ? 0.7 : 1.0)
-      if (e_adj < 20) continue
+      // F_adj = 0.6×vol_pct + 0.4×fin_pct  (M_score는 market-wide로 분리)
+      const vol_pct = percentileRank(volume_ratio ?? 0, sortedVolRatios)
+      const fin_pct = f_score_val !== null ? f_score_val / 100 : 0.5
+      const f_adj   = 0.6 * vol_pct + 0.4 * fin_pct
 
-      // ── M_score ──────────────────────────────────────────────────────────
-      const stockPrices = priceIndex.get(row.stock_code)
-      const d1Date = d1DateMap.get(row.stock_code)
-      const d1     = d1Date ? stockPrices?.get(d1Date) : null
+      // Hot_score = E × M × F
+      const hot_score = Math.round(e_adj * m_score * f_adj * 10) / 10
 
-      let price_1d: number | null = null
-      if (d1?.close != null && d1?.open != null && d1.open > 0) {
-        price_1d = d1.close / d1.open - 1
-      }
+      // ③ Hot_score ≥ 15
+      if (hot_score < 15) continue
 
-      let volume_ratio: number | null = null
-      if (stockPrices) {
-        const recentVols = [...stockPrices.values()]
-          .map(p => p.volume)
-          .filter((v): v is number => v !== null)
-          .slice(0, 20)
-        if (recentVols.length >= 5 && d1?.volume != null) {
-          const avg20 = recentVols.reduce((s, v) => s + v, 0) / recentVols.length
-          volume_ratio = avg20 > 0 ? d1.volume / avg20 : null
-        }
-      }
-
-      // ③ volume_ratio ≥ 1.5 필터
-      if (volume_ratio !== null && volume_ratio < 1.5) continue
-
-      const bucket   = capBucket(capMap.get(row.stock_code) ?? null)
-      const sigma    = CAP_SIGMA[bucket]
-      const price_z  = price_1d !== null ? price_1d / sigma : 0
-      const volume_z = volume_ratio !== null ? (volume_ratio - 1.0) / 0.5 : 0
-      const m_score  = 0.6 * price_z + 0.4 * volume_z
-
-      // ④ M_score > 0 필터 (시장 반응 없으면 탈락)
-      if (m_score <= 0) continue
-      const m_sig = sigmoid(m_score)
-
-      // ── F_adj ────────────────────────────────────────────────────────────
-      const f_score_val = finMap.get(row.stock_code) ?? null
-      let f_adj: number
-
-      if (f_score_val === null) {
-        f_adj = 0.6  // fallback: 약한 패널티 (데이터 없음)
-      } else if (f_score_val < 20) {
-        continue     // ⑤ F_score < 20 탈락
-      } else {
-        f_adj = 0.5 + f_score_val / 200
-      }
-
-      // ── Hot_score ─────────────────────────────────────────────────────────
-      const hot_score = Math.round(e_adj * m_sig * f_adj * 10) / 10
-
-      // ── Label ─────────────────────────────────────────────────────────────
       const label_type = computeLabel(e_adj, m_score, f_score_val)
 
-      seen.add(row.stock_code)
       results.push({
         id:             row.id,
         corp_name:      row.corp_name,
@@ -343,6 +349,7 @@ export async function GET() {
         event_label:    EVENT_LABELS[et] ?? EVENT_LABELS.OTHER,
         label:          LABEL_TEXT[label_type],
         label_type,
+        hot_tier:       hotTier(hot_score),
         e_score:        meta.e_score,
         e_adj:          Math.round(e_adj * 10) / 10,
         signal_grade:   meta.grade,
