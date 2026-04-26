@@ -117,6 +117,7 @@ export default async function proxy(req: NextRequest) {
     '/privacy',
     '/refund-policy',
     '/sitemap.xml',
+    '/sitemap/',          // paginated sub-sitemaps: /sitemap/0.xml, /sitemap/1.xml, …
     '/robots.txt',
   ];
 
