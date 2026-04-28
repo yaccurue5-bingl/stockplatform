@@ -22,23 +22,6 @@ export default function Footer() {
                   support@k-marketinsight.com
                 </a>
               </div>
-              <div>
-                <div className="text-gray-400 mb-1">Billing & Refunds</div>
-                <div className="text-gray-300 text-sm mb-1">
-                  For payment-related issues or refund requests, please visit:
-                </div>
-                <a
-                  href="https://www.paddle.com/help"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 transition inline-flex items-center gap-1"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  Paddle Help Center
-                </a>
-              </div>
             </div>
           </div>
 
@@ -54,9 +37,6 @@ export default function Footer() {
               </Link>
               <Link href="/refund-policy" className="text-gray-400 hover:text-white transition">
                 Refund Policy
-              </Link>
-              <Link href="/pricing" className="text-gray-400 hover:text-white transition">
-                Pricing
               </Link>
             </div>
           </div>

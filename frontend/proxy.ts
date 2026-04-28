@@ -7,7 +7,7 @@
  * 3. Cron Job 보안 (Authorization 헤더 검증)
  * 4. Public 경로 → 통과
  * 5. Protected 경로 → 세션 없으면 /login 리다이렉트
- * 6. /stock/* → Pro 플랜 체크
+ *    (로그인 사용자는 모든 콘텐츠 접근 가능)
  *
  * ⚠️  www → non-www 리다이렉트는 미들웨어에서 하지 않는다.
  *     이유: Vercel 도메인 설정의 Primary domain 방향과 충돌 시
@@ -142,30 +142,6 @@ export default async function proxy(req: NextRequest) {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('redirectTo', pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  // ── 7) Pro 플랜 체크 (/stock/*) ─────────────────────────────────────────
-  if (pathname.startsWith('/stock/')) {
-    const { data: subRaw, error: subError } = await supabase
-      .from('subscriptions')
-      .select('plan_type, status')
-      .eq('user_id', session.user.id)
-      .maybeSingle();
-
-    if (subError) {
-      console.error('[MIDDLEWARE] Subscription check error:', subError);
-    }
-
-    const subscription = subRaw as unknown as { plan_type: string; status: string } | null;
-    const isPremium =
-      subscription?.plan_type === 'premium' &&
-      subscription?.status === 'active';
-
-    if (!isPremium) {
-      const dashboardUrl = new URL('/dashboard', req.url);
-      dashboardUrl.searchParams.set('upgrade', 'true');
-      return NextResponse.redirect(dashboardUrl);
-    }
   }
 
   return supabaseResponse;

@@ -6,7 +6,6 @@ import LiveEvents from '@/components/landing/LiveEvents';
 import DataProducts from '@/components/landing/DataProducts';
 import HowItWorks from '@/components/landing/HowItWorks';
 import UseCases from '@/components/landing/UseCases';
-import Pricing from '@/components/landing/Pricing';
 import FinalCTA from '@/components/landing/FinalCTA';
 import Footer from '@/components/landing/Footer';
 
@@ -23,7 +22,6 @@ export default function LandingPage() {
       <DataProducts />
       <HowItWorks />
       <UseCases />
-      <Pricing />
       <FinalCTA />
       <Footer />
     </div>
