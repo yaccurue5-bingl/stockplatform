@@ -18,10 +18,8 @@
 import { createBrowserClient } from '@supabase/ssr';
 import type { Database } from '@/types/database';
 
-// __InternalSupabase 키를 제거한 순수 DB 타입 (createBrowserClient 제네릭용)
-type CleanDatabase = Omit<Database, '__InternalSupabase'>;
-
 // 브라우저용 Supabase 클라이언트 생성 함수
+// createBrowserClient에는 Database를 직접 전달 — 라이브러리 내부에서 __InternalSupabase를 처리함
 export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -32,7 +30,7 @@ export function createClient() {
     );
   }
 
-  return createBrowserClient<CleanDatabase>(supabaseUrl, supabaseAnonKey, {
+  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: true,
       persistSession: true,

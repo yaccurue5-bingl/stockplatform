@@ -7,8 +7,8 @@ import ContactModal from '@/components/ContactModal';
 const cols: { title: string; links: string[]; hrefs: (string | null)[] }[] = [
   {
     title: 'Product',
-    links: ['Datasets', 'API Docs', 'Pricing'],
-    hrefs: ['#datasets', '#api-docs', '#pricing'],
+    links: ['Datasets', 'API Docs', 'API Access'],
+    hrefs: ['/datasets', '/api-docs', '/api-access'],
   },
   {
     title: 'Company',
