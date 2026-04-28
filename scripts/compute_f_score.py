@@ -39,6 +39,16 @@ from statistics import median
 
 from supabase import create_client, Client
 
+# .env.local 로드 (compute_base_score.py 패턴과 동일)
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+try:
+    from utils.env_loader import load_env
+    load_env()
+except Exception:
+    pass
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
