@@ -340,9 +340,10 @@ def get_clean_content(rcept_no, max_retries=2):
 
 def _fetch_dart_page(dart_key: str, bgnde: str, endde: str, page_no: int) -> dict:
     """DART list API 단일 페이지 호출."""
+    # DART API 파라미터: bgn_de / end_de (언더스코어 필수 — bgnde/endde는 무시됨)
     api_url = (
         f"https://opendart.fss.or.kr/api/list.json"
-        f"?crtfc_key={dart_key}&bgnde={bgnde}&endde={endde}"
+        f"?crtfc_key={dart_key}&bgn_de={bgnde}&end_de={endde}"
         f"&page_count=100&page_no={page_no}"
     )
     res = session.get(api_url, timeout=30)
@@ -396,33 +397,39 @@ def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
     saved_codes: set[str] = set()
 
     for item in items:
-        rcept_no   = item.get("rcept_no")
-        corp_code  = item.get("corp_code", "").strip()
+        rcept_no      = item.get("rcept_no")
+        corp_code     = item.get("corp_code", "").strip()
+        report_nm     = item.get("report_nm", "")
+        corp_name_val = item.get("corp_name", "")
+        stock_code_val = item.get("stock_code", "").strip()
 
-        if not corp_code or is_disclosure_processed(corp_code, rcept_no):
+        # ── 1차: 인메모리 필터 (공짜) — DB/API 호출 전에 먼저 걸러냄 ─────────
+        if not corp_code:
             continue
 
-        report_nm    = item.get("report_nm", "")
-        corp_name_val = item.get("corp_name", "")
+        # 비상장 법인 스킵 (가장 많이 걸림 — 먼저)
+        if not stock_code_val:
+            logger.info(f"skip unlisted: {corp_name_val}")
+            continue
 
         # 노이즈 공시 스킵
         if is_noise_disclosure(report_nm):
             logger.info(f"skip noise: {report_nm}")
             continue
+
+        # 노이즈 법인 스킵 (스팩/펀드 등)
         if is_noise_corp(corp_name_val):
             logger.info(f"skip corp: {corp_name_val}")
             continue
 
-        # 비상장 법인 스킵
-        stock_code_val = item.get("stock_code", "").strip()
-        if not stock_code_val:
-            logger.info(f"skip unlisted: {corp_name_val}")
+        # ── 2차: DB 중복 체크 (인메모리 필터 통과한 항목만) ─────────────────
+        if is_disclosure_processed(corp_code, rcept_no):
             continue
 
-        # 본문 수집
+        # ── 3차: DART ZIP 다운로드 (가장 비쌈 — 마지막에) ────────────────────
         content = get_clean_content(rcept_no)
 
-        # 임원 변동 2차 필터
+        # 임원 변동 2차 필터 (content 필요)
         if is_executive_noise(report_nm, content):
             logger.info(f"skip exec noise: {report_nm} / {corp_name_val}")
             continue
