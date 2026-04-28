@@ -1,10 +1,13 @@
 import asyncio
+import argparse
 import os
+import sys
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
+from pathlib import Path
 from supabase import create_client, Client
 import urllib3
 import logging
@@ -13,6 +16,16 @@ import re
 import zipfile
 import io
 import xml.etree.ElementTree as ET
+
+# ── env 로드 (backfill 실행 시 .env.local 자동 인식) ──────────────────────────
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+try:
+    from utils.env_loader import load_env
+    load_env()
+except Exception:
+    pass
 
 # SSL 경고 비활성화
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -325,94 +338,249 @@ def get_clean_content(rcept_no, max_retries=2):
 
     return "CONTENT_NOT_AVAILABLE"
 
-def run_crawler():
-    today = datetime.now().strftime('%Y%m%d')
+def _fetch_dart_page(dart_key: str, bgnde: str, endde: str, page_no: int) -> dict:
+    """DART list API 단일 페이지 호출."""
+    # DART API 파라미터: bgn_de / end_de (언더스코어 필수 — bgnde/endde는 무시됨)
+    api_url = (
+        f"https://opendart.fss.or.kr/api/list.json"
+        f"?crtfc_key={dart_key}&bgn_de={bgnde}&end_de={endde}"
+        f"&page_count=100&page_no={page_no}"
+    )
+    res = session.get(api_url, timeout=30)
+    return res.json()
+
+
+def _fetch_all_dart_items(dart_key: str, bgnde: str, endde: str) -> list[dict]:
+    """
+    DART list API 전체 페이지 순회.
+    page_count=100 기준으로 total_count 초과까지 반복.
+    """
+    all_items: list[dict] = []
+    page_no = 1
+
+    while True:
+        try:
+            data = _fetch_dart_page(dart_key, bgnde, endde, page_no)
+        except Exception as e:
+            logger.error(f"DART API 호출 실패 (page {page_no}): {e}")
+            break
+
+        status = data.get("status")
+        if status == "013":  # 조회 결과 없음
+            break
+        if status != "000":
+            logger.warning(f"DART API 오류 [{bgnde}~{endde} p{page_no}]: {status} {data.get('message', '')}")
+            break
+
+        items = data.get("list", [])
+        if not items:
+            break
+
+        all_items.extend(items)
+
+        total_count = int(data.get("total_count", 0))
+        if len(all_items) >= total_count:
+            break
+
+        page_no += 1
+        time.sleep(0.5)   # DART API 부하 방지
+
+    return all_items
+
+
+def _batch_fetch_existing(rcept_nos: list[str]) -> set[str]:
+    """
+    disclosure_insights 에서 이미 저장된 rcept_no를 배치 조회.
+    단 1회 Supabase 호출로 수백 건 중복 체크 → per-item DB 호출 제거.
+    """
+    existing: set[str] = set()
+    for i in range(0, len(rcept_nos), 500):
+        chunk = rcept_nos[i:i+500]
+        try:
+            res = supabase.table("disclosure_insights") \
+                .select("rcept_no") \
+                .in_("rcept_no", chunk) \
+                .execute()
+            for r in (res.data or []):
+                existing.add(r["rcept_no"])
+        except Exception as e:
+            logger.warning(f"배치 중복 체크 실패 (무시): {e}")
+    return existing
+
+
+def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
+    """
+    공시 목록 → 필터링 → 본문 수집 → DB 저장.
+    반환: (저장 건수, 저장된 stock_code 집합)
+    """
+    count = 0
+    saved_codes: set[str] = set()
+
+    # ── 1차: 인메모리 필터 (공짜) ─────────────────────────────────────────────
+    candidates = []
+    for item in items:
+        rcept_no       = item.get("rcept_no")
+        corp_code      = item.get("corp_code", "").strip()
+        report_nm      = item.get("report_nm", "")
+        corp_name_val  = item.get("corp_name", "")
+        stock_code_val = item.get("stock_code", "").strip()
+
+        if not corp_code:
+            continue
+        if not stock_code_val:
+            logger.info(f"skip unlisted: {corp_name_val}")
+            continue
+        if is_noise_disclosure(report_nm):
+            logger.info(f"skip noise: {report_nm}")
+            continue
+        if is_noise_corp(corp_name_val):
+            logger.info(f"skip corp: {corp_name_val}")
+            continue
+
+        candidates.append(item)
+
+    logger.info(f"  [{date_label}] 인메모리 필터 후: {len(candidates)}/{len(items)}건")
+
+    if not candidates:
+        return 0, set()
+
+    # ── 2차: 배치 중복 체크 — Supabase 1회 호출 ────────────────────────────────
+    candidate_rcept_nos = [i.get("rcept_no") for i in candidates]
+    existing = _batch_fetch_existing(candidate_rcept_nos)
+    new_candidates = [i for i in candidates if i.get("rcept_no") not in existing]
+    logger.info(f"  [{date_label}] 신규 처리 대상: {len(new_candidates)}건 (기존 {len(existing)}건 skip)")
+
+    # ── 3차: DART ZIP 다운로드 + DB 저장 ─────────────────────────────────────
+    for item in new_candidates:
+        rcept_no       = item.get("rcept_no")
+        corp_code      = item.get("corp_code", "").strip()
+        report_nm      = item.get("report_nm", "")
+        corp_name_val  = item.get("corp_name", "")
+        stock_code_val = item.get("stock_code", "").strip()
+
+        content = get_clean_content(rcept_no)
+
+        # 임원 변동 2차 필터 (content 필요)
+        if is_executive_noise(report_nm, content):
+            logger.info(f"skip exec noise: {report_nm} / {corp_name_val}")
+            continue
+
+        payload = {
+            "is_visible":      True,
+            "rcept_no":        rcept_no,
+            "corp_code":       corp_code,
+            "corp_name":       item.get("corp_name"),
+            "stock_code":      stock_code_val,
+            "rcept_dt":        item.get("rcept_dt"),
+            "report_nm":       item.get("report_nm"),
+            "content":         content,
+            "analysis_status": "pending",
+            "created_at":      datetime.now().isoformat(),
+        }
+
+        try:
+            supabase.table("disclosure_insights").upsert(payload, on_conflict="rcept_no").execute()
+            count += 1
+            saved_codes.add(stock_code_val)
+            logger.info(f"[{date_label}][{count}] {corp_name_val} saved")
+
+            # disclosure_hashes 에도 기록 — 다음 실행 시 is_disclosure_processed() 활용
+            try:
+                hash_key = generate_hash_key(corp_code, rcept_no)
+                expires = (datetime.now() + timedelta(days=730)).isoformat()
+                supabase.table("disclosure_hashes").upsert(
+                    {
+                        "hash_key":   hash_key,
+                        "corp_code":  corp_code,
+                        "rcept_no":   rcept_no,
+                        "corp_name":  corp_name_val,
+                        "report_name": report_nm,
+                        "expires_at": expires,
+                        "created_at": datetime.now().isoformat(),
+                    },
+                    on_conflict="hash_key",
+                ).execute()
+            except Exception:
+                pass  # 해시 저장 실패는 무시 (disclosure_insights 저장이 우선)
+
+        except Exception as e:
+            logger.error(f"DB 저장 실패: {e}")
+
+    return count, saved_codes
+
+
+def run_crawler(start_date: str | None = None, end_date: str | None = None):
+    """
+    DART 공시 수집.
+
+    start_date / end_date : YYYYMMDD 문자열.
+      - 둘 다 None  → 오늘 하루만 수집 (기존 동작)
+      - 범위 지정   → start ~ end 를 하루씩 루프 (backfill 용)
+
+    날짜별 루프를 쓰는 이유:
+      DART list API의 bgnde~endde 범위가 넓을수록 누락이 발생할 수 있어
+      안전하게 하루 단위로 순회한다.
+    """
     dart_key = os.environ.get("DART_API_KEY")
-    api_url = f"https://opendart.fss.or.kr/api/list.json?crtfc_key={dart_key}&bgnde={today}&endde={today}&page_count=100"
-
-    logger.info(f"📡 DART 데이터 수집 시작: {today}")
-
-    # ... (데이터 호출부 생략) ...
-    try:
-        res = session.get(api_url, timeout=30)
-        data = res.json()
-    except Exception as e:
-        logger.error(f"❌ DART API 호출 실패: {e}")
+    if not dart_key:
+        logger.error("DART_API_KEY 환경변수 누락")
         return
 
-    if data.get("status") == "000":
-        count = 0
-        saved_codes: set[str] = set()  # 저장 성공한 종목코드 수집
+    # 날짜 범위 결정
+    if start_date and end_date:
+        d_start = datetime.strptime(start_date, "%Y%m%d").date()
+        d_end   = datetime.strptime(end_date,   "%Y%m%d").date()
+    else:
+        today   = datetime.now().date()
+        d_start = today
+        d_end   = today
 
-        for item in data.get("list", []):
-            # ... (중복 체크 및 데이터 정리 생략) ...
-            rcept_no = item.get("rcept_no")
-            corp_code = item.get("corp_code", "").strip()
+    # 순회할 영업일 목록 (주말 제외 — 공휴일은 API가 빈 결과로 자연 처리)
+    days: list[date_type] = []
+    d = d_start
+    while d <= d_end:
+        if d.weekday() < 5:
+            days.append(d)
+        d += timedelta(days=1)
 
-            if not corp_code or is_disclosure_processed(corp_code, rcept_no):
-                continue
+    logger.info(f"DART 수집 시작: {d_start} ~ {d_end} ({len(days)}일)")
 
-            # 노이즈 공시 스킵 (투자 시그널 가치 낮음 — Groq 토큰 낭비 방지)
-            report_nm = item.get("report_nm", "")
-            corp_name_val = item.get("corp_name", "")
-            if is_noise_disclosure(report_nm):
-                logger.info(f"⏭ 노이즈 공시 스킵: {report_nm}")
-                continue
-            if is_noise_corp(corp_name_val):
-                logger.info(f"⏭ 노이즈 종목 스킵: {corp_name_val}")
-                continue
+    total_saved  = 0
+    all_saved_codes: set[str] = set()
 
-            # 비상장 법인 스킵 (stock_code 없음 = 시장 데이터 연결 불가)
-            stock_code_val = item.get("stock_code", "").strip()
-            if not stock_code_val:
-                logger.info(f"⏭ 비상장 법인 스킵 (stock_code 없음): {corp_name_val}")
-                continue
+    for idx, day in enumerate(days, 1):
+        ds = day.strftime("%Y%m%d")
+        logger.info(f"[{idx}/{len(days)}] {ds} 수집 중...")
 
-            # 정제된 본문 추출 함수 호출 (내부에서 sleep + 재시도 처리)
-            content = get_clean_content(rcept_no)
+        items = _fetch_all_dart_items(dart_key, ds, ds)
+        if not items:
+            logger.info(f"  {ds} 데이터 없음 (공휴일 또는 무공시)")
+            continue
 
-            # 임원 변동 2차 필터: CEO/C-Level 신호 없으면 스킵 (사외이사/감사만 → 노이즈)
-            if is_executive_noise(report_nm, content):
-                logger.info(f"⏭ 임원변동 노이즈 스킵 (CEO/C-Level 없음): {report_nm} / {corp_name_val}")
-                continue
+        logger.info(f"  {ds} API 응답: {len(items)}건")
+        saved, codes = _process_items(items, ds)
+        total_saved += saved
+        all_saved_codes |= codes
+        logger.info(f"  {ds} 저장: {saved}건")
 
-            payload = {
-                "is_visible": True,
-                "rcept_no": rcept_no,
-                "corp_code": corp_code,
-                "corp_name": item.get("corp_name"),
-                "stock_code": item.get("stock_code", "").strip(),
-                "rcept_dt": item.get("rcept_dt"),
-                "report_nm": item.get("report_nm"),
-                "content": content, # 정제된 텍스트 또는 마킹값
-                "analysis_status": "pending",
-                "created_at": datetime.now().isoformat()
+        time.sleep(1.0)  # 날짜 간 DART API 부하 방지
 
-            }
+    logger.info(f"[DONE] 총 저장: {total_saved}건 / 종목: {len(all_saved_codes)}개")
 
-            try:
-                supabase.table("disclosure_insights").upsert(payload, on_conflict="rcept_no").execute()
-                # (해시 기록 로직 생략)
-                count += 1
-                stock_code = item.get("stock_code", "").strip()
-                if stock_code:
-                    saved_codes.add(stock_code)
-                logger.info(f"✅ [{count}] {item.get('corp_name')} 저장 완료")
-            except Exception as e:
-                logger.error(f"❌ DB 저장 실패: {e}")
+    # 캐시 무효화 (신규 공시 저장된 경우)
+    if all_saved_codes:
+        try:
+            from backend.core.cache import cache_delete_pattern
+            deleted = asyncio.run(cache_delete_pattern("v1:disclosures:*"))
+            logger.info(f"[cache] 무효화: v1:disclosures:* ({deleted}개 삭제)")
+        except Exception as e:
+            logger.warning(f"[cache] 무효화 실패 (무시): {e}")
 
-        # 캐시 무효화 — 신규 공시가 저장된 경우 공시 목록 캐시 삭제
-        # (pending 상태라 API에 바로 노출되진 않지만, signal:{stock_code} 대비 및 upsert 케이스 처리)
-        if saved_codes:
-            try:
-                from pathlib import Path
-                import sys as _sys
-                _sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-                from backend.core.cache import cache_delete_pattern
-                deleted = asyncio.run(cache_delete_pattern("v1:disclosures:*"))
-                logger.info(f"[cache] 무효화 완료: v1:disclosures:* ({deleted}개 삭제, 종목 {len(saved_codes)}개)")
-            except Exception as e:
-                logger.warning(f"[cache] 무효화 실패 (무시): {e}")
 
 if __name__ == "__main__":
-    run_crawler()
+    parser = argparse.ArgumentParser(description="DART 공시 수집")
+    parser.add_argument("--start", help="시작일 YYYYMMDD (기본: 오늘)")
+    parser.add_argument("--end",   help="종료일 YYYYMMDD (기본: 오늘)")
+    args = parser.parse_args()
+
+    run_crawler(start_date=args.start, end_date=args.end)

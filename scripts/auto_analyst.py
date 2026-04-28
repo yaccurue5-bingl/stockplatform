@@ -252,6 +252,14 @@ SENTIMENT SCORE GUIDE (sentiment_score):
 - Specify litigation/penalty amounts and impact on capital.
 - Assess possibility of loss provisions and reputation risk.
 """,
+            "CAPEX": """
+- Specify total investment amount and timeline.
+- State whether this is capacity expansion (증설), new facility (공장 신설), or line addition (라인 증설).
+- Positive signals (투자 확대, 증설, capacity increase): assess demand growth potential and return on investment.
+- Negative signals (투자 연기, 축소, 취소): flag as bearish — indicates demand weakness or cash constraint.
+- Calculate investment as % of recent annual revenue or total assets if available.
+- Note funding source: internal cash vs external financing.
+""",
             "EXECUTIVE_CHANGE": """
 Classify EACH executive mentioned along three axes and compute a composite signal:
 
@@ -299,6 +307,11 @@ In ai_summary:
             matched.append("EARNINGS")
         if "임원의변동" in t or "대표이사의변동" in t:
             matched.append("EXECUTIVE_CHANGE")
+        if any(kw in title for kw in [
+            "시설투자", "설비투자", "CAPEX", "투자 결정", "신규 투자",
+            "증설", "공장 신설", "라인 증설",
+        ]):
+            matched.append("CAPEX")
 
         return matched if matched else ["OTHER"]
 

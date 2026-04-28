@@ -331,6 +331,82 @@ def fetch_unscored(sb, recompute: bool) -> list[dict]:
     return all_rows
 
 
+def load_m_scores(sb) -> dict[str, float]:
+    """
+    daily_indicators 에서 M_score 날짜별 맵 생성.
+    M_score = 1 + 0.5 * tanh(z_flow)
+    z_flow  = (foreign_net_buy_kospi - mean_25d) / std_25d
+    반환: {date_str(YYYY-MM-DD): m_score}
+    """
+    import math
+    resp = (
+        sb.table("daily_indicators")
+        .select("date, foreign_net_buy_kospi")
+        .not_.is_("foreign_net_buy_kospi", "null")
+        .order("date")
+        .execute()
+    )
+    rows_di = resp.data or []
+    result: dict[str, float] = {}
+    window_size = 25
+
+    for idx, r in enumerate(rows_di):
+        date_str = str(r["date"])[:10]
+        flow = float(r["foreign_net_buy_kospi"])
+        # 이전 최대 25개 사용
+        hist = [
+            float(rows_di[j]["foreign_net_buy_kospi"])
+            for j in range(max(0, idx - window_size), idx)
+            if rows_di[j].get("foreign_net_buy_kospi") is not None
+        ]
+        if len(hist) < 2:
+            result[date_str] = 1.0  # 데이터 부족 → 중립
+            continue
+        mean_h = sum(hist) / len(hist)
+        var_h  = sum((x - mean_h) ** 2 for x in hist) / len(hist)
+        std_h  = var_h ** 0.5
+        if std_h == 0:
+            result[date_str] = 1.0
+        else:
+            z = (flow - mean_h) / std_h
+            result[date_str] = round(1.0 + 0.5 * math.tanh(z), 4)
+
+    return result
+
+
+def load_f_scores(sb) -> dict[str, dict[int, float]]:
+    """
+    financials 에서 stock_code → {fiscal_year: f_score} 맵 로드.
+    반환: {stock_code: {fiscal_year(int): f_score}}
+    """
+    resp = (
+        sb.table("financials")
+        .select("stock_code, fiscal_year, f_score")
+        .not_.is_("f_score", "null")
+        .execute()
+    )
+    result: dict[str, dict[int, float]] = {}
+    for r in (resp.data or []):
+        code = r.get("stock_code")
+        fy   = r.get("fiscal_year")
+        fs   = r.get("f_score")
+        if code and fy is not None and fs is not None:
+            result.setdefault(code, {})[int(fy)] = float(fs)
+    return result
+
+
+def get_f_score_for_event(f_score_map: dict[str, dict[int, float]],
+                           stock_code: str, event_year: int) -> float | None:
+    """event_year 이하 최신 fiscal_year 의 f_score 반환."""
+    stock_fs = f_score_map.get(stock_code)
+    if not stock_fs:
+        return None
+    valid = {fy: fs for fy, fs in stock_fs.items() if fy <= event_year}
+    if not valid:
+        return None
+    return valid[max(valid)]
+
+
 def fetch_lps_for_disclosures(sb, rows: list[dict]) -> dict[tuple[str, str], float | None]:
     """
     각 공시의 (stock_code, rcept_dt) 에 해당하는 LPS 조회.
@@ -478,6 +554,12 @@ def main():
     cap_map = load_market_caps(sb)
     print(f"  → 시총 매핑: {len(cap_map)}개 종목")
 
+    m_score_map = load_m_scores(sb)
+    print(f"  → M_score 날짜 맵: {len(m_score_map)}일치 로드")
+
+    f_score_map = load_f_scores(sb)
+    print(f"  → F_score 종목 맵: {len(f_score_map)}개 종목 로드")
+
     # 2. 미계산 공시 조회
     print("\n  [2/5] 미계산 공시 조회 중...")
     rows = fetch_unscored(sb, args.recompute)
@@ -541,6 +623,10 @@ def main():
             "signal_tag":     tag,
         })
 
+        event_year = datetime.strptime(rdt, "%Y%m%d").year if len(rdt) == 8 else None
+        m_val = m_score_map.get(iso_date)          # None if no daily_indicators for that date
+        f_val = get_f_score_for_event(f_score_map, code, event_year) if event_year else None
+
         log_rows.append({
             "stock_code":    code,
             "date":          iso_date,
@@ -550,6 +636,8 @@ def main():
             "lps":           lps,
             "final_score":   fs,
             "signal_tag":    tag,
+            "m_score":       m_val,
+            "f_score":       f_val,
         })
 
     # 통계

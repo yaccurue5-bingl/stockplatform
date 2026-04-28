@@ -616,6 +616,7 @@ export type Database = {
           avg_z_5d_mid: number | null
           avg_z_5d_small: number | null
           event_type: string
+          hit_ratio: number | null
           median_20d_return: number | null
           median_5d_open_return: number | null
           median_5d_return: number | null
@@ -641,6 +642,7 @@ export type Database = {
           avg_z_5d_mid?: number | null
           avg_z_5d_small?: number | null
           event_type: string
+          hit_ratio?: number | null
           median_20d_return?: number | null
           median_5d_open_return?: number | null
           median_5d_return?: number | null
@@ -666,6 +668,7 @@ export type Database = {
           avg_z_5d_mid?: number | null
           avg_z_5d_small?: number | null
           event_type?: string
+          hit_ratio?: number | null
           median_20d_return?: number | null
           median_5d_open_return?: number | null
           median_5d_return?: number | null
@@ -686,35 +689,62 @@ export type Database = {
       financials: {
         Row: {
           created_at: string | null
+          debt_ratio: number | null
+          f_score: number | null
           fiscal_year: number
           id: number
           is_financial_sector: boolean | null
           net_profit: number | null
+          op_margin: number | null
           op_profit: number | null
+          op_profit_yoy: number | null
+          rev_yoy: number | null
           revenue: number | null
+          roe: number | null
           stock_code: string
+          total_assets: number | null
+          total_equity: number | null
+          total_liabilities: number | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          debt_ratio?: number | null
+          f_score?: number | null
           fiscal_year: number
           id?: number
           is_financial_sector?: boolean | null
           net_profit?: number | null
+          op_margin?: number | null
           op_profit?: number | null
+          op_profit_yoy?: number | null
+          rev_yoy?: number | null
           revenue?: number | null
+          roe?: number | null
           stock_code: string
+          total_assets?: number | null
+          total_equity?: number | null
+          total_liabilities?: number | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          debt_ratio?: number | null
+          f_score?: number | null
           fiscal_year?: number
           id?: number
           is_financial_sector?: boolean | null
           net_profit?: number | null
+          op_margin?: number | null
           op_profit?: number | null
+          op_profit_yoy?: number | null
+          rev_yoy?: number | null
           revenue?: number | null
+          roe?: number | null
           stock_code?: string
+          total_assets?: number | null
+          total_equity?: number | null
+          total_liabilities?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1116,6 +1146,7 @@ export type Database = {
           stock_code: string
           updated_at: string
           volume: number | null
+          volume_z: number | null
         }
         Insert: {
           close?: number | null
@@ -1124,6 +1155,7 @@ export type Database = {
           stock_code: string
           updated_at?: string
           volume?: number | null
+          volume_z?: number | null
         }
         Update: {
           close?: number | null
@@ -1132,6 +1164,7 @@ export type Database = {
           stock_code?: string
           updated_at?: string
           volume?: number | null
+          volume_z?: number | null
         }
         Relationships: []
       }
@@ -1170,6 +1203,7 @@ export type Database = {
           created_at: string | null
           date: string
           disclosure_id: string | null
+          f_score: number | null
           final_score: number | null
           future_return_20d: number | null
           future_return_3d: number | null
@@ -1177,8 +1211,10 @@ export type Database = {
           future_return_5d_open: number | null
           id: string
           lps: number | null
+          m_score: number | null
           signal_tag: string | null
           stock_code: string
+          volume_z: number | null
         }
         Insert: {
           alpha_score?: number | null
@@ -1187,6 +1223,7 @@ export type Database = {
           created_at?: string | null
           date: string
           disclosure_id?: string | null
+          f_score?: number | null
           final_score?: number | null
           future_return_20d?: number | null
           future_return_3d?: number | null
@@ -1194,8 +1231,10 @@ export type Database = {
           future_return_5d_open?: number | null
           id?: string
           lps?: number | null
+          m_score?: number | null
           signal_tag?: string | null
           stock_code: string
+          volume_z?: number | null
         }
         Update: {
           alpha_score?: number | null
@@ -1204,6 +1243,7 @@ export type Database = {
           created_at?: string | null
           date?: string
           disclosure_id?: string | null
+          f_score?: number | null
           final_score?: number | null
           future_return_20d?: number | null
           future_return_3d?: number | null
@@ -1211,8 +1251,10 @@ export type Database = {
           future_return_5d_open?: number | null
           id?: string
           lps?: number | null
+          m_score?: number | null
           signal_tag?: string | null
           stock_code?: string
+          volume_z?: number | null
         }
         Relationships: []
       }
@@ -1408,6 +1450,54 @@ export type Database = {
         }
         Relationships: []
       }
+      snapshot_signals: {
+        Row: {
+          created_at: string | null
+          e_score: number | null
+          event_id: string
+          event_type: string | null
+          f_score: number | null
+          final_score: number | null
+          id: string
+          is_signal: boolean | null
+          m_score: number | null
+          signal_date: string
+          signal_rule: string | null
+          stock_code: string
+          volume_z: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          e_score?: number | null
+          event_id: string
+          event_type?: string | null
+          f_score?: number | null
+          final_score?: number | null
+          id?: string
+          is_signal?: boolean | null
+          m_score?: number | null
+          signal_date: string
+          signal_rule?: string | null
+          stock_code: string
+          volume_z?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          e_score?: number | null
+          event_id?: string
+          event_type?: string | null
+          f_score?: number | null
+          final_score?: number | null
+          id?: string
+          is_signal?: boolean | null
+          m_score?: number | null
+          signal_date?: string
+          signal_rule?: string | null
+          stock_code?: string
+          volume_z?: number | null
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           cancel_at_period_end: boolean | null
@@ -1483,6 +1573,36 @@ export type Database = {
           id?: number
           report_nm?: string | null
           stock_code?: string | null
+        }
+        Relationships: []
+      }
+      user_events: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          page: string | null
+          properties: Json | null
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          page?: string | null
+          properties?: Json | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          page?: string | null
+          properties?: Json | null
+          session_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Swal from 'sweetalert2';
 import { getSupabase, startSessionTimer, resetSessionTimer, clearSessionTimer, checkSessionExpiry } from "@/lib/supabase/client";
+import PageViewTracker from "@/components/PageViewTracker";
 
 // 탭마다 고유한 세션 ID 생성 (페이지 로드 시 1회 고정)
 // → 같은 브라우저의 다른 탭도 서로 다른 ID를 가짐
@@ -330,5 +331,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     });
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <PageViewTracker />
+      {children}
+    </>
+  );
 }
