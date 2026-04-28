@@ -489,7 +489,15 @@ def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
                 hash_key = generate_hash_key(corp_code, rcept_no)
                 expires = (datetime.now() + timedelta(days=730)).isoformat()
                 supabase.table("disclosure_hashes").upsert(
-                    {"hash_key": hash_key, "expires_at": expires},
+                    {
+                        "hash_key":   hash_key,
+                        "corp_code":  corp_code,
+                        "rcept_no":   rcept_no,
+                        "corp_name":  corp_name_val,
+                        "report_name": report_nm,
+                        "expires_at": expires,
+                        "created_at": datetime.now().isoformat(),
+                    },
                     on_conflict="hash_key",
                 ).execute()
             except Exception:
