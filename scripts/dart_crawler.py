@@ -388,6 +388,26 @@ def _fetch_all_dart_items(dart_key: str, bgnde: str, endde: str) -> list[dict]:
     return all_items
 
 
+def _batch_fetch_existing(rcept_nos: list[str]) -> set[str]:
+    """
+    disclosure_insights 에서 이미 저장된 rcept_no를 배치 조회.
+    단 1회 Supabase 호출로 수백 건 중복 체크 → per-item DB 호출 제거.
+    """
+    existing: set[str] = set()
+    for i in range(0, len(rcept_nos), 500):
+        chunk = rcept_nos[i:i+500]
+        try:
+            res = supabase.table("disclosure_insights") \
+                .select("rcept_no") \
+                .in_("rcept_no", chunk) \
+                .execute()
+            for r in (res.data or []):
+                existing.add(r["rcept_no"])
+        except Exception as e:
+            logger.warning(f"배치 중복 체크 실패 (무시): {e}")
+    return existing
+
+
 def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
     """
     공시 목록 → 필터링 → 본문 수집 → DB 저장.
@@ -396,37 +416,48 @@ def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
     count = 0
     saved_codes: set[str] = set()
 
+    # ── 1차: 인메모리 필터 (공짜) ─────────────────────────────────────────────
+    candidates = []
     for item in items:
-        rcept_no      = item.get("rcept_no")
-        corp_code     = item.get("corp_code", "").strip()
-        report_nm     = item.get("report_nm", "")
-        corp_name_val = item.get("corp_name", "")
+        rcept_no       = item.get("rcept_no")
+        corp_code      = item.get("corp_code", "").strip()
+        report_nm      = item.get("report_nm", "")
+        corp_name_val  = item.get("corp_name", "")
         stock_code_val = item.get("stock_code", "").strip()
 
-        # ── 1차: 인메모리 필터 (공짜) — DB/API 호출 전에 먼저 걸러냄 ─────────
         if not corp_code:
             continue
-
-        # 비상장 법인 스킵 (가장 많이 걸림 — 먼저)
         if not stock_code_val:
             logger.info(f"skip unlisted: {corp_name_val}")
             continue
-
-        # 노이즈 공시 스킵
         if is_noise_disclosure(report_nm):
             logger.info(f"skip noise: {report_nm}")
             continue
-
-        # 노이즈 법인 스킵 (스팩/펀드 등)
         if is_noise_corp(corp_name_val):
             logger.info(f"skip corp: {corp_name_val}")
             continue
 
-        # ── 2차: DB 중복 체크 (인메모리 필터 통과한 항목만) ─────────────────
-        if is_disclosure_processed(corp_code, rcept_no):
-            continue
+        candidates.append(item)
 
-        # ── 3차: DART ZIP 다운로드 (가장 비쌈 — 마지막에) ────────────────────
+    logger.info(f"  [{date_label}] 인메모리 필터 후: {len(candidates)}/{len(items)}건")
+
+    if not candidates:
+        return 0, set()
+
+    # ── 2차: 배치 중복 체크 — Supabase 1회 호출 ────────────────────────────────
+    candidate_rcept_nos = [i.get("rcept_no") for i in candidates]
+    existing = _batch_fetch_existing(candidate_rcept_nos)
+    new_candidates = [i for i in candidates if i.get("rcept_no") not in existing]
+    logger.info(f"  [{date_label}] 신규 처리 대상: {len(new_candidates)}건 (기존 {len(existing)}건 skip)")
+
+    # ── 3차: DART ZIP 다운로드 + DB 저장 ─────────────────────────────────────
+    for item in new_candidates:
+        rcept_no       = item.get("rcept_no")
+        corp_code      = item.get("corp_code", "").strip()
+        report_nm      = item.get("report_nm", "")
+        corp_name_val  = item.get("corp_name", "")
+        stock_code_val = item.get("stock_code", "").strip()
+
         content = get_clean_content(rcept_no)
 
         # 임원 변동 2차 필터 (content 필요)
@@ -452,6 +483,18 @@ def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
             count += 1
             saved_codes.add(stock_code_val)
             logger.info(f"[{date_label}][{count}] {corp_name_val} saved")
+
+            # disclosure_hashes 에도 기록 — 다음 실행 시 is_disclosure_processed() 활용
+            try:
+                hash_key = generate_hash_key(corp_code, rcept_no)
+                expires = (datetime.now() + timedelta(days=730)).isoformat()
+                supabase.table("disclosure_hashes").upsert(
+                    {"hash_key": hash_key, "expires_at": expires},
+                    on_conflict="hash_key",
+                ).execute()
+            except Exception:
+                pass  # 해시 저장 실패는 무시 (disclosure_insights 저장이 우선)
+
         except Exception as e:
             logger.error(f"DB 저장 실패: {e}")
 
