@@ -371,6 +371,159 @@ def _std(vals: list[float]) -> float:
     return math.sqrt(sum((v - m) ** 2 for v in vals) / (n - 1))
 
 
+def _mdd_from_path(closes: list[float]) -> float | None:
+    """
+    Close-to-Close MDD 계산.
+    closes: T+1부터 T+N까지의 종가 리스트 (시간순)
+    반환: MDD (0.0 이하의 소수, 예: -0.15 = -15%)
+    """
+    if len(closes) < 2:
+        return None
+    peak = closes[0]
+    mdd  = 0.0
+    for c in closes:
+        if c > peak:
+            peak = c
+        if peak > 0:
+            dd = (c - peak) / peak
+            if dd < mdd:
+                mdd = dd
+    return mdd
+
+
+def compute_mdd(sb, dry_run: bool) -> int:
+    """
+    scores_log 내 mdd_20d IS NULL 이고 future_return_5d IS NOT NULL 인 이벤트에 대해
+    price_history 의 daily close 경로로 Close-to-Close MDD (최대 20 거래일) 를 계산.
+    결과를 scores_log.mdd_20d (% 단위) 로 upsert.
+    """
+    logger.info("\n  MDD 계산 중 (mdd_20d IS NULL)...")
+
+    # 1. 처리 대상 조회
+    def _mdd_filters(q):
+        return (
+            q.select("disclosure_id, stock_code, date")
+             .not_.is_("future_return_5d", "null")
+             .is_("mdd_20d", "null")
+        )
+    events = _paginate(sb, "scores_log", _mdd_filters)
+
+    if not events:
+        logger.info("  → MDD 계산 대상 없음")
+        return 0
+
+    logger.info(f"  → {len(events)}건 대상")
+
+    # 2. stock_code별 그룹화
+    stock_events: dict[str, list[dict]] = defaultdict(list)
+    for e in events:
+        code = e.get("stock_code")
+        if code:
+            stock_events[code].append(e)
+
+    # 3. stock_code 배치로 price_history 조회 후 MDD 계산
+    STOCK_BATCH     = 50
+    HORIZON_CAL_DAYS = 31   # 캘린더 30일 ≈ 거래일 20일
+    MAX_TRADING_DAYS = 20
+
+    all_codes = list(stock_events.keys())
+    results: list[dict] = []
+
+    for batch_idx in range(0, len(all_codes), STOCK_BATCH):
+        batch_codes = all_codes[batch_idx:batch_idx + STOCK_BATCH]
+
+        # 이 배치의 이벤트 날짜 범위
+        batch_events = [e for code in batch_codes for e in stock_events[code]]
+        min_date     = min(e["date"] for e in batch_events)
+        max_end_date = (
+            datetime.strptime(max(e["date"] for e in batch_events), "%Y-%m-%d")
+            + timedelta(days=HORIZON_CAL_DAYS)
+        ).strftime("%Y-%m-%d")
+
+        # price_history 배치 조회
+        try:
+            ph_resp = (
+                sb.table("price_history")
+                .select("stock_code, date, close")
+                .in_("stock_code", batch_codes)
+                .gte("date", min_date)
+                .lte("date", max_end_date)
+                .order("date")
+                .execute()
+            )
+        except Exception as ex:
+            logger.warning(f"    price_history 조회 실패 (배치 {batch_idx}): {ex}")
+            continue
+
+        # 가격 캐시: {stock_code: [(date_str, close), ...]}
+        ph_cache: dict[str, list[tuple[str, float]]] = defaultdict(list)
+        for row in (ph_resp.data or []):
+            code = row.get("stock_code")
+            dt   = row.get("date")
+            cl   = row.get("close")
+            if code and dt and cl is not None:
+                try:
+                    ph_cache[code].append((dt, float(cl)))
+                except (TypeError, ValueError):
+                    pass
+
+        # 각 이벤트 MDD 계산
+        for code in batch_codes:
+            closes_all = ph_cache.get(code, [])   # 이미 date 순 정렬
+            for ev in stock_events[code]:
+                ev_date  = ev["date"]   # YYYY-MM-DD
+                end_date = (
+                    datetime.strptime(ev_date, "%Y-%m-%d")
+                    + timedelta(days=HORIZON_CAL_DAYS)
+                ).strftime("%Y-%m-%d")
+
+                # T+1 ~ T+N 구간 종가 (최대 20 거래일)
+                path = [c for d, c in closes_all if ev_date < d <= end_date][:MAX_TRADING_DAYS]
+
+                if len(path) < 10:
+                    continue   # 최소 거래일 미달 → 스킵
+
+                mdd_val = _mdd_from_path(path)
+                if mdd_val is None:
+                    continue
+
+                results.append({
+                    "disclosure_id": ev["disclosure_id"],
+                    "stock_code":    code,
+                    "date":          ev_date,
+                    "mdd_20d":       round(mdd_val * 100, 4),   # % 단위 (예: -5.23)
+                })
+
+        n_batches = (len(all_codes) + STOCK_BATCH - 1) // STOCK_BATCH
+        logger.info(
+            f"    배치 {batch_idx // STOCK_BATCH + 1}/{n_batches} "
+            f"({len(batch_codes)} 종목) → {len(results)}건 누적"
+        )
+
+    logger.info(f"  → MDD 산출: {len(results)}건")
+
+    if not results or dry_run:
+        if dry_run:
+            logger.info("  [DRY] mdd_20d 저장 생략")
+        return len(results)
+
+    # 4. scores_log upsert
+    ok = fail = 0
+    for i in range(0, len(results), BATCH_SIZE):
+        chunk = results[i:i + BATCH_SIZE]
+        try:
+            sb.table("scores_log").upsert(
+                chunk, on_conflict="stock_code,date,disclosure_id"
+            ).execute()
+            ok += len(chunk)
+        except Exception as ex:
+            logger.warning(f"    scores_log mdd upsert 실패: {ex}")
+            fail += len(chunk)
+
+    logger.info(f"  → scores_log mdd_20d: 성공 {ok}건 / 실패 {fail}건")
+    return ok
+
+
 def compute_event_stats(sb, dry_run: bool) -> int:
     """
     scores_log → event_stats 집계 및 upsert.
@@ -384,7 +537,7 @@ def compute_event_stats(sb, dry_run: bool) -> int:
 
     def _sl_filters(q):
         return (
-            q.select("disclosure_id, stock_code, future_return_5d, future_return_20d, future_return_5d_open")
+            q.select("disclosure_id, stock_code, future_return_5d, future_return_20d, future_return_5d_open, mdd_20d")
              .not_.is_("future_return_5d", "null")
         )
     log_rows = _paginate(sb, "scores_log", _sl_filters)
@@ -440,6 +593,7 @@ def compute_event_stats(sb, dry_run: bool) -> int:
     buckets:      dict[str, list[float]] = defaultdict(list)   # close (signal_score v2용)
     buckets20:    dict[str, list[float]] = defaultdict(list)   # close 20d
     buckets_open: dict[str, list[float]] = defaultdict(list)   # open (집계 + hit_ratio)
+    buckets_mdd:  dict[str, list[float]] = defaultdict(list)   # MDD (avg_mdd용)
     # Z-score용 버킷별 open 수익률: {event_type: {bucket: [open_returns]}}
     ev_bucket_open: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
@@ -453,6 +607,7 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         r5    = row.get("future_return_5d")
         r20   = row.get("future_return_20d")
         r5_op = row.get("future_return_5d_open")
+        mdd   = row.get("mdd_20d")
         if r5 is not None:
             buckets[ev].append(float(r5))
         if r20 is not None:
@@ -460,6 +615,8 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         if r5_op is not None:
             buckets_open[ev].append(float(r5_op))
             ev_bucket_open[ev][bucket].append(float(r5_op))
+        if mdd is not None:
+            buckets_mdd[ev].append(float(mdd))
 
     now_iso    = datetime.now().isoformat()
     stats_rows = []
@@ -504,6 +661,13 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         hit_count = sum(1 for r in vals_open_raw if r > 0)
         hit_ratio = round(hit_count / len(vals_open_raw), 4) if vals_open_raw else None
 
+        # direction_score = (hit_ratio - 0.5) * 2  →  -1 ~ +1
+        direction_score = round((hit_ratio - 0.5) * 2, 4) if hit_ratio is not None else None
+
+        # avg_mdd: MDD 평균 (% 단위, 음수)
+        mdd_vals = buckets_mdd.get(ev, [])
+        avg_mdd  = round(sum(mdd_vals) / len(mdd_vals), 4) if mdd_vals else None
+
         # 버킷별 Z-score 계산 — open 수익률 기준 (스펙 일치)
         z_by_bucket: dict[str, float | None] = {}
         n_by_bucket: dict[str, int] = {}
@@ -528,6 +692,8 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             "avg_5d_open_return":    round(avg_open, 4) if avg_open is not None else None,
             "median_5d_open_return": round(med_open, 4) if med_open is not None else None,
             "hit_ratio":             hit_ratio,
+            "direction_score":       direction_score,
+            "avg_mdd":               avg_mdd,
             "std_5d":                round(std5,  4),
             "sample_size":           n_raw,
             "sample_size_clean":     n_clean,
@@ -552,13 +718,15 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         med_str    = f"{r['median_5d_return']:+.2f}%"     if r["median_5d_return"]      is not None else "N/A"
         open_str   = f"{r['avg_5d_open_return']:+.2f}%"  if r["avg_5d_open_return"]    is not None else "N/A"
         hit_str    = f"{r['hit_ratio']*100:.1f}%"         if r["hit_ratio"]             is not None else "N/A"
+        dir_str    = f"{r['direction_score']:+.2f}"       if r["direction_score"]        is not None else "N/A"
+        mdd_str    = f"{r['avg_mdd']:+.2f}%"             if r["avg_mdd"]                is not None else "N/A"
         z_l = f"{r['avg_z_5d_large']:+.2f}" if r["avg_z_5d_large"] is not None else " N/A"
         z_m = f"{r['avg_z_5d_mid']:+.2f}"   if r["avg_z_5d_mid"]   is not None else " N/A"
         z_s = f"{r['avg_z_5d_small']:+.2f}" if r["avg_z_5d_small"] is not None else " N/A"
         logger.info(
             f"    {r['event_type']:20s} "
             f"n={r['sample_size']:4d}  "
-            f"avg(open)={open_str}  hit={hit_str}  "
+            f"avg(open)={open_str}  hit={hit_str}  dir={dir_str}  mdd={mdd_str}  "
             f"z[L={z_l} M={z_m} S={z_s}]  "
             f"score={r['signal_score']}({r['signal_grade']})"
         )
@@ -601,8 +769,9 @@ def main():
         logger.error("PUBLIC_DATA_API_KEY 환경변수 누락")
         sys.exit(1)
 
-    # ── stats-only 모드: 가격 fetch 없이 집계만 ───────────────────────────────
+    # ── stats-only 모드: 가격 fetch 없이 MDD + 집계만 ────────────────────────
     if args.stats_only:
+        compute_mdd(sb, args.dry_run)
         compute_event_stats(sb, args.dry_run)
         sys.exit(0)
 
@@ -757,13 +926,14 @@ def main():
             logger.info(f"  return_5d (open):  min={min(r5op_vals):.2f}%  max={max(r5op_vals):.2f}%  "
                         f"avg={sum(r5op_vals)/len(r5op_vals):.2f}%  n={len(r5op_vals)}")
 
-    # ── Step 5: DB 저장 + event_stats 집계 ───────────────────────────────────
-    logger.info(f"\n  [5/5] scores_log 저장 + event_stats 집계...")
+    # ── Step 5: DB 저장 + MDD 계산 + event_stats 집계 ────────────────────────
+    logger.info(f"\n  [5/5] scores_log 저장 + MDD + event_stats 집계...")
 
     if return_rows:
         ok, fail = upsert_returns(sb, return_rows, args.dry_run)
         logger.info(f"  scores_log: 성공 {ok}건 / 실패 {fail}건")
 
+    compute_mdd(sb, args.dry_run)
     compute_event_stats(sb, args.dry_run)
 
     logger.info("\n" + "=" * 55)
