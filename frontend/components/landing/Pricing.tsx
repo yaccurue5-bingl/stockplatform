@@ -1,188 +1,151 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState } from 'react';
 import { Check } from 'lucide-react';
-import Section from './ui/Section';
-import PaymentModal from '@/components/PaymentModal';
-import { getSupabase } from '@/lib/supabase/client';
+import PricingModal from './PricingModal';
 
-type PlanKey = 'developer' | 'pro';
+type PlanId = 'Starter' | 'Pro' | 'API';
 
 const plans = [
   {
-    name: 'Free',
-    price: '$0',
-    period: '/month',
-    desc: 'For individual developers and testing',
+    id: 'Starter' as PlanId,
+    name: 'Starter',
+    price: '$19',
+    period: '/mo',
+    desc: 'Individual investors & developers',
     highlight: false,
-    cta: 'Start Free',
-    ctaStyle: 'border border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white',
-    isPaid: false,
-    planKey: null as PlanKey | null,
+    badge: null,
     features: [
-      '100 API requests / day',
-      'Market Radar endpoint',
-      'Basic JSON responses',
+      'Limited disclosure signals',
+      '500 API requests / month',
+      'Core event types (Earnings, Contract)',
+      'Basic filtering',
       'Community support',
     ],
+    cta: 'Request Access',
+    ctaClass: 'border border-gray-600 text-gray-300 hover:border-gray-400 hover:text-white',
   },
   {
-    name: 'Developer',
+    id: 'Pro' as PlanId,
+    name: 'Pro',
     price: '$49',
-    period: '/month',
-    desc: 'Best for individual investors and developers',
+    period: '/mo',
+    desc: 'Quant traders & fintech teams',
     highlight: true,
-    cta: 'Start Building',
-    ctaStyle: 'bg-[#00D4A6] text-[#0B0F14] font-bold hover:bg-[#00bfa0]',
-    isPaid: true,
-    planKey: 'developer' as PlanKey,
+    badge: 'Recommended',
     features: [
-      'Build and test Korean market strategies',
+      'Full disclosure signal coverage',
       '10,000 API requests / month',
-      'Access to all core endpoints',
-      'Corporate Events API',
-      'Sector Signals API',
-      'Market Radar API',
+      'All 8 event types',
+      'Win rate & return statistics',
+      'Advanced filtering & sorting',
+      'Priority updates (< 15 min)',
       'Email support',
     ],
+    cta: 'Request Access',
+    ctaClass: 'bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold',
   },
   {
-    name: 'Pro',
+    id: 'API' as PlanId,
+    name: 'API',
     price: '$199',
-    period: '/month',
-    desc: 'For funds, trading teams, and data platforms',
+    period: '/mo',
+    desc: 'Funds, data platforms & institutions',
     highlight: false,
-    cta: 'Upgrade to Pro',
-    ctaStyle: 'border border-[#4EA3FF]/40 text-[#4EA3FF] hover:border-[#4EA3FF] hover:bg-[#4EA3FF]/5',
-    isPaid: true,
-    planKey: 'pro' as PlanKey,
+    badge: null,
     features: [
-      'Institution-grade Korean market intelligence',
+      'Full dataset access',
       '100,000 API requests / month',
-      'Full API access',
-      'Company Intelligence API',
-      'Historical data access',
-      'Priority support',
+      'Historical data (15+ years)',
+      'Event + probability data',
+      'REST API + bulk export',
+      'Institutional use rights',
       'Dedicated support channel',
     ],
+    cta: 'Request Access',
+    ctaClass: 'border border-[#4EA3FF]/50 text-[#4EA3FF] hover:border-[#4EA3FF] hover:bg-[#4EA3FF]/5',
   },
 ];
 
 export default function Pricing() {
-  const router = useRouter();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<PlanKey>('developer');
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  // ✅ authReady: onAuthStateChange의 INITIAL_SESSION이 완료되기 전까지 false
-  //    → 버튼이 auth 상태 확인 전에 눌리는 race condition 방지
-  const [authReady, setAuthReady] = useState(false);
-
-  useEffect(() => {
-    const supabase = getSupabase();
-
-    // onAuthStateChange는 구독 즉시 INITIAL_SESSION 이벤트를 발생시킴
-    // → getUser() 별도 호출 불필요, INITIAL_SESSION으로 초기 상태 처리
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session?.user);
-      setUserEmail(session?.user?.email ?? null);
-      setUserId(session?.user?.id ?? null);
-      // 첫 이벤트(INITIAL_SESSION 포함) 수신 시점부터 auth 상태 확정
-      setAuthReady(true);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handlePaidPlanClick = (planKey: PlanKey) => {
-    if (isLoggedIn) {
-      setSelectedPlan(planKey);
-      setIsModalOpen(true);
-    } else {
-      // ✅ redirectTo 전달: 구글 OAuth 포함 로그인 후 pricing 섹션으로 복귀
-      router.push('/login?redirectTo=%2F%23pricing');
-    }
-  };
+  const [modalPlan, setModalPlan] = useState<PlanId | null>(null);
 
   return (
-    <Section className="bg-[#0B0F14]" id="pricing">
-      <div className="text-center mb-14">
-        <h2 className="text-3xl font-bold text-white mb-3">Access Institutional-Grade Korean Market Intelligence</h2>
-        <p className="text-gray-400">Start free, scale as your edge grows. No hidden fees.</p>
-      </div>
+    <section id="pricing" className="bg-[#0B0F14] py-20 px-6">
+      <div className="max-w-6xl mx-auto">
 
-      <div className="grid md:grid-cols-3 gap-6 items-stretch">
-        {plans.map((p) => (
-          <div
-            key={p.name}
-            className={`
-              rounded-2xl p-8 flex flex-col gap-6 border
-              ${p.highlight
-                ? 'bg-[#121821] border-[#00D4A6]/40 ring-1 ring-[#00D4A6]/20 relative'
-                : 'bg-[#121821] border-gray-800'}
-            `}
-          >
+        {/* Header */}
+        <div className="text-center mb-14">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            Simple Pricing for Market Signals
+          </h2>
+          <p className="text-gray-400">
+            Built for serious users. No hidden fees. Pricing on request — we'll reach out within 2 days.
+          </p>
+        </div>
 
-            <div>
-              <p className="text-gray-400 text-sm mb-1">{p.name}</p>
-              <div className="flex items-end gap-1">
-                <span className="text-4xl font-extrabold text-white">{p.price}</span>
-                <span className="text-gray-500 text-sm mb-1">{p.period}</span>
+        {/* Cards */}
+        <div className="grid md:grid-cols-3 gap-6 items-stretch">
+          {plans.map((p) => (
+            <div
+              key={p.id}
+              className={`
+                relative rounded-2xl p-7 flex flex-col gap-6 border transition
+                ${p.highlight
+                  ? 'bg-[#121821] border-[#00D4A6]/40 ring-1 ring-[#00D4A6]/20'
+                  : 'bg-[#121821] border-gray-800 hover:border-gray-600'}
+              `}
+            >
+              {p.badge && (
+                <div className="absolute top-4 right-4 text-[10px] font-bold tracking-widest uppercase bg-[#00D4A6]/15 text-[#00D4A6] border border-[#00D4A6]/30 px-2 py-0.5 rounded-full">
+                  {p.badge}
+                </div>
+              )}
+
+              {/* Pricing */}
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-1">{p.name}</h3>
+                <div className="flex items-end gap-1 mb-1">
+                  <span className="text-3xl font-extrabold text-white">{p.price}</span>
+                  <span className="text-gray-500 text-sm mb-1">{p.period}</span>
+                </div>
+                <p className="text-xs text-gray-500">{p.desc}</p>
               </div>
-              <p className="text-xs text-gray-500 mt-1">{p.desc}</p>
-            </div>
 
-            <ul className="flex flex-col gap-2.5 flex-1">
-              {p.features.map((f) => (
-                <li key={f} className="flex items-center gap-2 text-sm text-gray-300">
-                  <Check size={14} className="text-[#00D4A6] shrink-0" />
-                  {f}
-                </li>
-              ))}
-            </ul>
+              {/* Features */}
+              <ul className="flex flex-col gap-2.5 flex-1">
+                {p.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-gray-300">
+                    <Check size={14} className="text-[#00D4A6] shrink-0 mt-0.5" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
 
-            {p.isPaid && p.planKey ? (
-              // ✅ authReady 전: 버튼 비활성화로 race condition 방지
-              //    authReady 후: 로그인 여부에 따라 모달 오픈 or 로그인 이동
+              {/* CTA */}
               <button
-                onClick={() => handlePaidPlanClick(p.planKey!)}
-                disabled={!authReady}
-                className={`
-                  block w-full text-center text-sm py-3 rounded-xl transition
-                  ${authReady
-                    ? `cursor-pointer ${p.ctaStyle}`
-                    : 'cursor-not-allowed opacity-50 bg-gray-700 text-gray-500'}
-                `}
-              >
-                {authReady ? p.cta : '···'}
-              </button>
-            ) : !isLoggedIn ? (
-              // 비로그인 상태에서만 START FREE 버튼 표시
-              <Link
-                href="/login"
-                className={`
-                  block text-center text-sm py-3 rounded-xl transition
-                  ${p.ctaStyle}
-                `}
+                onClick={() => setModalPlan(p.id)}
+                className={`w-full text-sm py-3 rounded-xl transition text-center ${p.ctaClass}`}
               >
                 {p.cta}
-              </Link>
-            ) : null}
-          </div>
-        ))}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom note */}
+        <p className="text-gray-600 text-sm text-center mt-10">
+          Early access. Pricing may change as data coverage expands. No commitment required.
+        </p>
       </div>
 
-      {/* Paddle 결제 모달 */}
-      <PaymentModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        userEmail={userEmail}
-        userId={userId}
-        planType={selectedPlan}
-      />
-    </Section>
+      {/* Modal */}
+      {modalPlan && (
+        <PricingModal
+          plan={modalPlan}
+          onClose={() => setModalPlan(null)}
+        />
+      )}
+    </section>
   );
 }
