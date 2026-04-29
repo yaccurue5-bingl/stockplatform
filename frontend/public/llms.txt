@@ -1,0 +1,32 @@
+# K-MarketInsight — Korean Stock Market Event Signals
+
+> AI-parsed DART (Korea's SEC) filing analysis platform.
+> Classifies corporate disclosures into event types (Earnings, Dilution, Contract, M&A, etc.)
+> and provides historical signal statistics for quantitative research.
+
+## Site
+
+- Homepage: https://k-marketinsight.com
+- Signal Feed (Earnings): https://k-marketinsight.com/korea-earnings-signals
+- Signal Feed (Dilution): https://k-marketinsight.com/korea-dilution-filings
+- Signal Feed (Contracts): https://k-marketinsight.com/korea-contract-signals
+- API Docs: https://k-marketinsight.com/api-docs
+- Datasets: https://k-marketinsight.com/datasets
+- API Access: https://k-marketinsight.com/api-access
+
+## Data
+
+- Source: DART (Data Analysis, Retrieval and Transfer System) — Korea's official corporate disclosure system
+- Coverage: KOSPI + KOSDAQ listed companies
+- Event types: EARNINGS, DILUTION, CONTRACT, BUYBACK, MNA, LEGAL, CAPEX, EXECUTIVE_CHANGE
+- Signal pages: https://k-marketinsight.com/signal/{uuid}
+
+## API
+
+- Base URL: https://k-marketinsight.com/api/v1/
+- Authentication: x-api-key header
+- Docs: https://k-marketinsight.com/api-docs
+
+## Contact
+
+- Website: https://k-marketinsight.com

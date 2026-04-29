@@ -105,12 +105,12 @@ export default async function proxy(req: NextRequest) {
     '/api/disclosures/latest',
     '/api/financials/',
     '/api/short/',
-    '/disclosures/',
+    '/disclosures',   // trailing slash 없이 → /disclosures 목록 + /disclosures/* 모두 공개
     '/signal/',
     '/korea-earnings-signals',
     '/korea-dilution-filings',
     '/korea-contract-signals',
-    '/pricing',
+    '/api-access',    // B2B 랜딩 페이지 공개
     '/api-docs',
     '/datasets',
     '/terms',
