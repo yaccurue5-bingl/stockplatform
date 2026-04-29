@@ -116,6 +116,7 @@ export default async function proxy(req: NextRequest) {
     '/terms',
     '/privacy',
     '/refund-policy',
+    // /pricing은 next.config.ts에서 301 → / 로 리다이렉트 처리
     '/sitemap.xml',
     '/sitemap/',          // paginated sub-sitemaps: /sitemap/0.xml, /sitemap/1.xml, …
     '/robots.txt',

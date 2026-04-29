@@ -609,9 +609,9 @@ function DisclosuresContent() {
                   {generateTicker(selectedStock.corp_name_en)}
                 </div>
                 <div className="flex-1">
-                  <h1 className="text-2xl font-bold mb-2">
+                  <h2 className="text-2xl font-bold mb-2">
                     {selectedStock.corp_name_en || selectedStock.corp_name} ({selectedStock.stock_code}): {selectedDisclosure.report_name}
-                  </h1>
+                  </h2>
 
                   {/* Badges */}
                   <div className="flex flex-wrap items-center gap-2 mb-3">
