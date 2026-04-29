@@ -4,27 +4,9 @@ import { useState } from 'react';
 import { Check } from 'lucide-react';
 import PricingModal from './PricingModal';
 
-type PlanId = 'Starter' | 'Pro' | 'API';
+type PlanId = 'Pro' | 'API';
 
 const plans = [
-  {
-    id: 'Starter' as PlanId,
-    name: 'Starter',
-    price: '$19',
-    period: '/mo',
-    desc: 'Individual investors & developers',
-    highlight: false,
-    badge: null,
-    features: [
-      'Limited disclosure signals',
-      '500 API requests / month',
-      'Core event types (Earnings, Contract)',
-      'Basic filtering',
-      'Community support',
-    ],
-    cta: 'Request Access',
-    ctaClass: 'border border-gray-600 text-gray-300 hover:border-gray-400 hover:text-white',
-  },
   {
     id: 'Pro' as PlanId,
     name: 'Pro',
@@ -85,7 +67,7 @@ export default function Pricing() {
         </div>
 
         {/* Cards */}
-        <div className="grid md:grid-cols-3 gap-6 items-stretch">
+        <div className="grid md:grid-cols-2 gap-6 items-stretch max-w-3xl mx-auto">
           {plans.map((p) => (
             <div
               key={p.id}
