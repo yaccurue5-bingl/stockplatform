@@ -29,6 +29,14 @@ export default function Navbar() {
   const [userEmail, setUserEmail] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // localStorage에서 플랜 캐시 복원 (DB 응답 전 flash 방지)
+  useEffect(() => {
+    const cached = localStorage.getItem('kmi_userPlan') as PlanType | null;
+    if (cached === 'pro' || cached === 'developer') {
+      setUserPlan(cached);
+    }
+  }, []);
+
   // 같은 페이지(/)에서 해시 앵커 클릭 시 부드러운 스크롤, 다른 페이지에서는 navigate
   const handleHashNav = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     if (!href.startsWith('/#')) return;
@@ -61,6 +69,8 @@ export default function Navbar() {
       const raw = row?.plan ?? 'free';
       const plan: PlanType = raw === 'pro' ? 'pro' : raw === 'developer' ? 'developer' : 'free';
       setUserPlan(plan);
+      // 플랜을 localStorage에 캐싱 → 다음 마운트 시 flash 없이 즉시 표시
+      localStorage.setItem('kmi_userPlan', plan);
     } catch {
       setUserPlan('free');
     }
@@ -87,6 +97,7 @@ export default function Navbar() {
       } else {
         setUserPlan('free');
         setUserEmail('');
+        localStorage.removeItem('kmi_userPlan');
       }
     });
 
@@ -97,6 +108,7 @@ export default function Navbar() {
     try {
       await signOut();
     } catch {}
+    localStorage.removeItem('kmi_userPlan');
     setDropdownOpen(false);
     router.push('/');
   };
