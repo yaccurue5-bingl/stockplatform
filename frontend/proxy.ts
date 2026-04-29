@@ -105,17 +105,18 @@ export default async function proxy(req: NextRequest) {
     '/api/disclosures/latest',
     '/api/financials/',
     '/api/short/',
-    '/disclosures/',
+    '/disclosures',   // trailing slash 없이 → /disclosures 목록 + /disclosures/* 모두 공개
     '/signal/',
     '/korea-earnings-signals',
     '/korea-dilution-filings',
     '/korea-contract-signals',
-    '/pricing',
+    '/api-access',    // B2B 랜딩 페이지 공개
     '/api-docs',
     '/datasets',
     '/terms',
     '/privacy',
     '/refund-policy',
+    // /pricing은 next.config.ts에서 301 → / 로 리다이렉트 처리
     '/sitemap.xml',
     '/sitemap/',          // paginated sub-sitemaps: /sitemap/0.xml, /sitemap/1.xml, …
     '/robots.txt',

@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
     turbopackUseSystemTlsCerts: true,
   },
 
+  async redirects() {
+    return [
+      // /pricing 페이지 삭제 → 영구 301 리다이렉트
+      {
+        source: '/pricing',
+        destination: '/',
+        permanent: true, // 301
+      },
+    ];
+  },
+
   async headers() {
     const ContentSecurityPolicy = [
       "default-src 'self'",

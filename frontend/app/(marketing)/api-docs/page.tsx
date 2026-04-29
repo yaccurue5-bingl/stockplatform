@@ -216,7 +216,7 @@ export default function ApiDocsPage() {
 
           {activeSection === 'Authentication' && (
             <div>
-              <h1 className="text-3xl font-bold text-white mb-4">Authentication</h1>
+              <h2 className="text-3xl font-bold text-white mb-4">Authentication</h2>
               <p className="text-gray-400 leading-relaxed mb-6 max-w-2xl">
                 All API requests require a valid API key passed as a Bearer token in the <code className="text-[#00D4A6] text-sm">Authorization</code> header.
               </p>
@@ -234,7 +234,7 @@ export default function ApiDocsPage() {
 
           {activeSection === 'Endpoints' && (
             <div>
-              <h1 className="text-3xl font-bold text-white mb-8">Endpoints</h1>
+              <h2 className="text-3xl font-bold text-white mb-8">Endpoints</h2>
               <div className="flex gap-2 flex-wrap mb-8">
                 {endpoints.map((ep, i) => (
                   <button
@@ -282,7 +282,7 @@ export default function ApiDocsPage() {
 
           {activeSection === 'Examples' && (
             <div>
-              <h1 className="text-3xl font-bold text-white mb-4">Examples</h1>
+              <h2 className="text-3xl font-bold text-white mb-4">Examples</h2>
               <p className="text-gray-400 mb-8">Quick-start code samples to get you up and running.</p>
               <h2 className="text-lg font-semibold text-white mb-3">Fetch Corporate Events</h2>
               <CodeBlock code={exampleCode} language="typescript" />

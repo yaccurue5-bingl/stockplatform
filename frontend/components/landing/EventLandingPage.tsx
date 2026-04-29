@@ -31,6 +31,7 @@ export interface EventLandingConfig {
   tableTitle: string;
   tableHeaders: string[];
   tableRows: string[][];
+  tableIds?: string[];   // /signal/{id} 내부 링크용 — 행 클릭 시 이동
 
   /** Use cases */
   useCases: { title: string; body: string }[];
@@ -147,18 +148,29 @@ export default function EventLandingPage({ cfg }: { cfg: EventLandingConfig }) {
                 </tr>
               </thead>
               <tbody>
-                {cfg.tableRows.map((row, ri) => (
-                  <tr
-                    key={ri}
-                    className="border-b border-gray-800/50 hover:bg-[#121821]/50 transition"
-                  >
-                    {row.map((cell, ci) => (
-                      <td key={ci} className="px-4 py-3 text-gray-300 whitespace-nowrap">
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {cfg.tableRows.map((row, ri) => {
+                  const signalId = cfg.tableIds?.[ri];
+                  return (
+                    <tr
+                      key={ri}
+                      className="border-b border-gray-800/50 hover:bg-[#121821]/50 transition"
+                    >
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="px-4 py-3 text-gray-300 whitespace-nowrap">
+                          {/* 첫 번째 컬럼(기업명)에 /signal/{id} 링크 추가 — SEO 내부 링크 */}
+                          {ci === 0 && signalId ? (
+                            <Link
+                              href={`/signal/${signalId}`}
+                              className="text-[#00D4A6] hover:underline"
+                            >
+                              {cell}
+                            </Link>
+                          ) : cell}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

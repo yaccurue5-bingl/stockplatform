@@ -35,24 +35,29 @@ function toDilutionType(reportNm: string): string {
   return 'Other';
 }
 
+export interface EventTableResult {
+  rows: string[][];
+  ids:  string[];   // disclosure_insights.id — /signal/{id} 링크용
+}
+
 export async function fetchEventTableRows(
   eventType: EventType,
   limit = 5,
-): Promise<string[][]> {
+): Promise<EventTableResult> {
   try {
     const sb = createServiceClient();
 
-    // Step 1: 최신 공시 rows
+    // Step 1: 최신 공시 rows (id 포함)
     const { data: rows, error } = await sb
       .from('disclosure_insights')
-      .select('corp_name, stock_code, rcept_dt, event_type, sentiment_score, short_term_impact_score, report_nm')
+      .select('id, corp_name, stock_code, rcept_dt, event_type, sentiment_score, short_term_impact_score, report_nm')
       .eq('analysis_status', 'completed')
       .eq('is_visible', true)
       .eq('event_type', eventType)
       .order('rcept_dt', { ascending: false })
       .limit(limit * 3); // SPAC 필터 여유분
 
-    if (error || !rows?.length) return [];
+    if (error || !rows?.length) return { rows: [], ids: [] };
 
     // Step 2: 영문 기업명 조회
     const codes = [...new Set(rows.map((r: any) => r.stock_code).filter(Boolean))];
@@ -79,7 +84,7 @@ export async function fetchEventTableRows(
     }
 
     // Step 4: event type별 컬럼 매핑
-    return deduped.map((r) => {
+    const resultRows = deduped.map((r) => {
       const name     = enMap[r.stock_code] ?? r.corp_name ?? '';
       const date     = fmtDate(r.rcept_dt ?? '');
       const score    = Number(r.sentiment_score ?? 0);
@@ -88,17 +93,19 @@ export async function fetchEventTableRows(
       const reportNm = String(r.report_nm ?? '');
 
       if (eventType === 'EARNINGS') {
-        // Company | Date | Sentiment | Impact Score | Signal
         return [name, date, toSentiment(score), impact, signal];
       }
       if (eventType === 'DILUTION') {
-        // Company | Date | Type | Impact Score | Signal  (Dilution % hidden — deprecated)
         return [name, date, toDilutionType(reportNm), impact, signal];
       }
-      // CONTRACT: Company | Date | Impact Score | Signal  (Counterparty/Deal% hidden — deprecated)
       return [name, date, impact, signal];
     });
+
+    return {
+      rows: resultRows,
+      ids:  deduped.map((r) => String(r.id)),
+    };
   } catch {
-    return [];
+    return { rows: [], ids: [] };
   }
 }

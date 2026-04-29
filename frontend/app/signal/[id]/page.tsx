@@ -175,9 +175,10 @@ export async function generateMetadata({
     return { title: 'Signal Not Found | K-MarketInsight' };
   }
 
-  const title = signal.headline
-    ? `${signal.headline} — ${signal.corp_name ?? ''} | K-MarketInsight`
-    : `${signal.report_nm} — ${signal.corp_name ?? ''} | K-MarketInsight`;
+  const rawTitle = signal.headline ?? signal.report_nm ?? 'Corporate Disclosure';
+  // 타이틀 태그 최대 60자 권장 — 헤드라인 앞부분 자르기
+  const titleBase = rawTitle.length > 42 ? rawTitle.slice(0, 42) + '…' : rawTitle;
+  const title = `${titleBase} — ${signal.corp_name ?? ''} | K-MarketInsight`;
 
   const description = signal.financial_impact
     ? signal.financial_impact.slice(0, 160)
@@ -360,27 +361,38 @@ export default async function SignalPage({
   // Sector Context
   const sectorContext = signal.sector ? await fetchSectorContext(signal.sector) : null;
 
-  // per-signal JSON-LD
+  // per-signal JSON-LD  (Google NewsArticle 필수 필드 충족)
+  const pubDate = signal.rcept_dt
+    ? `${signal.rcept_dt.slice(0, 4)}-${signal.rcept_dt.slice(4, 6)}-${signal.rcept_dt.slice(6, 8)}`
+    : new Date().toISOString().slice(0, 10);
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
-    headline: signal.headline ?? signal.report_nm,
-    description: signal.financial_impact ?? signal.ai_summary?.slice(0, 200),
-    datePublished: signal.rcept_dt
-      ? `${signal.rcept_dt.slice(0, 4)}-${signal.rcept_dt.slice(4, 6)}-${signal.rcept_dt.slice(6, 8)}`
-      : undefined,
-    author: { '@type': 'Organization', name: 'K-MarketInsight' },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE_URL}/signal/${id}` },
+    headline: (signal.headline ?? signal.report_nm ?? 'Corporate Disclosure').slice(0, 110),
+    description: (
+      signal.financial_impact ??
+      signal.ai_summary ??
+      `${EVENT_LABELS[signal.event_type ?? ''] ?? 'Corporate Disclosure'} from ${signal.corp_name ?? 'Korean company'}.`
+    ).slice(0, 200),
+    image: `${SITE_URL}/logo.jpg`,   // 필수 — 없으면 rich result 불가
+    datePublished: pubDate,
+    dateModified:  pubDate,
+    author: { '@type': 'Organization', name: 'K-MarketInsight', url: SITE_URL },
     publisher: {
       '@type': 'Organization',
-      name: 'K-MarketInsight',
-      url: SITE_URL,
+      name:    'K-MarketInsight',
+      url:     SITE_URL,
+      logo:    { '@type': 'ImageObject', url: `${SITE_URL}/logo.jpg` },
     },
     url: `${SITE_URL}/signal/${id}`,
-    about: {
-      '@type': 'Corporation',
-      name: signal.corp_name ?? '',
-      tickerSymbol: signal.stock_code ?? '',
-    },
+    ...(signal.corp_name ? {
+      about: {
+        '@type': 'Corporation',
+        name: signal.corp_name,
+        ...(signal.stock_code ? { tickerSymbol: signal.stock_code } : {}),
+      },
+    } : {}),
   };
 
   return (
@@ -533,8 +545,8 @@ export default async function SignalPage({
           <Link href="/datasets" className="hover:text-gray-300 transition">
             All Datasets →
           </Link>
-          <Link href="/pricing" className="hover:text-gray-300 transition">
-            Pricing →
+          <Link href="/api-access" className="hover:text-gray-300 transition">
+            API Access →
           </Link>
         </div>
       </div>

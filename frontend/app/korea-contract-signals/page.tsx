@@ -106,6 +106,6 @@ const cfg: EventLandingConfig = {
 };
 
 export default async function KoreaContractSignalsPage() {
-  const tableRows = await fetchEventTableRows('CONTRACT', 5);
-  return <EventLandingPage cfg={{ ...cfg, tableRows }} />;
+  const { rows: tableRows, ids: tableIds } = await fetchEventTableRows('CONTRACT', 5);
+  return <EventLandingPage cfg={{ ...cfg, tableRows, tableIds }} />;
 }
