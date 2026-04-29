@@ -106,6 +106,6 @@ const cfg: EventLandingConfig = {
 };
 
 export default async function KoreaDilutionFilingsPage() {
-  const tableRows = await fetchEventTableRows('DILUTION', 5);
-  return <EventLandingPage cfg={{ ...cfg, tableRows }} />;
+  const { rows: tableRows, ids: tableIds } = await fetchEventTableRows('DILUTION', 5);
+  return <EventLandingPage cfg={{ ...cfg, tableRows, tableIds }} />;
 }

@@ -106,6 +106,6 @@ const cfg: EventLandingConfig = {
 };
 
 export default async function KoreaEarningsSignalsPage() {
-  const tableRows = await fetchEventTableRows('EARNINGS', 5);
-  return <EventLandingPage cfg={{ ...cfg, tableRows }} />;
+  const { rows: tableRows, ids: tableIds } = await fetchEventTableRows('EARNINGS', 5);
+  return <EventLandingPage cfg={{ ...cfg, tableRows, tableIds }} />;
 }
