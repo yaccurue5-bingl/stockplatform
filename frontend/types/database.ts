@@ -612,9 +612,11 @@ export type Database = {
           avg_3d_return: number | null
           avg_5d_open_return: number | null
           avg_5d_return: number | null
+          avg_mdd: number | null
           avg_z_5d_large: number | null
           avg_z_5d_mid: number | null
           avg_z_5d_small: number | null
+          direction_score: number | null
           event_type: string
           hit_ratio: number | null
           median_20d_return: number | null
@@ -638,9 +640,11 @@ export type Database = {
           avg_3d_return?: number | null
           avg_5d_open_return?: number | null
           avg_5d_return?: number | null
+          avg_mdd?: number | null
           avg_z_5d_large?: number | null
           avg_z_5d_mid?: number | null
           avg_z_5d_small?: number | null
+          direction_score?: number | null
           event_type: string
           hit_ratio?: number | null
           median_20d_return?: number | null
@@ -664,9 +668,11 @@ export type Database = {
           avg_3d_return?: number | null
           avg_5d_open_return?: number | null
           avg_5d_return?: number | null
+          avg_mdd?: number | null
           avg_z_5d_large?: number | null
           avg_z_5d_mid?: number | null
           avg_z_5d_small?: number | null
+          direction_score?: number | null
           event_type?: string
           hit_ratio?: number | null
           median_20d_return?: number | null
@@ -1212,6 +1218,7 @@ export type Database = {
           id: string
           lps: number | null
           m_score: number | null
+          mdd_20d: number | null
           signal_tag: string | null
           stock_code: string
           volume_z: number | null
@@ -1232,6 +1239,7 @@ export type Database = {
           id?: string
           lps?: number | null
           m_score?: number | null
+          mdd_20d?: number | null
           signal_tag?: string | null
           stock_code: string
           volume_z?: number | null
@@ -1252,6 +1260,7 @@ export type Database = {
           id?: string
           lps?: number | null
           m_score?: number | null
+          mdd_20d?: number | null
           signal_tag?: string | null
           stock_code?: string
           volume_z?: number | null
