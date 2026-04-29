@@ -52,10 +52,10 @@ export async function GET(request: Request) {
         // 해당 종목의 최신 공시 1개 조회
         const { data: latestDisclosure } = await supabase
           .from('disclosure_insights')
-          .select('id, report_nm, sentiment, importance, analyzed_at')
+          .select('id, report_nm, sentiment, importance, updated_at, rcept_dt')
           .eq('stock_code', company.stock_code)
           .eq('analysis_status', 'completed')
-          .order('analyzed_at', { ascending: false })
+          .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();
 

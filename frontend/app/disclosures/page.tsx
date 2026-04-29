@@ -60,7 +60,7 @@ function DisclosuresContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const PAGE_SIZE = 15;
+  const PAGE_SIZE = 10;
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const isBackNavRef = useRef(false); // Back 버튼 클릭 시 스크롤 복원 플래그
   const searchContainerRef = useRef<HTMLDivElement>(null);
