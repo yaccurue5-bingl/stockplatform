@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { ArrowRight, Database, Zap, Shield, Globe, BarChart2, FileText } from 'lucide-react';
+import { Database, Zap, Shield, Globe, BarChart2, FileText } from 'lucide-react';
+import RequestAccessModal from './RequestAccessModal';
 
 export const metadata = {
   title: 'API Access | K-Market Insight',
@@ -60,12 +61,7 @@ export default function ApiAccessPage() {
           Structured access to AI-derived Korean corporate event signals — DART disclosures, volume anomalies, and executive changes — delivered via REST API. Pricing on request.
         </p>
         <div className="flex flex-col sm:flex-row gap-3">
-          <Link
-            href="/api-access#contact"
-            className="inline-flex items-center gap-2 bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-semibold px-6 py-3 rounded-lg transition"
-          >
-            Request Access <ArrowRight size={16} />
-          </Link>
+          <RequestAccessModal />
           <Link
             href="/api-docs"
             className="inline-flex items-center gap-2 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white px-6 py-3 rounded-lg transition"
@@ -159,8 +155,8 @@ export default function ApiAccessPage() {
         <p className="text-gray-400 text-sm mb-10">All KOSPI & KOSDAQ listed companies. Updated daily from DART open API.</p>
         <div className="grid md:grid-cols-3 gap-4">
           {[
-            { icon: Zap, title: 'Disclosure Signals', items: ['Earnings (실적)', 'Contract awards', 'Dilution / CB / BW', 'M&A / Splits', 'CAPEX decisions', 'Executive changes', 'Legal & penalties', 'Share buybacks'] },
-            { icon: BarChart2, title: 'Market Data', items: ['Daily OHLCV', 'Volume z-score (20d)', 'Foreign net buy', 'Loan balance (대차)', 'Momentum score'] },
+            { icon: Zap, title: 'Disclosure Signals', items: ['Earnings', 'Contract awards', 'Dilution / CB / BW', 'M&A / Splits', 'CAPEX decisions', 'Executive changes', 'Legal & penalties', 'Share buybacks'] },
+            { icon: BarChart2, title: 'Market Data', items: ['Daily OHLCV', 'Volume z-score (20d)', 'Foreign net buy', 'Loan balance', 'Momentum score'] },
             { icon: FileText, title: 'Signal Metadata', items: ['M-score (momentum)', 'E-score (sentiment)', 'F-score (fundamental)', 'Final composite score', 'Signal rule audit trail', 'Historical reproducibility'] },
           ].map(({ icon: Icon, title, items }) => (
             <div key={title} className="bg-[#121821] border border-gray-800 rounded-xl p-6">
@@ -182,7 +178,7 @@ export default function ApiAccessPage() {
       </section>
 
       {/* CTA / Contact */}
-      <section id="contact" className="bg-[#121821] border-t border-gray-800 py-20">
+      <section className="bg-[#121821] border-t border-gray-800 py-20">
         <div className="max-w-[600px] mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">Ready to integrate?</h2>
           <p className="text-gray-400 mb-2 leading-relaxed">
@@ -191,12 +187,11 @@ export default function ApiAccessPage() {
           <p className="text-gray-500 text-sm mb-10">
             Pricing is customized based on volume, history depth, and use case.
           </p>
-          <a
-            href="mailto:yaccurue5@gmail.com?subject=API Access Request — K-Market Insight&body=Hi,%0A%0AOrganization:%0AUse case:%0AData requirements:%0A%0A"
+          <RequestAccessModal
             className="inline-flex items-center gap-2 bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold px-8 py-4 rounded-xl transition text-base"
-          >
-            Request Access <ArrowRight size={18} />
-          </a>
+            label="Request Access"
+            size={18}
+          />
           <p className="text-xs text-gray-600 mt-6">
             Typical response within 1–2 business days. No commitment required.
           </p>
