@@ -80,7 +80,7 @@ export default function RequestAccessModal({
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={handleClose}
           />
-          <div className="relative bg-[#121821] border border-gray-700 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+          <div className="relative z-10 bg-[#121821] border border-gray-700 rounded-2xl p-8 w-full max-w-md shadow-2xl">
             <button
               onClick={handleClose}
               className="absolute top-4 right-4 text-gray-500 hover:text-gray-300 transition"
