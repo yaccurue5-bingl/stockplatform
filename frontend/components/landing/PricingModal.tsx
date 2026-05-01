@@ -49,7 +49,7 @@ export default function PricingModal({ plan, onClose }: Props) {
       />
 
       {/* Modal */}
-      <div className="relative bg-[#121821] border border-gray-700 rounded-2xl p-8 w-full max-w-md shadow-2xl">
+      <div className="relative z-10 bg-[#121821] border border-gray-700 rounded-2xl p-8 w-full max-w-md shadow-2xl">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-300 transition"
