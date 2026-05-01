@@ -75,6 +75,25 @@
 | Request Access 팝업 | 버튼 클릭 → 모달 오픈 → 폼 제출 → mailto 실행 | 클릭 + 폼 작성 | ✅ 팝업 복구 확인 | 2026-04-30 |
 | 모달 닫기 | X 버튼 또는 배경 클릭 → 모달 닫힘 | 클릭 | 미확인 |  |
 
+### 랜딩 Pricing 섹션 + Request Access 리드 수집
+
+| 기능 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |
+|---|---|---|---|---|
+| Pricing 섹션 노출 | 랜딩 페이지 스크롤 → Pricing 카드 2개(Pro/API) 표시 | 브라우저 | ✅ 삽입 확인 | 2026-04-30 |
+| Request Access 모달 | 플랜 버튼 클릭 → 모달 오픈 → email+use_case 입력 → Submit | curl POST | ✅ API 200 반환 | 2026-04-30 |
+| DB 저장 | Submit 후 Supabase leads 테이블 row 저장 | Supabase MCP SELECT | ✅ 3개 테스트 row 확인 | 2026-04-30 |
+| 이메일 발송 | Submit 후 admin + user 자동응답 이메일 발송 | 실계정 수신 확인 | 미확인 (Resend 키 설정 필요) |  |
+| 모달 성공 상태 | Submit 성공 → CheckCircle + "1-2 business days" 메시지 | UI 확인 | 미확인 |  |
+| 중복 제출 | 같은 email 두 번 Submit → 두 번째도 200 반환 | curl 2회 | ✅ 정상 허용 (중복 차단 없음) | 2026-04-30 |
+| 긴 use_case | 3000자 use_case 전송 → 저장 성공 | curl edge | ✅ TEXT 컬럼 무제한 저장 | 2026-04-30 |
+
+### /pricing 리다이렉트
+
+| 기능 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |
+|---|---|---|---|---|
+| 비로그인 접근 | /pricing → 로그인 페이지 아닌 홈으로 리다이렉트 | curl | ✅ proxy.ts public path 추가로 수정 | 2026-04-30 |
+| 영구 리다이렉트 | /pricing → 308 (Permanent) 반환 | curl -I | ✅ permanentRedirect() 적용 (PR #58) | 2026-04-30 |
+
 ### korea-*-signals 랜딩 페이지
 
 | 기능 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |
