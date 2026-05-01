@@ -148,9 +148,9 @@ export default function ApiDocsPage() {
 
       <Navbar />
 
-      <div className="max-w-[1200px] mx-auto flex gap-0 min-h-[calc(100vh-64px)]">
-        {/* Sidebar */}
-        <aside className="w-52 flex-shrink-0 border-r border-gray-800 py-10 px-4 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
+      <div className="max-w-[1200px] mx-auto md:flex gap-0 min-h-[calc(100vh-64px)]">
+        {/* Sidebar — desktop only */}
+        <aside className="hidden md:block w-52 flex-shrink-0 border-r border-gray-800 py-10 px-4 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
           <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-3 px-2">Docs</p>
           {sections.map((s) => (
             <button
@@ -185,8 +185,25 @@ export default function ApiDocsPage() {
           )}
         </aside>
 
+        {/* Mobile nav — horizontal scroll tabs */}
+        <div className="md:hidden flex overflow-x-auto border-b border-gray-800 bg-[#0B0F14] sticky top-16 z-10 gap-1 px-2 py-2 no-scrollbar">
+          {sections.map((s) => (
+            <button
+              key={s}
+              onClick={() => setActiveSection(s)}
+              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                activeSection === s
+                  ? 'bg-[#00D4A6]/10 text-[#00D4A6]'
+                  : 'text-gray-400'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
         {/* Main content */}
-        <main className="flex-1 py-10 px-10 overflow-auto">
+        <main className="flex-1 py-8 px-4 md:px-10 overflow-auto min-w-0">
           {activeSection === 'Introduction' && (
             <div>
               <h1 className="text-3xl font-bold text-white mb-4">API Reference</h1>
@@ -235,12 +252,12 @@ export default function ApiDocsPage() {
           {activeSection === 'Endpoints' && (
             <div>
               <h2 className="text-3xl font-bold text-white mb-8">Endpoints</h2>
-              <div className="flex gap-2 flex-wrap mb-8">
+              <div className="flex gap-2 flex-wrap mb-8 overflow-x-auto no-scrollbar">
                 {endpoints.map((ep, i) => (
                   <button
                     key={ep.path}
                     onClick={() => setActiveEndpoint(i)}
-                    className={`text-xs font-mono px-3 py-1.5 rounded-lg border transition ${
+                    className={`flex-shrink-0 text-xs font-mono px-3 py-1.5 rounded-lg border transition ${
                       activeEndpoint === i
                         ? 'bg-[#00D4A6]/10 border-[#00D4A6]/40 text-[#00D4A6]'
                         : 'border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-300'
@@ -262,14 +279,16 @@ export default function ApiDocsPage() {
                     <p className="text-gray-400 mb-6">{ep.desc}</p>
 
                     <h3 className="text-sm font-semibold text-white mb-3">Parameters</h3>
-                    <div className="bg-[#121821] border border-gray-800 rounded-xl overflow-hidden mb-6">
-                      {ep.params.map((p, i) => (
-                        <div key={p.name} className={`flex items-start gap-4 px-5 py-4 ${i < ep.params.length - 1 ? 'border-b border-gray-800' : ''}`}>
-                          <code className="text-xs text-[#00D4A6] w-32 shrink-0 mt-0.5">{p.name}</code>
-                          <span className="text-xs text-gray-600 w-16 shrink-0 mt-0.5">{p.type}</span>
-                          <span className="text-xs text-gray-400">{p.desc}</span>
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto mb-6">
+                      <div className="bg-[#121821] border border-gray-800 rounded-xl overflow-hidden min-w-[320px]">
+                        {ep.params.map((p, i) => (
+                          <div key={p.name} className={`flex items-start gap-4 px-5 py-4 ${i < ep.params.length - 1 ? 'border-b border-gray-800' : ''}`}>
+                            <code className="text-xs text-[#00D4A6] w-32 shrink-0 mt-0.5">{p.name}</code>
+                            <span className="text-xs text-gray-600 w-16 shrink-0 mt-0.5">{p.type}</span>
+                            <span className="text-xs text-gray-400">{p.desc}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <h3 className="text-sm font-semibold text-white mb-3">Example Response</h3>

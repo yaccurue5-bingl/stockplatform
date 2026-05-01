@@ -72,6 +72,10 @@ body.capture-detected::after {
   pointer-events: none;
 }
 
+/* 스크롤바 숨기기 유틸리티 (모바일 가로 스크롤 탭 등) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* SweetAlert2 확인 버튼 항상 보이도록 */
 .swal2-confirm-visible,
 .swal2-confirm {
