@@ -102,10 +102,11 @@ export async function POST(request: Request) {
     const userName = name || email.split('@')[0];
 
     const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: [email],
+      from:    FROM_EMAIL,
+      to:      [email],
+      replyTo: 'support@k-marketinsight.com',
       subject: 'Welcome to K-MarketInsight 👋',
-      html: buildWelcomeHtml(userName),
+      html:    buildWelcomeHtml(userName),
     });
 
     if (error) {

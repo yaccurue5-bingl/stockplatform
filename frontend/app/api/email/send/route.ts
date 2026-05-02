@@ -71,11 +71,12 @@ export async function POST(request: Request) {
 
     // Resend로 이메일 발송
     const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: recipients,
+      from:    FROM_EMAIL,
+      to:      recipients,
+      replyTo: 'support@k-marketinsight.com',
       subject: subject,
-      html: html || '',
-      text: text || undefined,
+      html:    html || '',
+      text:    text || undefined,
     });
 
     if (error) {
