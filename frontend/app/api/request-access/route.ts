@@ -149,6 +149,7 @@ export async function POST(req: Request) {
       resend.emails.send({
         from:    FROM,
         to:      [email],
+        replyTo: 'support@k-marketinsight.com',
         subject: 'Access Request Received — K-MarketInsight',
         html:    userHtml(plan),
       }),
