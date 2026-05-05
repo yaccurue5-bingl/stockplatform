@@ -199,19 +199,35 @@ class DilutionScoreResult:
 
 
 _AMOUNT_KEYWORDS = (
-    'issuance amount',      # 기본
+    'issuance amount',                    # 기본
     '발행금액',
-    'funding size',         # Groq 변형: "Funding size: 6.8B KRW"
-    'total funding amount', # Groq 변형: "Total Funding Amount: 37B KRW"
-    'conversion amount',    # 전환청구권행사: "Conversion Amount: 5B KRW"
+    'funding size',                       # Groq 변형: "Funding size: 6.8B KRW"
+    'total funding amount',               # Groq 변형: "Total Funding Amount: 37B KRW"
+    'total amount of funds to be raised', # 010130: 2.8T KRW
+    'planned amount of payment',          # 074610: 1.2B KRW
+    'amount to be raised',
+    'total proceeds',
+    'gross proceeds',
+    'conversion amount',                  # 전환청구권행사: "Conversion Amount: 5B KRW"
     '모집금액',
     '모집총액',
+    '자금조달금액',
 )
 
 # 자사주처분/전환가격조정 등 — 신규 주식 발행이 아님 → 발행금액 파싱 제외
 _SKIP_AMOUNT_KEYWORDS = (
     'disposal amount',           # 자사주처분 결과금액
     'treasury stock disposal',   # 자사주처분
+)
+
+# Dilution 엔진 제외 리포트 유형 (noise 이벤트 — report_nm 기준)
+_DILUTION_SKIP_RN_KW: tuple[str, ...] = (
+    '무상증자',             # 현금 없음, 공급 압력 아님
+    'bonus issue',         # 무상증자 영문
+    '증권신고서(지분증권)',   # 단순 신고서 — key_numbers에 재무데이터만 있음
+    '증권신고서(채무증권)',   # 채무증권 단순 신고서
+    '가액조정',             # 전환가액조정·행사가액조정 → 가격 변경, 신규 발행 아님
+    '콜옵션',               # CB 콜옵션 행사 — 복잡한 구조, 금액 파싱 불가
 )
 
 
@@ -306,6 +322,11 @@ def compute_dilution_score(
       - size_impact < 0.03  (3% 미만 소규모 희석 — noise 필터)
     """
     if not key_numbers or not market_cap or market_cap <= 0:
+        return None
+
+    # Noise 이벤트 필터 — 무상증자·증권신고서(단순신고)·가액조정 등
+    rn_lower = (report_nm or '').lower()
+    if any(skip in rn_lower for skip in _DILUTION_SKIP_RN_KW):
         return None
 
     kn_list: list[str] = (
