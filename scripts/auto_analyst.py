@@ -40,15 +40,14 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 
 # ── Groq 분석 불필요 공시 유형 (100% no-signal, 비용 절감) ────────────────────
 # 4월 실증 분석 기준: 태그 발생률 0~0.5%, Groq 분석 시 signal 없음이 확정적
-SKIP_REPORT_NM_TYPES: frozenset[str] = frozenset({
+# 소급 보고 / ELS·DLS 계열: 희석 이벤트 분석에서 avg_ret 왜곡 원인으로 확인
+_SKIP_EXACT: frozenset[str] = frozenset({
+    # ① 지분/의결권 변동 — 정형화된 신고, signal 없음
     "주식등의대량보유상황보고서(일반)",
     "주식등의대량보유상황보고서(약식)",
     "임원ㆍ주요주주특정증권등소유상황보고서",
     "최대주주등소유주식변동신고서",
     "소속부변경",
-    "일괄신고추가서류(파생결합사채-주가연계파생결합사채)",
-    "일괄신고추가서류(파생결합증권-주가연계증권)",
-    "일괄신고추가서류",
     "주주명부폐쇄기간또는기준일설정",
     "주권매매거래정지(주식의 병합, 분할 등 전자등록 변경, 말소)",
     "[기재정정]주식매수선택권부여에관한신고",
@@ -58,7 +57,37 @@ SKIP_REPORT_NM_TYPES: frozenset[str] = frozenset({
     "타인에대한채무보증결정",
     "전환청구권행사",
     "자기주식처분결과보고서",
+    # ② ELS/DLS 파생결합 — 주식 희석 아님
+    "일괄신고추가서류(파생결합사채-주가연계파생결합사채)",
+    "일괄신고추가서류(파생결합증권-주가연계증권)",
+    "일괄신고추가서류",
 })
+
+# prefix 패턴: TRIM 후 startswith 확인 (변형 이름 다수 존재)
+_SKIP_PREFIXES: tuple[str, ...] = (
+    # ③ 소급 보고 — 발행 결과 공시 (이미 주가 반응 완료, signal 없음)
+    "증권발행결과",
+    "[기재정정]증권발행결과",
+    # ④ ELS/DLS 기타 파생결합 변형
+    "일괄신고추가서류(기타파생결합사채)",
+    "[기재정정]일괄신고추가서류(기타파생결합사채)",
+    "일괄신고서(기타파생결합사채)",
+    "[기재정정]일괄신고서(기타파생결합사채)",
+    # ⑤ 채무증권 발행조건확정 — 소급성 강함, 주식 희석 없음
+    "[발행조건확정]증권신고서(채무증권)",
+)
+
+
+def _should_skip_report(report_nm: str) -> bool:
+    """report_nm이 Groq 분석 불필요 공시인지 판단."""
+    nm = report_nm.strip()
+    if nm in _SKIP_EXACT:
+        return True
+    return any(nm.startswith(p) for p in _SKIP_PREFIXES)
+
+
+# 하위호환: 기존 코드가 SKIP_REPORT_NM_TYPES 를 참조하는 경우를 위한 alias
+SKIP_REPORT_NM_TYPES = _SKIP_EXACT
 
 # ── 스코어 인라인 계산 헬퍼 ───────────────────────────────────────────────────
 
@@ -450,7 +479,7 @@ def run(backfill: bool = False, limit: int = 200,
 
         # ── no-signal 확정 공시 유형 → Groq 호출 없이 skipped 처리 (비용 절감)
         item_report_nm = (item.get('report_nm') or '').strip()
-        if item_report_nm in SKIP_REPORT_NM_TYPES:
+        if _should_skip_report(item_report_nm):
             supabase.table("disclosure_insights").update({
                 "analysis_status": "skipped",
                 "updated_at": "now()",
