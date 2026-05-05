@@ -295,6 +295,8 @@ def compute_dilution_score(
         * timing_decay
         * liquidity_impact
     )
+    # 이상치 캡: 초소형 시총 + 초대규모 발행 조합 방지
+    score = min(score, 2.0)
 
     return DilutionScoreResult(
         size_impact=round(size_impact, 4),
