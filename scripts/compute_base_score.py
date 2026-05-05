@@ -293,11 +293,12 @@ def load_market_caps(sb) -> dict[str, int]:
     }
 
 
-def fetch_unscored(sb, recompute: bool) -> list[dict]:
+def fetch_unscored(sb, recompute: bool, from_dt: str | None = None, to_dt: str | None = None) -> list[dict]:
     """
     base_score 가 null 인 공시 (또는 recompute=True 이면 전체) 조회.
     sentiment_score IS NOT NULL + analysis_status = 'completed' 조건 포함.
     Supabase 1000행 제한을 우회하기 위해 페이지네이션 적용.
+    from_dt / to_dt: rcept_dt 범위 필터 (YYYYMMDD 형식, 포함)
     """
     PAGE = 1000
     all_rows: list[dict] = []
@@ -315,6 +316,10 @@ def fetch_unscored(sb, recompute: bool) -> list[dict]:
         )
         if not recompute:
             query = query.is_("base_score", "null")
+        if from_dt:
+            query = query.gte("rcept_dt", from_dt)
+        if to_dt:
+            query = query.lte("rcept_dt", to_dt)
 
         page = (
             query
@@ -534,6 +539,8 @@ def main():
     parser = argparse.ArgumentParser(description="BaseScore / FinalScore 계산")
     parser.add_argument("--dry-run",   action="store_true", help="DB 저장 없이 결과 출력")
     parser.add_argument("--recompute", action="store_true", help="이미 계산된 항목도 재계산")
+    parser.add_argument("--from",  dest="from_dt", default=None, help="시작 날짜 (YYYYMMDD, rcept_dt 기준)")
+    parser.add_argument("--to",    dest="to_dt",   default=None, help="종료 날짜 (YYYYMMDD, rcept_dt 기준)")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -562,7 +569,7 @@ def main():
 
     # 2. 미계산 공시 조회
     print("\n  [2/5] 미계산 공시 조회 중...")
-    rows = fetch_unscored(sb, args.recompute)
+    rows = fetch_unscored(sb, args.recompute, from_dt=args.from_dt, to_dt=args.to_dt)
     if not rows:
         print("  계산할 공시가 없습니다.")
         sys.exit(0)
