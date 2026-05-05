@@ -198,11 +198,38 @@ class DilutionScoreResult:
     score:              float   # 최종 Supply Pressure Score
 
 
+_AMOUNT_KEYWORDS = (
+    'issuance amount',      # 기본
+    '발행금액',
+    'funding size',         # Groq 변형: "Funding size: 6.8B KRW"
+    'total funding amount', # Groq 변형: "Total Funding Amount: 37B KRW"
+    'conversion amount',    # 전환청구권행사: "Conversion Amount: 5B KRW"
+    '모집금액',
+    '모집총액',
+)
+
+# 자사주처분/전환가격조정 등 — 신규 주식 발행이 아님 → 발행금액 파싱 제외
+_SKIP_AMOUNT_KEYWORDS = (
+    'disposal amount',           # 자사주처분 결과금액
+    'treasury stock disposal',   # 자사주처분
+)
+
+
 def _parse_issuance_amount(kn_list: list[str]) -> float | None:
-    """key_numbers에서 발행금액(KRW 원 단위) 파싱."""
+    """
+    key_numbers에서 발행금액(KRW 원 단위) 파싱.
+
+    우선순위:
+      1. 직접 금액 키워드 (issuance amount / funding size / conversion amount 등)
+      2. 주식수 × 발행가 곱 산출 (Groq가 개별 항목만 추출한 경우)
+    """
+    # ── Pass 1: 금액 키워드 직접 매칭 ──────────────────────────────────────
     for kn in kn_list:
         lower = kn.lower()
-        if 'issuance amount' not in lower and '발행금액' not in lower:
+        # 자사주처분 등 비희석 이벤트 금액 → 스킵
+        if any(sk in lower for sk in _SKIP_AMOUNT_KEYWORDS):
+            continue
+        if not any(ak in lower for ak in _AMOUNT_KEYWORDS):
             continue
         # "1B KRW" / "1,000,000,000 KRW" 양 형태 처리
         if 'b krw' in lower or 'billion' in lower:
@@ -214,6 +241,33 @@ def _parse_issuance_amount(kn_list: list[str]) -> float | None:
             val = float(m.group(1))
             if val >= 1_000_000:          # 최소 100만원 이상 (단위 혼용 방어)
                 return val
+
+    # ── Pass 2: 주식수 × 발행가 곱 ──────────────────────────────────────────
+    #  Groq가 "Total Shares to be Issued: 8,640,000" + "Issuance Price: 2,875 KRW"
+    #  형태로 분리 추출한 경우 곱해서 발행금액 산출
+    _SHARE_KW   = ('shares to be issued', 'new shares', '신주 수', '발행 주식수', 'number of new shares')
+    _PRICE_KW   = ('issuance price', 'planned issuance price', '발행가액', '발행가', 'price per share')
+    share_count: float | None = None
+    issue_price: float | None = None
+
+    for kn in kn_list:
+        lower = kn.lower()
+        if share_count is None and any(sk in lower for sk in _SHARE_KW):
+            m = re.search(r'([\d,]+)\s*(?:shares?|주)', kn, re.IGNORECASE)
+            if m:
+                share_count = float(m.group(1).replace(',', ''))
+        if issue_price is None and any(pk in lower for pk in _PRICE_KW):
+            m = re.search(r'([\d,]+)\s*(?:KRW|원)', kn, re.IGNORECASE)
+            if m:
+                v = float(m.group(1).replace(',', ''))
+                if v >= 100:   # 100원 이상 (단위 방어)
+                    issue_price = v
+
+    if share_count and issue_price:
+        total = share_count * issue_price
+        if total >= 1_000_000:
+            return total
+
     return None
 
 
