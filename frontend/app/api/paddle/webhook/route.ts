@@ -147,25 +147,22 @@ async function resolveUserId(event: any): Promise<string | null> {
 
 // 구독 플랜 ID → plan 문자열 매핑
 // 환경변수 우선: PADDLE_PRICE_ID_PRO, PADDLE_PRICE_ID_DEVELOPER
-// 폴백: price ID 문자열 포함 검사
+// Paddle price ID → 내부 plan 문자열 매핑
+// Plans: starter ($99) | pro ($299) | enterprise (contact only, no Paddle price)
 function resolvePlan(planId: string): string {
   const id = (planId || '').toLowerCase();
 
-  // PADDLE_PRICE_ID_* (server-only) or NEXT_PUBLIC_PADDLE_PRICE_ID_* (both)
-  const proPriceId  = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO       || '').toLowerCase();
-  const devPriceId  = (process.env.PADDLE_PRICE_ID_DEVELOPER || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER || '').toLowerCase();
-  const testPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test || '').toLowerCase();
+  const proPriceId     = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO      || '').toLowerCase();
+  const starterPriceId = (process.env.PADDLE_PRICE_ID_STARTER  || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_STARTER  || '').toLowerCase();
 
-  if (proPriceId  && id === proPriceId)  return 'pro';
-  if (devPriceId  && id === devPriceId)  return 'developer';
-  // test 상품 → developer로 매핑 (users.plan CHECK 제약 준수)
-  if (testPriceId && id === testPriceId) return 'developer';
+  if (proPriceId     && id === proPriceId)     return 'pro';
+  if (starterPriceId && id === starterPriceId) return 'starter';
 
-  // 폴백: 이름 기반 매칭
-  if (id.includes('pro'))                          return 'pro';
-  if (id.includes('developer') || id.includes('dev')) return 'developer';
+  // 이름 기반 폴백
+  if (id.includes('pro'))        return 'pro';
+  if (id.includes('enterprise')) return 'enterprise';
 
-  return 'developer'; // 기본값
+  return 'starter'; // 기본값
 }
 
 // 구독 생성 처리

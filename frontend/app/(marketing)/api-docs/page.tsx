@@ -757,6 +757,34 @@ export default function ApiDocsPage() {
 
       <Navbar />
 
+      {/* ── Preview Access Banner ────────────────────────────────────────── */}
+      <div className="border-b border-[#00D4A6]/20 bg-[#00D4A6]/5">
+        <div className="max-w-[1200px] mx-auto px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#00D4A6]/15 text-[#00D4A6] border border-[#00D4A6]/30 uppercase tracking-wider">
+              Preview Access
+            </span>
+            <p className="text-xs text-gray-400 truncate">
+              Unlock production API keys, full historical data &amp; bulk export.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <a
+              href="/checkout/starter"
+              className="text-xs font-bold bg-[#00D4A6] text-[#0B0F14] rounded-lg px-3 py-1.5 hover:bg-[#00bfa0] transition"
+            >
+              Starter $99/mo
+            </a>
+            <a
+              href="/checkout/pro"
+              className="text-xs font-semibold text-[#00D4A6] border border-[#00D4A6]/40 hover:border-[#00D4A6] rounded-lg px-3 py-1.5 transition"
+            >
+              Pro $299/mo
+            </a>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-[1200px] mx-auto md:flex gap-0 min-h-[calc(100vh-64px)]">
 
         {/* ── Sidebar (desktop) ─────────────────────────────────────────── */}

@@ -38,6 +38,57 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
+# ── Groq 분석 불필요 공시 유형 (100% no-signal, 비용 절감) ────────────────────
+# 4월 실증 분석 기준: 태그 발생률 0~0.5%, Groq 분석 시 signal 없음이 확정적
+# 소급 보고 / ELS·DLS 계열: 희석 이벤트 분석에서 avg_ret 왜곡 원인으로 확인
+_SKIP_EXACT: frozenset[str] = frozenset({
+    # ① 지분/의결권 변동 — 정형화된 신고, signal 없음
+    "주식등의대량보유상황보고서(일반)",
+    "주식등의대량보유상황보고서(약식)",
+    "임원ㆍ주요주주특정증권등소유상황보고서",
+    "최대주주등소유주식변동신고서",
+    "소속부변경",
+    "주주명부폐쇄기간또는기준일설정",
+    "주권매매거래정지(주식의 병합, 분할 등 전자등록 변경, 말소)",
+    "[기재정정]주식매수선택권부여에관한신고",
+    "결산실적공시예고(안내공시)",
+    "주주총회소집결의(임시주주총회)",
+    "주주총회소집결의",
+    "타인에대한채무보증결정",
+    "전환청구권행사",
+    "자기주식처분결과보고서",
+    # ② ELS/DLS 파생결합 — 주식 희석 아님
+    "일괄신고추가서류(파생결합사채-주가연계파생결합사채)",
+    "일괄신고추가서류(파생결합증권-주가연계증권)",
+    "일괄신고추가서류",
+})
+
+# prefix 패턴: TRIM 후 startswith 확인 (변형 이름 다수 존재)
+_SKIP_PREFIXES: tuple[str, ...] = (
+    # ③ 소급 보고 — 발행 결과 공시 (이미 주가 반응 완료, signal 없음)
+    "증권발행결과",
+    "[기재정정]증권발행결과",
+    # ④ ELS/DLS 기타 파생결합 변형
+    "일괄신고추가서류(기타파생결합사채)",
+    "[기재정정]일괄신고추가서류(기타파생결합사채)",
+    "일괄신고서(기타파생결합사채)",
+    "[기재정정]일괄신고서(기타파생결합사채)",
+    # ⑤ 채무증권 발행조건확정 — 소급성 강함, 주식 희석 없음
+    "[발행조건확정]증권신고서(채무증권)",
+)
+
+
+def _should_skip_report(report_nm: str) -> bool:
+    """report_nm이 Groq 분석 불필요 공시인지 판단."""
+    nm = report_nm.strip()
+    if nm in _SKIP_EXACT:
+        return True
+    return any(nm.startswith(p) for p in _SKIP_PREFIXES)
+
+
+# 하위호환: 기존 코드가 SKIP_REPORT_NM_TYPES 를 참조하는 경우를 위한 alias
+SKIP_REPORT_NM_TYPES = _SKIP_EXACT
+
 # ── 스코어 인라인 계산 헬퍼 ───────────────────────────────────────────────────
 
 _event_stats_cache: dict | None = None   # 프로세스당 1회 로드
@@ -367,33 +418,43 @@ In ai_summary:
             return None
 
 
-def run(backfill: bool = False, limit: int = 50):
+def run(backfill: bool = False, limit: int = 200,
+        date_from: str = None, date_to: str = None):
     """
     backfill=True  : 이미 completed 이지만 sentiment_score 가 없는 항목 재분석
                      (기존 DB 백테스트용)
     backfill=False : 기본 모드 - analysis_status='pending' 항목만 처리
+    date_from/date_to : 'YYYYMMDD' 형식, 지정 시 rcept_dt 범위 필터
     """
     analyst = AIAnalyst()
 
+    range_label = ""
+    if date_from or date_to:
+        range_label = f" [{date_from or '...'} ~ {date_to or '...'}]"
+
     if backfill:
-        # 백필 모드: completed 이지만 sentiment_score 가 null 인 항목
-        logger.info("🔁 [BACKFILL] sentiment_score 없는 completed 항목 재분석 시작")
-        res = supabase.table("disclosure_insights") \
+        logger.info(f"🔁 [BACKFILL]{range_label} sentiment_score 없는 completed 항목 재분석 시작")
+        q = supabase.table("disclosure_insights") \
             .select("id, corp_name, stock_code, rcept_dt, report_nm, content, rcept_no, analysis_retry_count") \
             .eq("analysis_status", "completed") \
             .is_("sentiment_score", "null") \
-            .not_.is_("content", "null") \
-            .order("created_at", desc=True) \
-            .limit(limit) \
-            .execute()
+            .not_.is_("content", "null")
+        if date_from:
+            q = q.gte("rcept_dt", date_from)
+        if date_to:
+            q = q.lte("rcept_dt", date_to)
+        res = q.order("rcept_dt", desc=True).limit(limit).execute()
     else:
-        res = supabase.table("disclosure_insights") \
+        logger.info(f"🔍 [분석]{range_label} pending 항목 처리 시작 (limit={limit})")
+        q = supabase.table("disclosure_insights") \
             .select("id, corp_name, stock_code, rcept_dt, report_nm, content, rcept_no, analysis_retry_count") \
             .eq("analysis_status", "pending") \
-            .or_("analysis_retry_count.is.null,analysis_retry_count.lt.3") \
-            .order("created_at", desc=True) \
-            .limit(limit) \
-            .execute()
+            .or_("analysis_retry_count.is.null,analysis_retry_count.lt.3")
+        if date_from:
+            q = q.gte("rcept_dt", date_from)
+        if date_to:
+            q = q.lte("rcept_dt", date_to)
+        res = q.order("rcept_dt", desc=True).limit(limit).execute()
 
     if not res.data:
         logger.info("✅ 분석할 데이터가 없습니다.")
@@ -415,6 +476,16 @@ def run(backfill: bool = False, limit: int = 50):
             logger.warning(f"[corp_name_en] 조회 실패 (무시): {e}")
 
     for item in res.data:
+
+        # ── no-signal 확정 공시 유형 → Groq 호출 없이 skipped 처리 (비용 절감)
+        item_report_nm = (item.get('report_nm') or '').strip()
+        if _should_skip_report(item_report_nm):
+            supabase.table("disclosure_insights").update({
+                "analysis_status": "skipped",
+                "updated_at": "now()",
+            }).eq("id", item['id']).execute()
+            logger.debug(f"  ⏭️  skipped (no-signal type): {item_report_nm}")
+            continue
 
         supabase.table("disclosure_insights").update({
             "analysis_status": "processing"
@@ -487,7 +558,7 @@ def run(backfill: bool = False, limit: int = 50):
 
             logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-        time.sleep(3.0)
+        time.sleep(1.0)
 
     processed = len(res.data)
     logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")
@@ -499,7 +570,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--backfill", action="store_true",
                         help="sentiment_score 없는 completed 항목 재분석 (백테스트용)")
-    parser.add_argument("--limit", type=int, default=50,
-                        help="최대 처리 건수 (기본 50)")
+    parser.add_argument("--limit", type=int, default=200,
+                        help="배치당 처리 건수 (기본 200)")
+    parser.add_argument("--from", dest="date_from", type=str, default=None,
+                        help="시작 날짜 YYYYMMDD (예: 20260401)")
+    parser.add_argument("--to",   dest="date_to",   type=str, default=None,
+                        help="종료 날짜 YYYYMMDD (예: 20260428)")
     args = parser.parse_args()
-    run(backfill=args.backfill, limit=args.limit)
+
+    total = 0
+    batch  = 1
+    while True:
+        logger.info(f"━━━ Batch #{batch} ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        processed = run(
+            backfill=args.backfill,
+            limit=args.limit,
+            date_from=args.date_from,
+            date_to=args.date_to,
+        )
+        total += processed
+        if processed == 0:
+            break
+        logger.info(f"[Batch #{batch}] 완료 {processed}건  /  누적 {total}건")
+        batch += 1
+
+    logger.info(f"✅ 전체 완료 — 총 처리: {total}건")

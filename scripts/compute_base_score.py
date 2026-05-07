@@ -20,7 +20,8 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
 시그널 태그 (2026-04-20 재설계 — LPS 수집 중단으로 event_type + sentiment 기반으로 전환):
   부정 우선:
     "⚖️ Legal Alert"    : event_type = LEGAL
-    "⚠️ Dilution Risk"  : event_type = DILUTION AND sentiment ≤ -0.2
+    "⚠️ Dilution Risk"  : Dilution 독립 엔진 — score > 0.15 AND sentiment < -0.2
+                           (size_impact ≥ 3%, effective_discount, timing_decay, liquidity_impact 반영)
     "📉 Earnings Miss"  : event_type = EARNINGS AND sentiment ≤ -0.4 AND base_score ≤ 45
   고신뢰 긍정:
     "🔥 High Conviction": base_score ≥ 63 AND sentiment ≥ 0.5
@@ -42,9 +43,12 @@ disclosure_insights 의 AI 분석 결과로 BaseScore / FinalScore 계산.
 
 import asyncio
 import json
+import math
 import os
+import re
 import sys
 import argparse
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -173,11 +177,243 @@ def compute_final_score(base_score: float, lps: float | None, reliability: float
     return round(max(0.0, min(100.0, final)), 4)
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dilution 독립 엔진 (Score Layer + Signal Layer 분리)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_AMT_NUM_RE = re.compile(r'([\d,]+(?:\.\d+)?)\s*(?:KRW|원)?', re.IGNORECASE)
+_PCT_RE     = re.compile(r'([\d.]+)\s*%')
+_TIER1_KW   = ('유상증자', '전환사채', 'paid-in capital', 'convertible bond',
+               'cb 발행', 'bw 발행', 'bond with warrant', '신주인수권')
+
+
+@dataclass
+class DilutionScoreResult:
+    size_impact:        float   # 발행규모 / 시총
+    discount_factor:    float   # 할인율 (0~1)
+    effective_discount: float   # discount_factor × size_impact
+    timing_decay:       float   # exp(-days/30)
+    event_strength:     float   # TIER1=1.0, TIER2=0.5
+    liquidity_impact:   float   # 1/log(시총(십억)+1)
+    score:              float   # 최종 Supply Pressure Score
+
+
+_AMOUNT_KEYWORDS = (
+    'issuance amount',                    # 기본
+    '발행금액',
+    'funding size',                       # Groq 변형: "Funding size: 6.8B KRW"
+    'total funding amount',               # Groq 변형: "Total Funding Amount: 37B KRW"
+    'total amount of funds to be raised', # 010130: 2.8T KRW
+    'planned amount of payment',          # 074610: 1.2B KRW
+    'amount to be raised',
+    'total proceeds',
+    'gross proceeds',
+    'conversion amount',                  # 전환청구권행사: "Conversion Amount: 5B KRW"
+    '모집금액',
+    '모집총액',
+    '자금조달금액',
+)
+
+# 자사주처분/전환가격조정 등 — 신규 주식 발행이 아님 → 발행금액 파싱 제외
+_SKIP_AMOUNT_KEYWORDS = (
+    'disposal amount',           # 자사주처분 결과금액
+    'treasury stock disposal',   # 자사주처분
+)
+
+# Dilution 엔진 제외 리포트 유형 (noise 이벤트 — report_nm 기준)
+_DILUTION_SKIP_RN_KW: tuple[str, ...] = (
+    '무상증자',             # 현금 없음, 공급 압력 아님
+    'bonus issue',         # 무상증자 영문
+    '증권신고서(지분증권)',   # 단순 신고서 — key_numbers에 재무데이터만 있음
+    '증권신고서(채무증권)',   # 채무증권 단순 신고서
+    '가액조정',             # 전환가액조정·행사가액조정 → 가격 변경, 신규 발행 아님
+    '콜옵션',               # CB 콜옵션 행사 — 복잡한 구조, 금액 파싱 불가
+)
+
+
+def _parse_issuance_amount(kn_list: list[str]) -> float | None:
+    """
+    key_numbers에서 발행금액(KRW 원 단위) 파싱.
+
+    우선순위:
+      1. 직접 금액 키워드 (issuance amount / funding size / conversion amount 등)
+      2. 주식수 × 발행가 곱 산출 (Groq가 개별 항목만 추출한 경우)
+    """
+    # ── Pass 1: 금액 키워드 직접 매칭 ──────────────────────────────────────
+    for kn in kn_list:
+        lower = kn.lower()
+        # 자사주처분 등 비희석 이벤트 금액 → 스킵
+        if any(sk in lower for sk in _SKIP_AMOUNT_KEYWORDS):
+            continue
+        if not any(ak in lower for ak in _AMOUNT_KEYWORDS):
+            continue
+        # "1B KRW" / "1,000,000,000 KRW" 양 형태 처리
+        if 'b krw' in lower or 'billion' in lower:
+            m = re.search(r'([\d.]+)\s*[bB]', kn)
+            if m:
+                return float(m.group(1)) * 1_000_000_000
+        m = _AMT_NUM_RE.search(kn.replace(',', ''))
+        if m:
+            val = float(m.group(1))
+            if val >= 1_000_000:          # 최소 100만원 이상 (단위 혼용 방어)
+                return val
+
+    # ── Pass 2: 주식수 × 발행가 곱 ──────────────────────────────────────────
+    #  Groq가 "Total Shares to be Issued: 8,640,000" + "Issuance Price: 2,875 KRW"
+    #  형태로 분리 추출한 경우 곱해서 발행금액 산출
+    _SHARE_KW   = ('shares to be issued', 'new shares', '신주 수', '발행 주식수', 'number of new shares')
+    _PRICE_KW   = ('issuance price', 'planned issuance price', '발행가액', '발행가', 'price per share')
+    share_count: float | None = None
+    issue_price: float | None = None
+
+    for kn in kn_list:
+        lower = kn.lower()
+        if share_count is None and any(sk in lower for sk in _SHARE_KW):
+            m = re.search(r'([\d,]+)\s*(?:shares?|주)', kn, re.IGNORECASE)
+            if m:
+                share_count = float(m.group(1).replace(',', ''))
+        if issue_price is None and any(pk in lower for pk in _PRICE_KW):
+            m = re.search(r'([\d,]+)\s*(?:KRW|원)', kn, re.IGNORECASE)
+            if m:
+                v = float(m.group(1).replace(',', ''))
+                if v >= 100:   # 100원 이상 (단위 방어)
+                    issue_price = v
+
+    if share_count and issue_price:
+        total = share_count * issue_price
+        if total >= 1_000_000:
+            return total
+
+    return None
+
+
+def _parse_discount_rate(kn_list: list[str]) -> float:
+    """Discount Rate 파싱 → 0~1 (없으면 0.0)."""
+    for kn in kn_list:
+        if 'discount' not in kn.lower():
+            continue
+        m = _PCT_RE.search(kn)
+        if m:
+            pct = float(m.group(1))
+            if 0 < pct <= 60:            # 60% 초과는 파싱 오류로 간주
+                return pct / 100.0
+    return 0.0
+
+
+def _get_event_strength(report_nm: str) -> float:
+    """TIER1(유상증자/CB/BW) = 1.0, TIER2(스톡옵션 등) = 0.5."""
+    rn = (report_nm or '').lower()
+    return 1.0 if any(k in rn for k in _TIER1_KW) else 0.5
+
+
+def compute_dilution_score(
+    key_numbers: list | None,
+    market_cap:  int | None,
+    rcept_dt:    str,
+    report_nm:   str = '',
+    today:       datetime | None = None,
+) -> DilutionScoreResult | None:
+    """
+    Dilution Supply Pressure Score 계산.
+
+    Returns None if:
+      - key_numbers / market_cap 없음
+      - issuance_amount 파싱 불가
+      - size_impact < 0.03  (3% 미만 소규모 희석 — noise 필터)
+    """
+    if not key_numbers or not market_cap or market_cap <= 0:
+        return None
+
+    # Noise 이벤트 필터 — 무상증자·증권신고서(단순신고)·가액조정 등
+    rn_lower = (report_nm or '').lower()
+    if any(skip in rn_lower for skip in _DILUTION_SKIP_RN_KW):
+        return None
+
+    kn_list: list[str] = (
+        key_numbers if isinstance(key_numbers, list) else []
+    )
+
+    # ① Size Impact = 발행금액 / 시총
+    issuance_amount = _parse_issuance_amount(kn_list)
+    if issuance_amount is None:
+        return None
+    size_impact = issuance_amount / market_cap
+    if size_impact < 0.03:
+        return None                      # 3% 미만 → noise, 태그 없음
+
+    # ② Discount Factor
+    discount_factor    = _parse_discount_rate(kn_list)
+    effective_discount = discount_factor * size_impact
+
+    # ③ Timing Decay: exp(-days/30)
+    _today = today or datetime.utcnow()
+    try:
+        event_dt = datetime.strptime(rcept_dt, '%Y%m%d')
+    except (ValueError, TypeError):
+        event_dt = _today
+    days = max(0.0, float((_today - event_dt).days))
+    timing_decay = math.exp(-days / 30.0)
+
+    # ④ Event Strength (Tier)
+    event_strength = _get_event_strength(report_nm)
+
+    # ⑤ Liquidity Impact: 시총 역로그 스케일
+    #    avg_trading_value 데이터 없으므로 시총(십억 단위)으로 근사
+    #    LARGE(1T) → 0.069, MID(100B) → 0.091, SMALL(10B) → 0.130
+    mc_bn = max(market_cap / 1_000_000_000.0 + 1.0, 2.0)
+    liquidity_impact = 1.0 / math.log(mc_bn)
+
+    score = (
+        event_strength
+        * size_impact
+        * (1.0 + effective_discount)
+        * timing_decay
+        * liquidity_impact
+    )
+    # 이상치 캡: 초소형 시총 + 초대규모 발행 조합 방지
+    score = min(score, 2.0)
+
+    return DilutionScoreResult(
+        size_impact=round(size_impact, 4),
+        discount_factor=round(discount_factor, 4),
+        effective_discount=round(effective_discount, 4),
+        timing_decay=round(timing_decay, 4),
+        event_strength=event_strength,
+        liquidity_impact=round(liquidity_impact, 4),
+        score=round(score, 6),
+    )
+
+
+def compute_dilution_signal(
+    dilution: DilutionScoreResult | None,
+    sentiment: float | None,
+) -> str | None:
+    """
+    Score Layer → Signal Layer.
+
+    HIGH   : score > 0.15 AND sentiment < -0.2  (공급 압력 강 + AI 부정)
+    MEDIUM : score > 0.10                         (공급 압력만, sentiment 무관)
+    None   : 그 외 (size < 3% 포함)
+    """
+    if dilution is None:
+        return None
+    ss = float(sentiment) if sentiment is not None else 0.0
+    if dilution.score > 0.15 and ss < -0.2:
+        return 'HIGH'
+    if dilution.score > 0.10:
+        return 'MEDIUM'
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
 def compute_signal_tag(
     base_score: float,
     lps: float | None,                    # 하위 호환 유지 (현재 미사용)
     event_type: str | None = None,
     sentiment_score: float | None = None,
+    dilution_signal: str | None = None,   # Dilution 독립 엔진 결과
 ) -> str | None:
     """
     시그널 태그 결정.
@@ -196,8 +432,13 @@ def compute_signal_tag(
     if et == "LEGAL":
         return "⚖️ Legal Alert"
 
-    if et == "DILUTION" and ss <= -0.2:
-        return "⚠️ Dilution Risk"
+    # DILUTION: 독립 엔진 결과 사용 (size < 3% 또는 score 낮으면 None)
+    if et == "DILUTION":
+        if dilution_signal == 'HIGH':
+            return "⚠️ Dilution Risk"
+        if dilution_signal == 'MEDIUM':
+            return "⚠️ Dilution Watch"
+        return None   # 소규모 희석 or 공급 압력 낮음 → 태그 없음
 
     if et == "EARNINGS" and ss <= -0.4 and bs <= 48:
         return "📉 Earnings Miss"
@@ -293,11 +534,12 @@ def load_market_caps(sb) -> dict[str, int]:
     }
 
 
-def fetch_unscored(sb, recompute: bool) -> list[dict]:
+def fetch_unscored(sb, recompute: bool, from_dt: str | None = None, to_dt: str | None = None) -> list[dict]:
     """
     base_score 가 null 인 공시 (또는 recompute=True 이면 전체) 조회.
     sentiment_score IS NOT NULL + analysis_status = 'completed' 조건 포함.
     Supabase 1000행 제한을 우회하기 위해 페이지네이션 적용.
+    from_dt / to_dt: rcept_dt 범위 필터 (YYYYMMDD 형식, 포함)
     """
     PAGE = 1000
     all_rows: list[dict] = []
@@ -307,7 +549,7 @@ def fetch_unscored(sb, recompute: bool) -> list[dict]:
         query = (
             sb.table("disclosure_insights")
             .select(
-                "id, stock_code, rcept_dt, "
+                "id, stock_code, rcept_dt, report_nm, "
                 "sentiment_score, short_term_impact_score, event_type, key_numbers"
             )
             .eq("analysis_status", "completed")
@@ -315,6 +557,10 @@ def fetch_unscored(sb, recompute: bool) -> list[dict]:
         )
         if not recompute:
             query = query.is_("base_score", "null")
+        if from_dt:
+            query = query.gte("rcept_dt", from_dt)
+        if to_dt:
+            query = query.lte("rcept_dt", to_dt)
 
         page = (
             query
@@ -534,6 +780,8 @@ def main():
     parser = argparse.ArgumentParser(description="BaseScore / FinalScore 계산")
     parser.add_argument("--dry-run",   action="store_true", help="DB 저장 없이 결과 출력")
     parser.add_argument("--recompute", action="store_true", help="이미 계산된 항목도 재계산")
+    parser.add_argument("--from",  dest="from_dt", default=None, help="시작 날짜 (YYYYMMDD, rcept_dt 기준)")
+    parser.add_argument("--to",    dest="to_dt",   default=None, help="종료 날짜 (YYYYMMDD, rcept_dt 기준)")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -562,7 +810,7 @@ def main():
 
     # 2. 미계산 공시 조회
     print("\n  [2/5] 미계산 공시 조회 중...")
-    rows = fetch_unscored(sb, args.recompute)
+    rows = fetch_unscored(sb, args.recompute, from_dt=args.from_dt, to_dt=args.to_dt)
     if not rows:
         print("  계산할 공시가 없습니다.")
         sys.exit(0)
@@ -609,10 +857,23 @@ def main():
         lps         = lps_map.get((code, rdt))
         reliability = compute_reliability(row.get("key_numbers"))
         fs  = compute_final_score(bs, lps, reliability)
+
+        # ── Dilution 독립 엔진 (DILUTION 이벤트만 실행)
+        dilution_result: DilutionScoreResult | None = None
+        if ev_key == 'DILUTION':
+            dilution_result = compute_dilution_score(
+                key_numbers=row.get("key_numbers"),
+                market_cap=cap_map.get(code),
+                rcept_dt=rdt,
+                report_nm=row.get("report_nm") or '',
+            )
+        d_signal = compute_dilution_signal(dilution_result, row.get("sentiment_score"))
+
         tag = compute_signal_tag(
             bs, lps,
             event_type=ev_key,
             sentiment_score=row.get("sentiment_score"),
+            dilution_signal=d_signal,
         )
 
         insight_updates.append({

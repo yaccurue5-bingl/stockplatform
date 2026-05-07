@@ -4,9 +4,12 @@
  * 플랜별 API 호출 quota 검사.
  *
  * 플랜 quota:
- *   free      → 50 calls / day
- *   developer → 10,000 calls / month
- *   pro       → 100,000 calls / month
+ *   free       → 50 calls / day
+ *   starter    → 10,000 calls / month  ($99/mo)
+ *   pro        → 100,000 calls / month ($299/mo)
+ *   enterprise → 1,000,000 calls / month (contact)
+ *
+ * Note: 'developer' = silent DB alias for starter (backward compat only).
  *
  * 방식:
  *   - api_usage_daily 테이블에서 현재 사용량 조회
@@ -18,9 +21,11 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export const PLAN_QUOTA = {
-  free:      { window: 'daily',   limit: 50 },
-  developer: { window: 'monthly', limit: 10_000 },
-  pro:       { window: 'monthly', limit: 100_000 },
+  free:       { window: 'daily',   limit: 50 },
+  starter:    { window: 'monthly', limit: 10_000 },
+  developer:  { window: 'monthly', limit: 10_000 },   // silent DB alias
+  pro:        { window: 'monthly', limit: 100_000 },
+  enterprise: { window: 'monthly', limit: 1_000_000 },
 } as const
 
 type Plan = keyof typeof PLAN_QUOTA
