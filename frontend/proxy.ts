@@ -72,8 +72,9 @@ export default async function proxy(req: NextRequest) {
     return supabaseResponse;
   }
 
-  // ── 4) Cron Job 보안 ────────────────────────────────────────────────────
-  if (pathname.startsWith('/api/cron/')) {
+  // ── 4) Cron Job / Admin API 보안 ────────────────────────────────────────
+  const isAdminRoute = pathname.startsWith('/api/cron/') || pathname.startsWith('/api/admin/');
+  if (isAdminRoute) {
     const authHeader = req.headers.get('authorization');
     const expectedToken = process.env.CRON_SECRET_TOKEN;
 
@@ -85,7 +86,7 @@ export default async function proxy(req: NextRequest) {
       );
     }
     if (authHeader !== `Bearer ${expectedToken}`) {
-      console.warn('[MIDDLEWARE] Unauthorized cron access:', pathname);
+      console.warn('[MIDDLEWARE] Unauthorized admin/cron access:', pathname);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return supabaseResponse;

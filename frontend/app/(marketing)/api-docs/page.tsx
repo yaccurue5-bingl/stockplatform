@@ -757,6 +757,26 @@ export default function ApiDocsPage() {
 
       <Navbar />
 
+      {/* ── Preview Access Banner ────────────────────────────────────────── */}
+      <div className="border-b border-[#00D4A6]/20 bg-[#00D4A6]/5">
+        <div className="max-w-[1200px] mx-auto px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#00D4A6]/15 text-[#00D4A6] border border-[#00D4A6]/30 uppercase tracking-wider">
+              Preview Access
+            </span>
+            <p className="text-xs text-gray-400">
+              Unlock production API keys, full historical data, and bulk export with a paid plan.
+            </p>
+          </div>
+          <a
+            href="/api-access"
+            className="flex-shrink-0 text-xs font-semibold text-[#00D4A6] hover:text-white border border-[#00D4A6]/40 hover:border-[#00D4A6] rounded-lg px-3 py-1.5 transition"
+          >
+            Request Access →
+          </a>
+        </div>
+      </div>
+
       <div className="max-w-[1200px] mx-auto md:flex gap-0 min-h-[calc(100vh-64px)]">
 
         {/* ── Sidebar (desktop) ─────────────────────────────────────────── */}
