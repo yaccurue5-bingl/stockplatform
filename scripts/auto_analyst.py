@@ -241,7 +241,7 @@ Return JSON format:
     "• Key figure 2 (with unit)",
     "• Key figure 3 (with unit)"
   ],
-  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | MNA | LEGAL | CAPEX | EXECUTIVE_CHANGE | OTHER",
+  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | DIVIDEND | MNA | LEGAL | CAPEX | EXECUTIVE_CHANGE | OTHER",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
   "sentiment_score": <float -1.0 to +1.0>,
@@ -250,16 +250,17 @@ Return JSON format:
 }
 
 EVENT TYPE GUIDE (event_type) — pick exactly one:
-- EARNINGS : 실적 발표, 사업/분기/반기 보고서, 결산 공시
-- CONTRACT : 수주, 대규모 계약, MOU, 공급계약
-- DILUTION : 유상증자, CB(전환사채), BW(신주인수권부사채) 발행
-- BUYBACK  : 자기주식 취득 또는 소각 결정
-- MNA      : 합병, 인수, 분할, 지분 취득
-- LEGAL             : 소송, 규제 조치, 과징금, 수사
-- CAPEX             : 설비투자, 공장 신증설, R&D 투자
-- EXECUTIVE_CHANGE  : 대표이사·CEO·C-Level(CFO/COO/CTO 등) 선임·취임·사임·해임
-                      (사외이사·감사만의 변동은 이 공시가 도달하지 않음)
-- OTHER             : 위 어느 항목에도 해당하지 않는 공시
+- EARNINGS  : 실적 발표, 사업/분기/반기 보고서, 결산 공시
+- CONTRACT  : 수주, 대규모 계약, MOU, 공급계약
+- DILUTION  : 유상증자, CB(전환사채), BW(신주인수권부사채) 발행
+- BUYBACK   : 자기주식 취득 또는 소각 결정
+- DIVIDEND  : 현금배당, 주식배당, 중간배당, 결산배당 결정 (현금·현물배당결정 포함)
+- MNA       : 합병, 인수, 분할, 지분 취득
+- LEGAL              : 소송, 규제 조치, 과징금, 수사
+- CAPEX              : 설비투자, 공장 신증설, R&D 투자
+- EXECUTIVE_CHANGE   : 대표이사·CEO·C-Level(CFO/COO/CTO 등) 선임·취임·사임·해임
+                       (사외이사·감사만의 변동은 이 공시가 도달하지 않음)
+- OTHER              : 위 어느 항목에도 해당하지 않는 공시
 
 SENTIMENT SCORE GUIDE (sentiment_score):
 - A continuous float between -1.0 (strongly bearish) and +1.0 (strongly bullish).
@@ -294,6 +295,14 @@ SENTIMENT SCORE GUIDE (sentiment_score):
 - Specify acquisition amount and period.
 - Calculate the ratio against total outstanding shares.
 - Note whether shares will be cancelled (retired).
+""",
+            "DIVIDEND": """
+- State the dividend amount per share (주당 배당금, DPS).
+- Calculate dividend yield (%) using the disclosed share price or market price if available.
+- Note whether this is interim (중간배당), final (결산배당), or special dividend (특별배당).
+- State the ex-dividend date (배당기준일) and payment date if disclosed.
+- Compare with the prior year dividend amount if mentioned.
+- Flag any dividend initiation (배당 개시) or significant change (배당 증가/감소).
 """,
             "MNA": """
 - Specify acquisition/merger amount and its ratio to equity.
@@ -350,6 +359,8 @@ In ai_summary:
             matched.append("CONTRACT")
         if "자기주식" in t:
             matched.append("BUYBACK")
+        if "배당" in t:
+            matched.append("DIVIDEND")
         if "합병" in t or "인수" in t or "분할" in t or ("지분" in t and "취득" in t):
             matched.append("MNA")
         if "소송" in t or "횡령" in t or "배임" in t or "과징금" in t or "수사" in t:

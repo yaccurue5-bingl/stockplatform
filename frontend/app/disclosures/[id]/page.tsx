@@ -32,6 +32,7 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT:         'Strategic Contract',
   DILUTION:         'Capital Increase',
   BUYBACK:          'Share Buyback',
+  DIVIDEND:         'Dividend',
   MNA:              'M&A / Merger',
   LEGAL:            'Legal / Regulatory',
   CAPEX:            'Capital Investment',
