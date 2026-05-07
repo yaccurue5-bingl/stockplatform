@@ -26,12 +26,7 @@ function getPriceId(plan: SupportedPlan): string {
       process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO ?? ''
     );
   }
-  // starter: 전용 env var 우선, 없으면 developer 폴백 (기존 가격 재사용)
-  return (
-    process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_STARTER ??
-    process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER ??
-    ''
-  );
+  return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_STARTER ?? '';
 }
 
 const PAGE_TITLE: Record<SupportedPlan, string> = {
@@ -62,7 +57,8 @@ export default async function CheckoutPage({
 
   const priceId     = getPriceId(plan);
   const clientToken = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? '';
-  const isSandbox   = process.env.NEXT_PUBLIC_PADDLE_SANDBOX === 'true';
+  // sandbox 자동 감지: 'test_' 토큰이면 sandbox, 'live_'이면 production
+  const isSandbox   = clientToken.startsWith('test_');
 
   // 가격 ID 또는 토큰 누락 시 명확한 오류
   const configMissing = !priceId || !clientToken;

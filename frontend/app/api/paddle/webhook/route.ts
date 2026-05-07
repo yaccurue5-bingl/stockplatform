@@ -147,29 +147,22 @@ async function resolveUserId(event: any): Promise<string | null> {
 
 // 구독 플랜 ID → plan 문자열 매핑
 // 환경변수 우선: PADDLE_PRICE_ID_PRO, PADDLE_PRICE_ID_DEVELOPER
-// 폴백: price ID 문자열 포함 검사
+// Paddle price ID → 내부 plan 문자열 매핑
+// Plans: starter ($99) | pro ($299) | enterprise (contact only, no Paddle price)
 function resolvePlan(planId: string): string {
   const id = (planId || '').toLowerCase();
 
-  // PADDLE_PRICE_ID_* (server-only) or NEXT_PUBLIC_PADDLE_PRICE_ID_* (both)
-  const proPriceId     = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO       || '').toLowerCase();
-  // starter: 전용 env var 우선, 없으면 developer 폴백 (동일 price ID 재사용 시)
-  const starterPriceId = (process.env.PADDLE_PRICE_ID_STARTER  || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_STARTER ||
-                          process.env.PADDLE_PRICE_ID_DEVELOPER || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER || '').toLowerCase();
-  const testPriceId    = (process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test || '').toLowerCase();
+  const proPriceId     = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO      || '').toLowerCase();
+  const starterPriceId = (process.env.PADDLE_PRICE_ID_STARTER  || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_STARTER  || '').toLowerCase();
 
   if (proPriceId     && id === proPriceId)     return 'pro';
   if (starterPriceId && id === starterPriceId) return 'starter';
-  // test 상품 → starter로 매핑
-  if (testPriceId    && id === testPriceId)    return 'starter';
 
-  // 폴백: 이름 기반 매칭
-  if (id.includes('pro'))                                      return 'pro';
-  if (id.includes('enterprise'))                               return 'enterprise';
-  if (id.includes('starter'))                                  return 'starter';
-  if (id.includes('developer') || id.includes('dev'))          return 'starter'; // dev → starter 매핑
+  // 이름 기반 폴백
+  if (id.includes('pro'))        return 'pro';
+  if (id.includes('enterprise')) return 'enterprise';
 
-  return 'starter'; // 기본값 (developer → starter 전환)
+  return 'starter'; // 기본값
 }
 
 // 구독 생성 처리

@@ -13,10 +13,11 @@
  *
  * Plans (rank order):
  *   free       → no API access
- *   developer  → legacy alias for starter
- *   starter    → $99/mo — 7-day history, core endpoints
+ *   starter    → $99/mo  — 7-day history, core endpoints
  *   pro        → $299/mo — 30-day history, all endpoints
- *   enterprise → $999+/mo — 90-day history, all endpoints
+ *   enterprise → contact — 90-day history, all endpoints (manual onboarding)
+ *
+ * Note: 'developer' is a silent DB alias for 'starter' (backward compat only).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -24,16 +25,16 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 export const PLAN_RANK: Record<string, number> = {
   free:       0,
-  developer:  1,  // legacy alias → same as starter
   starter:    1,
+  developer:  1,  // silent DB alias — do not use for new users
   pro:        2,
   enterprise: 3,
 }
 
 export const PLAN_HISTORY_DAYS: Record<string, number> = {
   free:       0,
-  developer:  7,   // legacy alias → same as starter
   starter:    7,
+  developer:  7,  // silent DB alias
   pro:        30,
   enterprise: 90,
 }
