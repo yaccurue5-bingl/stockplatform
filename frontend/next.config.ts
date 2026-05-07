@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+      // www → non-www 301 영구 리다이렉트
+      // Google이 www.k-marketinsight.com을 크롤링하여 중복 URL 문제 발생
+      // → 모든 www 요청을 non-www로 강제 통합
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.k-marketinsight.com' }],
+        destination: 'https://k-marketinsight.com/:path*',
+        permanent: true, // 301
+      },
       // /pricing 페이지 삭제 → 영구 301 리다이렉트
       {
         source: '/pricing',
