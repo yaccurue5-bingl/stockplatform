@@ -19,6 +19,7 @@ import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
+import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -231,6 +232,19 @@ export default async function DisclosureDetailPage({
     Math.abs(score) >= 0.6 ? 'HIGH' :
     Math.abs(score) >= 0.3 ? 'MEDIUM' : 'LOW';
 
+  // Capital Return — BUYBACK 이벤트 전용
+  // 분류는 keyNums 전체 기반, 수치 표시는 로그인 여부에 따라 결정
+  const eventKey = (disclosure.event_type ?? 'OTHER').toUpperCase();
+  const keyNumLines = keyNums
+    ? Object.entries(keyNums).map(([k, v]) => `• ${k}: ${v}`)
+    : [];
+  const buybackSubtype =
+    eventKey === 'BUYBACK'
+      ? classifyBuybackSubtype(disclosure.headline, keyNumLines)
+      : null;
+  // 수치 표시: 로그인 유저는 전체, 비로그인은 빈 배열(카드 분류만 표시)
+  const crPublicNums = isLoggedIn ? keyNumLines : [];
+
   return (
     <main className="min-h-screen bg-[#0D1117] text-white">
       {/* 상단 네비 */}
@@ -289,6 +303,14 @@ export default async function DisclosureDetailPage({
                 </p>
                 <p className="text-sm text-gray-300 leading-relaxed">{disclosure.financial_impact}</p>
               </div>
+            )}
+
+            {/* Capital Return (BUYBACK 이벤트 전용) */}
+            {buybackSubtype && (
+              <CapitalReturnCard
+                subtype={buybackSubtype}
+                publicKeyNums={crPublicNums}
+              />
             )}
 
             {/* Financial Ratios YoY */}
