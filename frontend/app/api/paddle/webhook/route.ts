@@ -152,20 +152,24 @@ function resolvePlan(planId: string): string {
   const id = (planId || '').toLowerCase();
 
   // PADDLE_PRICE_ID_* (server-only) or NEXT_PUBLIC_PADDLE_PRICE_ID_* (both)
-  const proPriceId  = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO       || '').toLowerCase();
-  const devPriceId  = (process.env.PADDLE_PRICE_ID_DEVELOPER || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER || '').toLowerCase();
-  const testPriceId = (process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test || '').toLowerCase();
+  const proPriceId     = (process.env.PADDLE_PRICE_ID_PRO      || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO       || '').toLowerCase();
+  // starter: 전용 env var 우선, 없으면 developer 폴백 (동일 price ID 재사용 시)
+  const starterPriceId = (process.env.PADDLE_PRICE_ID_STARTER  || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_STARTER ||
+                          process.env.PADDLE_PRICE_ID_DEVELOPER || process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_DEVELOPER || '').toLowerCase();
+  const testPriceId    = (process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test || '').toLowerCase();
 
-  if (proPriceId  && id === proPriceId)  return 'pro';
-  if (devPriceId  && id === devPriceId)  return 'developer';
-  // test 상품 → developer로 매핑 (users.plan CHECK 제약 준수)
-  if (testPriceId && id === testPriceId) return 'developer';
+  if (proPriceId     && id === proPriceId)     return 'pro';
+  if (starterPriceId && id === starterPriceId) return 'starter';
+  // test 상품 → starter로 매핑
+  if (testPriceId    && id === testPriceId)    return 'starter';
 
   // 폴백: 이름 기반 매칭
-  if (id.includes('pro'))                          return 'pro';
-  if (id.includes('developer') || id.includes('dev')) return 'developer';
+  if (id.includes('pro'))                                      return 'pro';
+  if (id.includes('enterprise'))                               return 'enterprise';
+  if (id.includes('starter'))                                  return 'starter';
+  if (id.includes('developer') || id.includes('dev'))          return 'starter'; // dev → starter 매핑
 
-  return 'developer'; // 기본값
+  return 'starter'; // 기본값 (developer → starter 전환)
 }
 
 // 구독 생성 처리
