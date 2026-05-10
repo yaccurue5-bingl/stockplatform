@@ -33,14 +33,26 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # ── 환경변수 ──────────────────────────────────────────────────────────────────
-local_env_path = r"C:\stockplatform\.env.local"
-if os.path.exists(local_env_path):
-    load_dotenv(local_env_path)
+# auto_analyst.py 와 동일한 경로 우선순위로 로드
+for _env_path in [
+    r"C:\stockplatform\.env.local",
+    r"C:\Users\user\stockplatform\frontend\.env.local",
+    r"C:\Users\user\stockplatform\.env.local",
+]:
+    if os.path.exists(_env_path):
+        load_dotenv(_env_path, override=False)
+        break
 else:
-    load_dotenv()
+    load_dotenv()  # 현재 디렉터리 기준 탐색
 
-SUPABASE_URL = os.environ["NEXT_PUBLIC_SUPABASE_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError(
+        "환경변수 NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 가 설정되지 않았습니다.\n"
+        ".env.local 파일 경로를 확인하거나 환경변수를 직접 설정하세요."
+    )
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
