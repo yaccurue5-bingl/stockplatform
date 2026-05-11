@@ -16,10 +16,10 @@ export async function GET() {
   // ── Supabase 연결 확인 ────────────────────────────────────────────────────
   try {
     const supabase = await createServerClient();
-    // 최소한의 쿼리로 DB 연결 확인
+    // 최소한의 쿼리로 DB 연결 확인 (public read 정책이 있는 테이블 사용)
     const { error } = await supabase
       .from('companies')
-      .select('corp_code')
+      .select('stock_code')
       .limit(1)
       .maybeSingle();
 
