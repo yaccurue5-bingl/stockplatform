@@ -17,19 +17,17 @@ import CheckoutClient from '@/components/checkout/CheckoutClient';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-type SupportedPlan = 'starter' | 'pro' | 'test';
-const SUPPORTED_PLANS: SupportedPlan[] = ['starter', 'pro', 'test'];
+type SupportedPlan = 'starter' | 'pro';
+const SUPPORTED_PLANS: SupportedPlan[] = ['starter', 'pro'];
 
 function getPriceId(plan: SupportedPlan): string {
-  if (plan === 'pro')  return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO  ?? '';
-  if (plan === 'test') return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test ?? '';
+  if (plan === 'pro') return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO ?? '';
   return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_STARTER ?? '';
 }
 
 const PAGE_TITLE: Record<SupportedPlan, string> = {
-  starter:    'Starter Plan — $99/mo',
-  pro:        'Pro Plan — $299/mo',
-  test:       '[TEST] $1 Live Payment Test',
+  starter: 'Starter Plan — $99/mo',
+  pro:     'Pro Plan — $299/mo',
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ plan: string }> }) {
