@@ -166,6 +166,16 @@ mcp__supabase__get_advisors(project_id: "ojzxvaojuglgqmvxhlzh", type: "security"
 | /api/health | 헬스체크 엔드포인트 구현 | curl/Playwright | ✅ edge runtime, DB 연결 확인 포함 | 2026-05-11 |
 | Leaked password protection | HaveIBeenPwned 연동 | Supabase Dashboard | ⚠️ 수동 설정 필요 (아래 참고) | 2026-05-11 |
 
+### /disclosures 성능 최적화 (2026-05-11)
+
+| 항목 | Before | After | 방법 | 날짜 |
+|---|---|---|---|---|
+| API 응답 시간 (첫 로드) | 12,800ms (timeout) | ~2,981ms | RPC DISTINCT ON + covering index | 2026-05-11 |
+| API 응답 시간 (캐시) | N/A | 532ms | CDN 캐시 히트 | 2026-05-11 |
+| DB 쿼리 시간 | 9,918ms (timeout) | 172ms | VACUUM ANALYZE + Index Only Scan (Heap Fetches: 0) | 2026-05-11 |
+| /api/health DB check | ❌ 400 (corp_code 컬럼 없음) | ✅ stock_code로 수정 | health/route.ts 수정 | 2026-05-11 |
+| users PATCH 400 | ❌ last_session_id 컬럼 없음 | ✅ 컬럼 추가 migration | Supabase migration | 2026-05-11 |
+
 ---
 
 ## 브랜치 정책 (필수)
