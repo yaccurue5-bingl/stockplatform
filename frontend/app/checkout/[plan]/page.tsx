@@ -32,11 +32,12 @@ const PAGE_TITLE: Record<SupportedPlan, string> = {
   test:       '[TEST] $1 Live Payment Test',
 };
 
-export function generateMetadata({ params }: { params: { plan: string } }) {
-  const plan = params.plan as SupportedPlan;
-  if (!SUPPORTED_PLANS.includes(plan)) return {};
+export async function generateMetadata({ params }: { params: Promise<{ plan: string }> }) {
+  const { plan } = await params;
+  const planTyped = plan as SupportedPlan;
+  if (!SUPPORTED_PLANS.includes(planTyped)) return {};
   return {
-    title: `Checkout: ${PAGE_TITLE[plan]} — K-MarketInsight`,
+    title: `Checkout: ${PAGE_TITLE[planTyped]} — K-MarketInsight`,
     robots: 'noindex',  // hidden page — 검색 노출 방지
   };
 }
@@ -44,9 +45,10 @@ export function generateMetadata({ params }: { params: { plan: string } }) {
 export default async function CheckoutPage({
   params,
 }: {
-  params: { plan: string };
+  params: Promise<{ plan: string }>;
 }) {
-  const plan = params.plan as SupportedPlan;
+  const { plan: planParam } = await params;
+  const plan = planParam as SupportedPlan;
   if (!SUPPORTED_PLANS.includes(plan)) notFound();
 
   // 사용자 정보 (미들웨어가 이미 인증을 보장하지만 방어 코드)

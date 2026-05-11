@@ -186,29 +186,17 @@ export async function GET(request: Request) {
 
     const SPAC_KEYWORDS = ['스팩', '기업인수목적', '인수목적', 'SPAC'];
 
-    // Step 1: stock_code + corp_name + updated_at만 가볍게 조회해서 회사 목록 구성
-    // (전체 데이터 없이 가볍게 중복 제거 + 페이지 계산)
+    // Step 1: DB DISTINCT ON RPC로 고유 회사 목록 취득 (구: 5000행 풀로드 → JS 중복제거)
     const { data: allRows, error: allRowsError } = await supabase
-      .from('disclosure_insights')
-      .select('stock_code, corp_name, updated_at')
-      .eq('analysis_status', 'completed')
-      .eq('is_visible', true)
-      .order('updated_at', { ascending: false })
-      .limit(5000);
+      .rpc('get_disclosure_companies');
 
     if (allRowsError) return NextResponse.json({ disclosures: [], total: 0, page, pageSize, totalPages: 0 });
 
-    // 중복 제거 + SPAC 필터 → 회사 순서 리스트
-    const seen = new Set<string>();
-    const orderedCompanies: string[] = [];
-    for (const row of allRows || []) {
-      if (!row.stock_code) continue;
-      if (SPAC_KEYWORDS.some(kw => (row.corp_name || '').includes(kw))) continue;
-      if (!seen.has(row.stock_code)) {
-        seen.add(row.stock_code);
-        orderedCompanies.push(row.stock_code);
-      }
-    }
+    // SPAC 필터 + 최신순 정렬 (RPC 결과는 stock_code 순 → updated_at 기준 재정렬)
+    const orderedCompanies: string[] = (allRows || [])
+      .filter((row: any) => row.stock_code && !SPAC_KEYWORDS.some(kw => (row.corp_name || '').includes(kw)))
+      .sort((a: any, b: any) => new Date(b.max_updated_at).getTime() - new Date(a.max_updated_at).getTime())
+      .map((row: any) => row.stock_code as string);
 
     const total = orderedCompanies.length;
     const totalPages = Math.ceil(total / pageSize);
@@ -218,29 +206,35 @@ export async function GET(request: Request) {
       return NextResponse.json({ disclosures: [], total, page, pageSize, totalPages });
     }
 
-    // Step 2: 해당 페이지 회사들의 전체 공시 데이터 조회
-    const { data: rawDisclosures, error: discError } = await supabase
-      .from('disclosure_insights')
-      .select('*')
-      .eq('analysis_status', 'completed')
-      .eq('is_visible', true)
-      .in('stock_code', pageStockCodes)
-      .order('updated_at', { ascending: false })
-      .limit(pageSize * 20);
+    // Step 2 & 3: 페이지 공시 데이터 + 메타 데이터 병렬 조회
+    const [discResult, enrichResult] = await Promise.all([
+      supabase
+        .from('disclosure_insights')
+        .select('*')
+        .eq('analysis_status', 'completed')
+        .eq('is_visible', true)
+        .in('stock_code', pageStockCodes)
+        .order('updated_at', { ascending: false })
+        .limit(pageSize * 20),
+      enrichStockCodes(supabase, pageStockCodes),
+    ]);
 
-    if (discError) return NextResponse.json({ disclosures: [], total, page, pageSize, totalPages });
+    if (discResult.error) return NextResponse.json({ disclosures: [], total, page, pageSize, totalPages });
 
-    // Step 3: 메타 데이터 보강 (corp_name_en, sector)
-    const { corpNameEnMap, sectorMap, sectorEnMap } = await enrichStockCodes(supabase, pageStockCodes);
+    const { corpNameEnMap, sectorMap, sectorEnMap } = enrichResult;
 
     // Step 4: 변환
-    const transformed = (rawDisclosures || []).map((item: any) =>
+    const transformed = (discResult.data || []).map((item: any) =>
       transformDisclosure(item, corpNameEnMap, sectorMap, sectorEnMap)
     );
 
     console.log(`✅ [API] Page ${page}/${totalPages} — ${pageStockCodes.length} companies, ${transformed.length} disclosures`);
 
-    return NextResponse.json({ disclosures: transformed, total, page, pageSize, totalPages });
+    return NextResponse.json(
+      { disclosures: transformed, total, page, pageSize, totalPages },
+      // 1분 CDN 캐시 — 공시 목록은 실시간성 낮음
+      { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } },
+    );
 
   } catch (error) {
     console.error('❌ [API] Unexpected error:', error);
