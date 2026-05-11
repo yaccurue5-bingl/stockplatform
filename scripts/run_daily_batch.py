@@ -35,6 +35,7 @@ scripts/run_daily_batch.py
 
 EOD 배치 실행 순서 (장 마감 후 ~16:30 KST, cron/trigger.py 에서 1일 1회):
   1. fetch_market_data.py          : 당일 종가/거래량 확정 수집
+  1-2. fetch_index_data.py         : 주가지수 시세 수집 (KOSPI/KOSDAQ/KOSPI200 → market_index_history)
   2. fetch_ecos_foreign_flow.py    : 한국은행 ECOS API 외국인 순매수 KOSPI+KOSDAQ 수집
   3. fetch_corp_name_en.py --limit 100 : 영문사명 누락 기업 보강 (매일 100건씩 점진 채움)
   4. backfill_scores.py --limit N  : 누락 AI 분석 보완 (completed but no sentiment)
@@ -229,6 +230,13 @@ def run_eod(args):
         # ※ 대차잔고 수집·LPS 계산 제거됨 — 금융위원회 상업용 금지 2026-04-20
         ("시세/거래량 수집",
          "fetch_market_data.py",
+         [],
+         False),
+
+        # Step 1-2: 주가지수 시세 수집 (KOSPI / KOSDAQ / KOSPI200)
+        # → market_index_history 테이블 upsert (백테스트 벤치마크용)
+        ("지수시세 수집",
+         "fetch_index_data.py",
          [],
          False),
 
