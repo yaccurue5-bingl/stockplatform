@@ -12,12 +12,12 @@ const navItems = [
   { label: 'API Access', href: '/api-access'  },
 ];
 
-type PlanType = 'free' | 'developer' | 'pro';
+type PlanType = 'free' | 'starter' | 'pro';
 
 const PLAN_CONFIG: Record<PlanType, { label: string; ring: string; text: string; bg: string }> = {
-  free:      { label: 'FREE', ring: 'border-gray-500',  text: 'text-gray-400',   bg: 'bg-gray-500' },
-  developer: { label: 'DEV',  ring: 'border-blue-400',  text: 'text-blue-400',   bg: 'bg-blue-400' },
-  pro:       { label: 'PRO',  ring: 'border-[#00D4A6]', text: 'text-[#00D4A6]',  bg: 'bg-[#00D4A6]' },
+  free:    { label: 'MEMBER',  ring: 'border-slate-500',  text: 'text-slate-400',  bg: 'bg-slate-500' },
+  starter: { label: 'STARTER', ring: 'border-blue-400',   text: 'text-blue-400',   bg: 'bg-blue-400'  },
+  pro:     { label: 'PRO',     ring: 'border-[#00D4A6]',  text: 'text-[#00D4A6]',  bg: 'bg-[#00D4A6]' },
 };
 
 export default function Navbar() {
@@ -32,7 +32,7 @@ export default function Navbar() {
   // localStorage에서 플랜 캐시 복원 (DB 응답 전 flash 방지)
   useEffect(() => {
     const cached = localStorage.getItem('kmi_userPlan') as PlanType | null;
-    if (cached === 'pro' || cached === 'developer') {
+    if (cached === 'pro' || cached === 'starter') {
       setUserPlan(cached);
     }
   }, []);
@@ -67,7 +67,7 @@ export default function Navbar() {
         .maybeSingle();
       const row = data as { plan?: string | null } | null;
       const raw = row?.plan ?? 'free';
-      const plan: PlanType = raw === 'pro' ? 'pro' : raw === 'developer' ? 'developer' : 'free';
+      const plan: PlanType = raw === 'pro' ? 'pro' : raw === 'starter' ? 'starter' : 'free';
       setUserPlan(plan);
       // 플랜을 localStorage에 캐싱 → 다음 마운트 시 flash 없이 즉시 표시
       localStorage.setItem('kmi_userPlan', plan);
