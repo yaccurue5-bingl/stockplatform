@@ -524,6 +524,79 @@ def compute_mdd(sb, dry_run: bool) -> int:
     return ok
 
 
+# ── 알파(초과수익률) 계산 헬퍼 ───────────────────────────────────────────────
+
+def _load_index_sorted(sb, index_code: str) -> list[tuple[str, float]]:
+    """
+    market_index_history에서 index_code 전체 이력을 로드해 (date_iso, close) 리스트 반환.
+    날짜 오름차순 정렬. market_index_history가 없으면 빈 리스트.
+    """
+    try:
+        resp = (
+            sb.table("market_index_history")
+            .select("date, close")
+            .eq("index_code", index_code)
+            .not_.is_("close", "null")
+            .order("date")
+            .execute()
+        )
+        return [(r["date"], float(r["close"])) for r in (resp.data or [])]
+    except Exception as ex:
+        logger.warning(f"  market_index_history 로드 실패 ({index_code}): {ex}")
+        return []
+
+
+def _build_alpha_lookup(
+    closes: list[tuple[str, float]],
+    disclosure_dates: list[str],
+    n_days: int,
+) -> dict[str, float | None]:
+    """
+    disclosure_date → index return 매핑 (사전 계산).
+
+    동작:
+      t0 = disclosure_date 이후 첫 거래일 (market_index_history 기준)
+      tn = t0에서 n_days 번째 거래일
+      return = (close_tn / close_t0 - 1) * 100
+
+    Returns: {disclosure_date_iso: return_pct | None}
+    """
+    if not closes:
+        return {}
+
+    all_dates = [d for d, _ in closes]   # 거래일만 (휴장일 없음)
+    close_map  = {d: c for d, c in closes}
+    result: dict[str, float | None] = {}
+
+    for disc_date in set(disclosure_dates):
+        # t0: disc_date 이후 첫 거래일 (당일 포함 안 함, 보수적 적용)
+        t0 = None
+        for d in all_dates:
+            if d > disc_date:
+                t0 = d
+                break
+        if t0 is None:
+            result[disc_date] = None
+            continue
+
+        t0_idx = all_dates.index(t0)
+        tn_idx = t0_idx + n_days
+        if tn_idx >= len(all_dates):
+            result[disc_date] = None
+            continue
+
+        tn = all_dates[tn_idx]
+        c0 = close_map[t0]
+        cn = close_map[tn]
+        if not c0:
+            result[disc_date] = None
+            continue
+
+        result[disc_date] = round((cn / c0 - 1) * 100, 4)
+
+    return result
+
+
 def compute_event_stats(sb, dry_run: bool) -> int:
     """
     scores_log → event_stats 집계 및 upsert.
@@ -532,12 +605,14 @@ def compute_event_stats(sb, dry_run: bool) -> int:
       1. Winsorize (5th~95th percentile): outlier 제거
       2. n < MIN_SAMPLE(50) 필터: 통계적으로 무의미한 이벤트 제외
       3. median 추가: avg 왜곡 보정
+      4. alpha_5d / alpha_20d: 종목수익률 - 벤치마크(KOSPI/KOSDAQ) 수익률
+      5. hit_ratio_20d: 20일 후 양수 수익률 비율
     """
     logger.info("\n  event_stats 집계 중...")
 
     def _sl_filters(q):
         return (
-            q.select("disclosure_id, stock_code, future_return_5d, future_return_20d, future_return_5d_open, mdd_20d")
+            q.select("disclosure_id, stock_code, date, future_return_5d, future_return_20d, future_return_5d_open, mdd_20d")
              .not_.is_("future_return_5d", "null")
         )
     log_rows = _paginate(sb, "scores_log", _sl_filters)
@@ -546,6 +621,73 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         logger.info("  → 집계할 데이터 없음")
         return 0
 
+    # ── 알파 계산 준비 ────────────────────────────────────────────────────────
+    # market_type 로드 (stock_code → KOSPI | KOSDAQ)
+    logger.info("  → 시장구분 데이터 로드 중...")
+    try:
+        mt_resp = sb.table("companies").select("stock_code, market_type").execute()
+        market_type_map: dict[str, str] = {
+            r["stock_code"]: (r["market_type"] or "KOSPI")
+            for r in (mt_resp.data or []) if r.get("stock_code")
+        }
+    except Exception as ex:
+        logger.warning(f"  market_type 로드 실패: {ex}")
+        market_type_map = {}
+
+    # market_index_history 로드 (KOSPI / KOSDAQ)
+    logger.info("  → 지수 이력 로드 중 (market_index_history)...")
+    kospi_closes  = _load_index_sorted(sb, "KOSPI")
+    kosdaq_closes = _load_index_sorted(sb, "KOSDAQ")
+    has_index = bool(kospi_closes and kosdaq_closes)
+    if not has_index:
+        logger.warning("  market_index_history 데이터 없음 → alpha 계산 생략")
+
+    # disclosure_date 목록 수집
+    disc_dates_all = [r.get("date", "") for r in log_rows if r.get("date")]
+
+    # 날짜별 지수 수익률 사전 계산 (중복 연산 방지)
+    if has_index:
+        kospi_alpha5_map  = _build_alpha_lookup(kospi_closes,  disc_dates_all, 5)
+        kospi_alpha20_map = _build_alpha_lookup(kospi_closes,  disc_dates_all, 20)
+        kosdaq_alpha5_map  = _build_alpha_lookup(kosdaq_closes, disc_dates_all, 5)
+        kosdaq_alpha20_map = _build_alpha_lookup(kosdaq_closes, disc_dates_all, 20)
+        logger.info(
+            f"  → 지수 수익률 캐시: KOSPI 5d={len(kospi_alpha5_map)}건, "
+            f"KOSDAQ 5d={len(kosdaq_alpha5_map)}건"
+        )
+    else:
+        kospi_alpha5_map = kospi_alpha20_map = {}
+        kosdaq_alpha5_map = kosdaq_alpha20_map = {}
+
+    # disclosure_id → alpha 매핑 (per row)
+    row_alpha5:  dict[str, float] = {}
+    row_alpha20: dict[str, float] = {}
+
+    if has_index:
+        for row in log_rows:
+            eid  = row.get("disclosure_id")
+            code = row.get("stock_code", "")
+            disc_date = row.get("date", "")   # YYYY-MM-DD
+            r5  = row.get("future_return_5d")
+            r20 = row.get("future_return_20d")
+            if not (eid and disc_date):
+                continue
+
+            mtype = market_type_map.get(code, "KOSPI")
+            a5_map  = kospi_alpha5_map  if mtype == "KOSPI" else kosdaq_alpha5_map
+            a20_map = kospi_alpha20_map if mtype == "KOSPI" else kosdaq_alpha20_map
+
+            if r5 is not None:
+                idx_r5 = a5_map.get(disc_date)
+                if idx_r5 is not None:
+                    row_alpha5[eid] = float(r5) - idx_r5
+
+            if r20 is not None:
+                idx_r20 = a20_map.get(disc_date)
+                if idx_r20 is not None:
+                    row_alpha20[eid] = float(r20) - idx_r20
+
+    # ── disclosure_id → event_type 매핑 ──────────────────────────────────────
     # disclosure_id → event_type 매핑
     disc_ids = list({r["disclosure_id"] for r in log_rows if r.get("disclosure_id")})
     id_to_event: dict[str, str] = {}
@@ -590,10 +732,12 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             logger.info(f"    {bkt} (open-based): n={len(rets)} mean={mean:+.2f}% std={std:.2f}%")
 
     # ── 이벤트별 수익률 수집 ──────────────────────────────────────────────────
-    buckets:      dict[str, list[float]] = defaultdict(list)   # close (signal_score v2용)
-    buckets20:    dict[str, list[float]] = defaultdict(list)   # close 20d
-    buckets_open: dict[str, list[float]] = defaultdict(list)   # open (집계 + hit_ratio)
-    buckets_mdd:  dict[str, list[float]] = defaultdict(list)   # MDD (avg_mdd용)
+    buckets:       dict[str, list[float]] = defaultdict(list)   # close 5d (signal_score용)
+    buckets20:     dict[str, list[float]] = defaultdict(list)   # close 20d
+    buckets_open:  dict[str, list[float]] = defaultdict(list)   # open-entry 5d (hit_ratio용)
+    buckets_mdd:   dict[str, list[float]] = defaultdict(list)   # MDD
+    buckets_a5:    dict[str, list[float]] = defaultdict(list)   # alpha 5d (NEW)
+    buckets_a20:   dict[str, list[float]] = defaultdict(list)   # alpha 20d (NEW)
     # Z-score용 버킷별 open 수익률: {event_type: {bucket: [open_returns]}}
     ev_bucket_open: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
@@ -617,6 +761,11 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             ev_bucket_open[ev][bucket].append(float(r5_op))
         if mdd is not None:
             buckets_mdd[ev].append(float(mdd))
+        # alpha 수집 (market_index_history 있을 때만)
+        if eid in row_alpha5:
+            buckets_a5[ev].append(row_alpha5[eid])
+        if eid in row_alpha20:
+            buckets_a20[ev].append(row_alpha20[eid])
 
     now_iso    = datetime.now().isoformat()
     stats_rows = []
@@ -656,10 +805,15 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             n_clean=n_clean,
         )
 
-        # hit_ratio: open return > 0 비율 (winsorize 전 raw 기준)
+        # hit_ratio: open return > 0 비율 (winsorize 전 raw 기준, 5d)
         vals_open_raw = buckets_open.get(ev, [])
         hit_count = sum(1 for r in vals_open_raw if r > 0)
         hit_ratio = round(hit_count / len(vals_open_raw), 4) if vals_open_raw else None
+
+        # hit_ratio_20d: 20d close return > 0 비율 (raw 기준) — NEW
+        vals20_raw = buckets20.get(ev, [])
+        hit_count_20d = sum(1 for r in vals20_raw if r > 0)
+        hit_ratio_20d = round(hit_count_20d / len(vals20_raw), 4) if vals20_raw else None
 
         # direction_score = (hit_ratio - 0.5) * 2  →  -1 ~ +1
         direction_score = round((hit_ratio - 0.5) * 2, 4) if hit_ratio is not None else None
@@ -667,6 +821,14 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         # avg_mdd: MDD 평균 (% 단위, 음수)
         mdd_vals = buckets_mdd.get(ev, [])
         avg_mdd  = round(sum(mdd_vals) / len(mdd_vals), 4) if mdd_vals else None
+
+        # alpha_5d / alpha_20d: 이벤트 수익률 - 벤치마크 수익률 (winsorize 적용) — NEW
+        a5_raw  = buckets_a5.get(ev, [])
+        a20_raw = buckets_a20.get(ev, [])
+        a5_clean  = _winsorize(a5_raw)  if len(a5_raw)  >= 10 else a5_raw
+        a20_clean = _winsorize(a20_raw) if len(a20_raw) >= 10 else a20_raw
+        alpha_5d  = round(sum(a5_clean)  / len(a5_clean),  4) if a5_clean  else None
+        alpha_20d = round(sum(a20_clean) / len(a20_clean), 4) if a20_clean else None
 
         # 버킷별 Z-score 계산 — open 수익률 기준 (스펙 일치)
         z_by_bucket: dict[str, float | None] = {}
@@ -692,8 +854,11 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             "avg_5d_open_return":    round(avg_open, 4) if avg_open is not None else None,
             "median_5d_open_return": round(med_open, 4) if med_open is not None else None,
             "hit_ratio":             hit_ratio,
+            "hit_ratio_20d":         hit_ratio_20d,   # NEW
             "direction_score":       direction_score,
             "avg_mdd":               avg_mdd,
+            "alpha_5d":              alpha_5d,         # NEW
+            "alpha_20d":             alpha_20d,        # NEW
             "std_5d":                round(std5,  4),
             "sample_size":           n_raw,
             "sample_size_clean":     n_clean,
@@ -715,19 +880,20 @@ def compute_event_stats(sb, dry_run: bool) -> int:
 
     logger.info(f"  → {len(stats_rows)}개 이벤트 유형 집계 완료")
     for r in stats_rows:
-        med_str    = f"{r['median_5d_return']:+.2f}%"     if r["median_5d_return"]      is not None else "N/A"
-        open_str   = f"{r['avg_5d_open_return']:+.2f}%"  if r["avg_5d_open_return"]    is not None else "N/A"
-        hit_str    = f"{r['hit_ratio']*100:.1f}%"         if r["hit_ratio"]             is not None else "N/A"
-        dir_str    = f"{r['direction_score']:+.2f}"       if r["direction_score"]        is not None else "N/A"
-        mdd_str    = f"{r['avg_mdd']:+.2f}%"             if r["avg_mdd"]                is not None else "N/A"
+        open_str  = f"{r['avg_5d_open_return']:+.2f}%" if r["avg_5d_open_return"] is not None else "N/A"
+        hit_str   = f"{r['hit_ratio']*100:.1f}%"       if r["hit_ratio"]          is not None else "N/A"
+        hit20_str = f"{r['hit_ratio_20d']*100:.1f}%"   if r["hit_ratio_20d"]      is not None else "N/A"
+        a5_str    = f"{r['alpha_5d']:+.2f}%"           if r["alpha_5d"]           is not None else "N/A"
+        a20_str   = f"{r['alpha_20d']:+.2f}%"          if r["alpha_20d"]          is not None else "N/A"
+        mdd_str   = f"{r['avg_mdd']:+.2f}%"            if r["avg_mdd"]            is not None else "N/A"
         z_l = f"{r['avg_z_5d_large']:+.2f}" if r["avg_z_5d_large"] is not None else " N/A"
         z_m = f"{r['avg_z_5d_mid']:+.2f}"   if r["avg_z_5d_mid"]   is not None else " N/A"
         z_s = f"{r['avg_z_5d_small']:+.2f}" if r["avg_z_5d_small"] is not None else " N/A"
         logger.info(
             f"    {r['event_type']:20s} "
             f"n={r['sample_size']:4d}  "
-            f"avg(open)={open_str}  hit={hit_str}  dir={dir_str}  mdd={mdd_str}  "
-            f"z[L={z_l} M={z_m} S={z_s}]  "
+            f"open={open_str}  hit5={hit_str}  hit20={hit20_str}  "
+            f"α5={a5_str}  α20={a20_str}  mdd={mdd_str}  "
             f"score={r['signal_score']}({r['signal_grade']})"
         )
 
