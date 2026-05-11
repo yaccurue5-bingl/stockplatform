@@ -17,6 +17,7 @@ import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
+import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard';
 
 export const revalidate = 3600;
 
@@ -29,6 +30,7 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT:         'Strategic Contract',
   DILUTION:         'Capital Increase / Dilution',
   BUYBACK:          'Share Buyback',
+  DIVIDEND:         'Dividend',
   MNA:              'M&A / Merger',
   LEGAL:            'Legal / Regulatory',
   CAPEX:            'Capital Investment',
@@ -41,6 +43,7 @@ const EVENT_COLORS: Record<string, string> = {
   CONTRACT:         'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
   DILUTION:         'text-orange-400 bg-orange-400/10 border-orange-400/20',
   BUYBACK:          'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  DIVIDEND:         'text-teal-400 bg-teal-400/10 border-teal-400/20',
   MNA:              'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
   LEGAL:            'text-red-400 bg-red-400/10 border-red-400/20',
   CAPEX:            'text-cyan-400 bg-cyan-400/10 border-cyan-400/20',
@@ -355,6 +358,13 @@ export default async function SignalPage({
   const publicNums = keyNums.slice(0, 2);   // 상위 2개만 공개
   const hasMore    = keyNums.length > 2;
 
+  // Capital Return 분류 (BUYBACK 이벤트 전용)
+  // 분류는 전체 keyNums 기반, 표시는 publicNums(잠금 우회 없음)
+  const buybackSubtype =
+    eventKey === 'BUYBACK'
+      ? classifyBuybackSubtype(signal.headline, keyNums)
+      : null;
+
   // Signal Score (event_stats 조회)
   const eventScore = signal.event_type ? await fetchEventScore(signal.event_type) : null;
 
@@ -472,6 +482,14 @@ export default async function SignalPage({
             </p>
             <p className="text-sm text-gray-300 leading-relaxed">{signal.financial_impact}</p>
           </div>
+        )}
+
+        {/* ── Capital Return (BUYBACK 이벤트 전용) ── */}
+        {buybackSubtype && (
+          <CapitalReturnCard
+            subtype={buybackSubtype}
+            publicKeyNums={publicNums}
+          />
         )}
 
         {/* ── Key Numbers (상위 2개 공개) ── */}

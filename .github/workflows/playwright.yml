@@ -1,0 +1,138 @@
+name: Playwright E2E Tests
+
+on:
+  push:
+    branches: [main, claude/dev]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/playwright.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/playwright.yml'
+  # Allow manual runs from the Actions tab
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL to test against (leave blank for localhost)'
+        required: false
+        default: ''
+
+concurrency:
+  group: playwright-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Playwright (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+        total-shards: [2]
+
+    env:
+      # Next.js build
+      NEXT_PUBLIC_SUPABASE_URL:      ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY:     ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RESEND_API_KEY:                ${{ secrets.RESEND_API_KEY }}
+      GROQ_API_KEY:                  ${{ secrets.GROQ_API_KEY }}
+      NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: ${{ secrets.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN }}
+      CRON_SECRET:                   ${{ secrets.CRON_SECRET }}
+      # Playwright test credentials
+      TEST_USER_EMAIL:               ${{ secrets.TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD:            ${{ secrets.TEST_USER_PASSWORD }}
+      TEST_API_KEY:                  ${{ secrets.TEST_API_KEY }}
+      # Playwright base URL (empty = localhost built by webServer)
+      PLAYWRIGHT_BASE_URL:           ${{ github.event.inputs.base_url || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Next.js app
+        # Only build when testing against localhost (no PLAYWRIGHT_BASE_URL)
+        if: ${{ env.PLAYWRIGHT_BASE_URL == '' }}
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run Playwright tests (shard ${{ matrix.shard }}/${{ matrix.total-shards }})
+        working-directory: frontend
+        run: npx playwright test --shard=${{ matrix.shard }}/${{ matrix.total-shards }}
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-shard-${{ matrix.shard }}
+          path: frontend/playwright-report/
+          retention-days: 14
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots-shard-${{ matrix.shard }}
+          path: frontend/test-results/
+          retention-days: 7
+
+  # Merge sharded reports into one (optional, for PR comments)
+  merge-reports:
+    name: Merge Playwright Reports
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Download all shard reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: playwright-report-shard-*
+          path: all-reports
+          merge-multiple: false
+
+      - name: Install Playwright (for merge CLI)
+        working-directory: frontend
+        run: npm ci && npx playwright install --with-deps chromium
+
+      - name: Merge reports
+        working-directory: frontend
+        run: |
+          npx playwright merge-reports \
+            --reporter=html \
+            --output=merged-playwright-report \
+            ../all-reports/playwright-report-shard-*
+
+      - name: Upload merged report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-merged-report
+          path: frontend/merged-playwright-report/
+          retention-days: 30

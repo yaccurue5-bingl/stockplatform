@@ -26,6 +26,52 @@
 
 ---
 
+## Supabase RLS 정책 규칙 (필수)
+
+**DB 테이블을 신규 생성하거나 수정할 때마다, 그 자리에서 즉시 RLS 상태를 확인하고 정책을 설정한다.**
+
+### 테이블 생성·수정 시 체크리스트
+
+1. **테이블 생성 직후** → RLS 활성화 + 정책 추가 (migration SQL에 함께 포함)
+2. **기존 테이블 컬럼 추가/변경** → 해당 테이블 RLS 정책 재확인
+3. **정책 설계 원칙**:
+   - 프론트엔드 클라이언트(anon/authenticated)가 직접 읽는 테이블 → SELECT 정책 명시
+   - 스크립트(service_role)만 쓰는 내부 테이블 → RLS만 켜고 정책 없음 (service_role은 자동 bypass)
+   - 사용자별 데이터 테이블 → `auth.uid() = user_id` 조건 필수
+   - `USING(true)` 남용 금지 → Supabase Advisor "RLS Policy Always True" 경고 발생
+
+### 확인 SQL (작업 후 반드시 실행)
+
+```sql
+-- 작업한 테이블의 RLS 상태 확인
+SELECT t.tablename, t.rowsecurity, p.policyname, p.cmd, p.roles, p.qual
+FROM pg_tables t
+LEFT JOIN pg_policies p ON p.tablename = t.tablename AND p.schemaname = t.schemaname
+WHERE t.schemaname = 'public' AND t.tablename = '{{테이블명}}'
+ORDER BY p.policyname;
+```
+
+### 잘못된 패턴 → Supabase Advisor ERROR 발생
+
+```sql
+-- ❌ RLS만 켜고 정책 없이 방치 (rls_disabled_in_public or rls_enabled_no_policy)
+ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
+-- (정책 추가 안 함)
+
+-- ✅ 올바른 패턴: 용도에 맞는 정책 바로 추가
+ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read new_table" ON public.new_table FOR SELECT USING (true);
+```
+
+### 정기 점검
+
+세션 시작 시 또는 대규모 DB 변경 후에는 Supabase MCP `get_advisors(type: "security")`로 전체 확인:
+```
+mcp__supabase__get_advisors(project_id: "ojzxvaojuglgqmvxhlzh", type: "security")
+```
+
+---
+
 ## 기능 테스트 규칙 (필수)
 
 **코드 수정 후, 수정한 기능과 연관된 모든 UI·인터랙션을 직접 확인(또는 API 호출)하고 결과를 CLAUDE.md에 기록한다.**
@@ -109,6 +155,16 @@
 |---|---|---|---|---|
 | JSON-LD 구조화 데이터 | Google Rich Results Test 통과 | 검증 도구 | ✅ image 필드 추가 후 수정 | 2026-04-30 |
 | SEO 타이틀 | 60자 이내 truncation | 소스 확인 | ✅ | 2026-04-30 |
+
+### 보안·인프라 점검 (2026-05-11)
+
+| 항목 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |
+|---|---|---|---|---|
+| RLS — snapshot_signals | RLS 켜기 (내부 전용, 정책 없음) | Supabase MCP | ✅ rowsecurity=true | 2026-05-11 |
+| RLS — daily_indicators | RLS 켜기 + public SELECT 정책 | Supabase MCP | ✅ Public read 정책 적용 | 2026-05-11 |
+| 보안 헤더 | vercel.json에 CSP/X-Frame/X-Content-Type/Referrer/Permissions 추가 | vercel.json | ✅ 엣지 레벨 적용 (배포 후 활성화) | 2026-05-11 |
+| /api/health | 헬스체크 엔드포인트 구현 | curl/Playwright | ✅ edge runtime, DB 연결 확인 포함 | 2026-05-11 |
+| Leaked password protection | HaveIBeenPwned 연동 | Supabase Dashboard | ⚠️ 수동 설정 필요 (아래 참고) | 2026-05-11 |
 
 ---
 

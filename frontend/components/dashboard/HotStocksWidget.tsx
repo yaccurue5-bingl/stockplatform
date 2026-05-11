@@ -10,12 +10,13 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 const EVENT_LABELS: Record<string, string> = {
   EARNINGS: 'Earnings', CONTRACT: 'Contract', DILUTION: 'Dilution',
-  BUYBACK: 'Buyback', MNA: 'M&A', LEGAL: 'Legal', CAPEX: 'Capex',
+  BUYBACK: 'Buyback', DIVIDEND: 'Dividend', MNA: 'M&A', LEGAL: 'Legal', CAPEX: 'Capex',
   EXECUTIVE_CHANGE: 'Executive', OTHER: 'Disclosure',
 }
 const EVENT_COLORS: Record<string, string> = {
   EARNINGS: 'bg-blue-400/10 text-blue-400', CONTRACT: 'bg-emerald-400/10 text-emerald-400',
   DILUTION: 'bg-orange-400/10 text-orange-400', BUYBACK: 'bg-purple-400/10 text-purple-400',
+  DIVIDEND: 'bg-teal-400/10 text-teal-400',
   MNA: 'bg-yellow-400/10 text-yellow-400', LEGAL: 'bg-red-400/10 text-red-400',
   CAPEX: 'bg-cyan-400/10 text-cyan-400', EXECUTIVE_CHANGE: 'bg-pink-400/10 text-pink-400',
   OTHER: 'bg-gray-400/10 text-gray-400',

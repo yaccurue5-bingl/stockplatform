@@ -142,3 +142,9 @@ ipython_config.py
 # Temporary API test files
 tmp_*.json
 tmp_*.csv
+
+# Playwright
+frontend/e2e/.auth/
+frontend/playwright-report/
+frontend/test-results/
+frontend/merged-playwright-report/
