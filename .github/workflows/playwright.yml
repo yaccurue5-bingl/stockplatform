@@ -1,17 +1,19 @@
 name: Playwright E2E Tests
 
 on:
-  push:
-    branches: [main, claude/dev]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/playwright.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/playwright.yml'
-  # Allow manual runs from the Actions tab
+  # GitHub Secrets (TEST_USER_EMAIL, TEST_USER_PASSWORD 등) 설정 후 push/PR 트리거 활성화
+  # push:
+  #   branches: [main, claude/dev]
+  #   paths:
+  #     - 'frontend/**'
+  #     - '.github/workflows/playwright.yml'
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - 'frontend/**'
+  #     - '.github/workflows/playwright.yml'
+
+  # 현재는 수동 실행만 허용 (Actions 탭 → Run workflow)
   workflow_dispatch:
     inputs:
       base_url:

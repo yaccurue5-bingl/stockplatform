@@ -7,7 +7,7 @@ import { CheckCircle, Loader2, ExternalLink } from 'lucide-react';
 interface CheckoutClientProps {
   userId: string;
   userEmail: string;
-  plan: 'starter' | 'pro';
+  plan: 'starter' | 'pro' | 'test';
   priceId: string;
   clientToken: string;
   isSandbox: boolean;
@@ -41,6 +41,17 @@ const PLAN_META = {
       'Higher rate limits (300 req/min)',
       'Priority support',
       'Signal tags & dilution scores',
+    ],
+  },
+  test: {
+    name: '[TEST] Live Payment Test',
+    price: '$1',
+    period: 'one-time',
+    color: '#F59E0B',
+    features: [
+      'Webhook → DB integration check',
+      'subscription.created 확인',
+      'API key 생성 확인',
     ],
   },
 };
