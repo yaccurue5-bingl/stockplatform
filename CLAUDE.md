@@ -297,3 +297,44 @@ curl -H "X-API-Key: $API_KEY" ...
   .claude/settings.local.json
   ```
 - 이미 tracked 상태라면: `git rm --cached .claude/settings.local.json`
+
+---
+
+## 제품 로드맵 & 시기별 리마인더 (필수)
+
+**세션 시작 시 현재 날짜(currentDate)와 아래 일정을 대조해서, 해당 시기가 되면 사용자에게 먼저 언급한다.**
+
+| 시기 | 목표 | 항목 | 상태 |
+|---|---|---|---|
+| 2026-05 (이번 달) | 이메일 리스트 확보 | Daily Digest 이메일 (무료 유저 훅) | 🔲 미착수 |
+| 2026-06 (다음 달) | 검색 유입 | `/company/[ticker]` SEO 페이지 | 🔲 미착수 |
+| 2026-07 (2개월 후) | 소셜 공유 유발 | `/trending` 공개 대시보드 | 🔲 미착수 |
+| 2026-08+ (3개월+) | 데이터 볼륨 충분해지면 | 기관 B2B 영업 시작 | 🔲 미착수 |
+
+### 리마인더 규칙
+
+- 세션 시작 시 `currentDate`가 해당 월에 들어오면 → **"이번 달 로드맵 항목: [항목명] 착수할까요?"** 라고 먼저 말한다.
+- 항목 완료 시 위 표의 상태를 `✅ 완료 (YYYY-MM-DD)` 로 업데이트한다.
+- 착수 중이면 `🔄 진행 중`으로 표시한다.
+
+### X(Twitter) 수동 게시 워크플로우
+
+Twitter API Free tier는 쓰기 불가 → 트래픽 늘면 Basic($100/mo) 결제 예정. 그 전까지 수동 게시.
+
+**수동 게시 명령어** (매일 또는 배치 후 실행):
+```bash
+cd ~/stockplatform && python scripts/post_tweet.py --dry-run --limit 5 > /tmp/tweets.txt 2>&1 && cat /tmp/tweets.txt
+```
+
+출력에서 각 트윗 텍스트 블록을 복사해 Twitter에 직접 게시.
+게시 후 해당 공시 ID의 `tweeted_at`을 수동으로 업데이트해야 중복 방지:
+```bash
+# Supabase MCP execute_sql 또는 아래 Python 스크립트
+cd ~/stockplatform && python -c "
+from supabase import create_client; from dotenv import load_dotenv; import os
+load_dotenv('.env.local')
+sb = create_client(os.environ['NEXT_PUBLIC_SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+sb.table('disclosure_insights').update({'tweeted_at': 'now()'}).eq('id', 'PASTE-UUID-HERE').execute()
+print('done')
+"
+```

@@ -194,10 +194,10 @@ def run_prod(args):
          dry_flag,
          False),
 
-        # Step 7: 고품질 시그널 X(Twitter) 자동 게시
-        # TWITTER_API_KEY 등 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
-        ("트윗 게시",
-         "post_tweet.py",
+        # Step 7: 고품질 시그널 Telegram 채널 게시 (Bot API 무료)
+        # TELEGRAM_BOT_TOKEN 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Telegram 게시",
+         "post_telegram.py",
          ["--limit", "5"] + (["--dry-run"] if args.dry_run else []),
          False),
     ]
@@ -304,10 +304,10 @@ def run_eod(args):
          dry_flag,
          False),
 
-        # Step 10: 고품질 시그널 X(Twitter) 자동 게시 (EOD 스코어 확정 후)
-        # TWITTER_API_KEY 등 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
-        ("트윗 게시",
-         "post_tweet.py",
+        # Step 10: 고품질 시그널 Telegram 채널 게시 (EOD 스코어 확정 후, Bot API 무료)
+        # TELEGRAM_BOT_TOKEN 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Telegram 게시",
+         "post_telegram.py",
          ["--limit", "5", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
          False),
     ]
