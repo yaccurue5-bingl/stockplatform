@@ -200,6 +200,13 @@ def run_prod(args):
          "post_telegram.py",
          ["--limit", "5"] + (["--dry-run"] if args.dry_run else []),
          False),
+
+        # Step 8: Twitter 초안 이메일 발송 (yaccurue5@gmail.com → 수동 게시용)
+        # RESEND_API_KEY 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Twitter 다이제스트 이메일",
+         "send_twitter_digest.py",
+         ["--limit", "10"] + (["--dry-run"] if args.dry_run else []),
+         False),
     ]
 
     return _execute_steps(steps)
@@ -309,6 +316,13 @@ def run_eod(args):
         ("Telegram 게시",
          "post_telegram.py",
          ["--limit", "5", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
+         False),
+
+        # Step 11: Twitter 초안 이메일 발송 (EOD 스코어 확정 후 yaccurue5@gmail.com)
+        # RESEND_API_KEY 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Twitter 다이제스트 이메일",
+         "send_twitter_digest.py",
+         ["--limit", "10", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
          False),
     ]
 

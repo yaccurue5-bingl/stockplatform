@@ -189,7 +189,7 @@ def fetch_queue(min_score: float, lookback_days: int, limit: int) -> list[dict]:
         )
         .eq("analysis_status", "completed")
         .eq("is_visible", True)
-        .is_("tweeted_at", "null")
+        .is_("telegram_at", "null")   # tweeted_at(Twitter)과 독립 — Telegram 전용 컬럼
         .gte("rcept_dt", cutoff_dt)
         .in_("event_type", list(TWEETABLE_TYPES))
         .order("final_score", desc=True)
@@ -229,10 +229,11 @@ def send_telegram(text: str, bot_token: str, channel_id: str) -> bool:
         return False
 
 
-def mark_tweeted(row_id: str) -> None:
+def mark_telegram_sent(row_id: str) -> None:
+    """DB에 telegram_at 타임스탬프 기록 (tweeted_at과 독립)."""
     from datetime import datetime, timezone
     supabase.table("disclosure_insights").update({
-        "tweeted_at": datetime.now(timezone.utc).isoformat(),
+        "telegram_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", row_id).execute()
 
 
@@ -290,7 +291,7 @@ def main() -> None:
 
         ok = send_telegram(msg, bot_token, channel_id)
         if ok:
-            mark_tweeted(row["id"])
+            mark_telegram_sent(row["id"])
             logger.info("  게시 완료")
             posted += 1
         else:
