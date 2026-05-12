@@ -99,6 +99,18 @@ const BUCKET_META: Record<string, { label: string; sub: string; color: string }>
   SMALL: { label: 'Small Cap',  sub: '< ₩100B mktcap', color: 'text-orange-400' },
 }
 
+const REGIME_META: Record<string, { label: string; sub: string; color: string }> = {
+  UP:      { label: 'Bull Market',  sub: 'KOSPI 20D > +5%',  color: 'text-emerald-400' },
+  NEUTRAL: { label: 'Neutral',      sub: 'KOSPI 20D ±5%',    color: 'text-gray-400' },
+  DOWN:    { label: 'Bear Market',  sub: 'KOSPI 20D < −5%',  color: 'text-red-400' },
+}
+
+const VOL_META: Record<string, { label: string; sub: string; color: string }> = {
+  HIGH:   { label: 'High Vol',   sub: 'KOSPI 20D std > 1.2%', color: 'text-red-400' },
+  NORMAL: { label: 'Normal Vol', sub: '0.6%–1.2%',            color: 'text-gray-400' },
+  LOW:    { label: 'Low Vol',    sub: 'KOSPI 20D std < 0.6%', color: 'text-emerald-400' },
+}
+
 const GRADE_STYLE: Record<string, string> = {
   'A+': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
   'A':  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -149,7 +161,7 @@ export default async function EventHistoricalReaction({
   const sb = createServiceClient()
 
   // 메인 통계 + 버킷별 통계 병렬 fetch
-  const [{ data, error }, { data: bktData }] = await Promise.all([
+  const [{ data, error }, { data: bktData }, { data: rgmData }, { data: volData }] = await Promise.all([
     sb
       .from('event_stats')
       .select(
@@ -165,17 +177,35 @@ export default async function EventHistoricalReaction({
       .from('event_stats_by_bucket')
       .select('bucket, sample_size, hit_ratio, hit_ratio_20d, alpha20_trimmed, alpha20_median, avg_mdd')
       .eq('event_type', eventType)
-      .order('bucket'),   // LARGE → MID → SMALL
+      .order('bucket'),
+    sb
+      .from('event_stats_by_regime')
+      .select('regime, sample_size, hit_ratio, hit_ratio_20d, alpha20_trimmed, alpha20_median, avg_mdd')
+      .eq('event_type', eventType),
+    sb
+      .from('event_stats_by_vol')
+      .select('vol_regime, sample_size, hit_ratio, hit_ratio_20d, alpha20_trimmed, alpha20_median, avg_mdd')
+      .eq('event_type', eventType),
   ])
 
   if (error || !data) return null
 
-  const s       = data as unknown as EventStats
-  const buckets = (bktData ?? []) as unknown as BucketStats[]
-  // LARGE / MID / SMALL 순서로 정렬
+  const s        = data as unknown as EventStats
+  const buckets  = (bktData  ?? []) as unknown as BucketStats[]
+  const regimes  = (rgmData  ?? []) as unknown as Array<Omit<BucketStats,'bucket'> & { regime: string }>
+  const volStats = (volData  ?? []) as unknown as Array<Omit<BucketStats,'bucket'> & { vol_regime: string }>
+
   const BUCKET_ORDER = ['LARGE', 'MID', 'SMALL']
   const sortedBuckets = [...buckets].sort(
     (a, b) => BUCKET_ORDER.indexOf(a.bucket) - BUCKET_ORDER.indexOf(b.bucket)
+  )
+  const REGIME_ORDER = ['UP', 'NEUTRAL', 'DOWN']
+  const sortedRegimes = [...regimes].sort(
+    (a, b) => REGIME_ORDER.indexOf(a.regime) - REGIME_ORDER.indexOf(b.regime)
+  )
+  const VOL_ORDER = ['HIGH', 'NORMAL', 'LOW']
+  const sortedVol = [...volStats].sort(
+    (a, b) => VOL_ORDER.indexOf(a.vol_regime) - VOL_ORDER.indexOf(b.vol_regime)
   )
 
   // trimmed 또는 median 중 하나라도 있어야 렌더
@@ -401,6 +431,102 @@ export default async function EventHistoricalReaction({
             Market cap buckets: Large &gt; ₩1T · Mid ₩100B–₩1T · Small &lt; ₩100B (at time of filing).
             Min. 30 events per bucket shown.
           </p>
+        </div>
+      )}
+
+      {/* ── Contextual: By Market Regime ── */}
+      {sortedRegimes.length >= 2 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <p className="text-xs text-gray-600 uppercase tracking-widest">By Market Regime</p>
+            <span className="text-xs text-gray-700">(KOSPI 20D prior trend)</span>
+          </div>
+          <div className={`grid gap-3 ${sortedRegimes.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {sortedRegimes.map((r) => {
+              const meta = REGIME_META[r.regime]
+              if (!meta) return null
+              return (
+                <div key={r.regime} className="rounded-lg bg-gray-800/40 border border-gray-800 px-3 py-3 space-y-2">
+                  <div>
+                    <p className={`text-xs font-bold ${meta.color}`}>{meta.label}</p>
+                    <p className="text-xs text-gray-600">{meta.sub}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Hit Rate</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className={`text-sm font-bold tabular-nums ${colorHit(r.hit_ratio)}`}>
+                        {hitPct(r.hit_ratio)}
+                      </span>
+                      {r.hit_ratio_20d != null && (
+                        <span className={`text-xs tabular-nums ${colorHit(r.hit_ratio_20d)}`}>
+                          / {hitPct(r.hit_ratio_20d)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-700">5D / 20D</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Alpha 20D</p>
+                    <p className={`text-sm font-bold tabular-nums ${colorVal(r.alpha20_trimmed)}`}>
+                      {fmt(r.alpha20_trimmed)}
+                    </p>
+                    <p className="text-xs text-gray-700">trimmed avg</p>
+                  </div>
+                  <p className="text-xs text-gray-700 pt-1 border-t border-gray-800/60">
+                    n={r.sample_size?.toLocaleString() ?? '—'}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Contextual: By Volatility Regime ── */}
+      {sortedVol.length >= 2 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <p className="text-xs text-gray-600 uppercase tracking-widest">By Volatility Regime</p>
+            <span className="text-xs text-gray-700">(KOSPI 20D rolling std)</span>
+          </div>
+          <div className={`grid gap-3 ${sortedVol.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {sortedVol.map((v) => {
+              const meta = VOL_META[v.vol_regime]
+              if (!meta) return null
+              return (
+                <div key={v.vol_regime} className="rounded-lg bg-gray-800/40 border border-gray-800 px-3 py-3 space-y-2">
+                  <div>
+                    <p className={`text-xs font-bold ${meta.color}`}>{meta.label}</p>
+                    <p className="text-xs text-gray-600">{meta.sub}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Hit Rate</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className={`text-sm font-bold tabular-nums ${colorHit(v.hit_ratio)}`}>
+                        {hitPct(v.hit_ratio)}
+                      </span>
+                      {v.hit_ratio_20d != null && (
+                        <span className={`text-xs tabular-nums ${colorHit(v.hit_ratio_20d)}`}>
+                          / {hitPct(v.hit_ratio_20d)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-700">5D / 20D</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Alpha 20D</p>
+                    <p className={`text-sm font-bold tabular-nums ${colorVal(v.alpha20_trimmed)}`}>
+                      {fmt(v.alpha20_trimmed)}
+                    </p>
+                    <p className="text-xs text-gray-700">trimmed avg</p>
+                  </div>
+                  <p className="text-xs text-gray-700 pt-1 border-t border-gray-800/60">
+                    n={v.sample_size?.toLocaleString() ?? '—'}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

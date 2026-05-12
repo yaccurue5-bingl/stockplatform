@@ -674,6 +674,90 @@ export type Database = {
         }
         Relationships: []
       }
+      event_stats_by_regime: {
+        Row: {
+          alpha20_median: number | null
+          alpha20_trimmed: number | null
+          alpha5_trimmed: number | null
+          avg_5d_open_return: number | null
+          avg_mdd: number | null
+          event_type: string
+          hit_ratio: number | null
+          hit_ratio_20d: number | null
+          regime: string
+          sample_size: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          alpha20_median?: number | null
+          alpha20_trimmed?: number | null
+          alpha5_trimmed?: number | null
+          avg_5d_open_return?: number | null
+          avg_mdd?: number | null
+          event_type: string
+          hit_ratio?: number | null
+          hit_ratio_20d?: number | null
+          regime: string
+          sample_size?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          alpha20_median?: number | null
+          alpha20_trimmed?: number | null
+          alpha5_trimmed?: number | null
+          avg_5d_open_return?: number | null
+          avg_mdd?: number | null
+          event_type?: string
+          hit_ratio?: number | null
+          hit_ratio_20d?: number | null
+          regime?: string
+          sample_size?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      event_stats_by_vol: {
+        Row: {
+          alpha20_median: number | null
+          alpha20_trimmed: number | null
+          alpha5_trimmed: number | null
+          avg_5d_open_return: number | null
+          avg_mdd: number | null
+          event_type: string
+          hit_ratio: number | null
+          hit_ratio_20d: number | null
+          sample_size: number | null
+          updated_at: string | null
+          vol_regime: string
+        }
+        Insert: {
+          alpha20_median?: number | null
+          alpha20_trimmed?: number | null
+          alpha5_trimmed?: number | null
+          avg_5d_open_return?: number | null
+          avg_mdd?: number | null
+          event_type: string
+          hit_ratio?: number | null
+          hit_ratio_20d?: number | null
+          sample_size?: number | null
+          updated_at?: string | null
+          vol_regime: string
+        }
+        Update: {
+          alpha20_median?: number | null
+          alpha20_trimmed?: number | null
+          alpha5_trimmed?: number | null
+          avg_5d_open_return?: number | null
+          avg_mdd?: number | null
+          event_type?: string
+          hit_ratio?: number | null
+          hit_ratio_20d?: number | null
+          sample_size?: number | null
+          updated_at?: string | null
+          vol_regime?: string
+        }
+        Relationships: []
+      }
       financials: {
         Row: {
           created_at: string | null
