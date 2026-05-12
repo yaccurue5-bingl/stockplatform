@@ -747,10 +747,16 @@ def compute_event_stats(sb, dry_run: bool) -> int:
     buckets20:     dict[str, list[float]] = defaultdict(list)   # close 20d
     buckets_open:  dict[str, list[float]] = defaultdict(list)   # open-entry 5d (hit_ratio용)
     buckets_mdd:   dict[str, list[float]] = defaultdict(list)   # MDD
-    buckets_a5:    dict[str, list[float]] = defaultdict(list)   # alpha 5d (NEW)
-    buckets_a20:   dict[str, list[float]] = defaultdict(list)   # alpha 20d (NEW)
+    buckets_a5:    dict[str, list[float]] = defaultdict(list)   # alpha 5d
+    buckets_a20:   dict[str, list[float]] = defaultdict(list)   # alpha 20d
     # Z-score용 버킷별 open 수익률: {event_type: {bucket: [open_returns]}}
     ev_bucket_open: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    # 시총 버킷별 조건부 통계용: {event_type: {bucket: [values]}}
+    ev_bkt_open:  dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_bkt_r20:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_bkt_mdd:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_bkt_a5:    dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_bkt_a20:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
     for row in log_rows:
         eid    = row.get("disclosure_id")
@@ -767,16 +773,21 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             buckets[ev].append(float(r5))
         if r20 is not None:
             buckets20[ev].append(float(r20))
+            ev_bkt_r20[ev][bucket].append(float(r20))
         if r5_op is not None:
             buckets_open[ev].append(float(r5_op))
             ev_bucket_open[ev][bucket].append(float(r5_op))
+            ev_bkt_open[ev][bucket].append(float(r5_op))
         if mdd is not None:
             buckets_mdd[ev].append(float(mdd))
+            ev_bkt_mdd[ev][bucket].append(float(mdd))
         # alpha 수집 (market_index_history 있을 때만)
         if eid in row_alpha5:
             buckets_a5[ev].append(row_alpha5[eid])
+            ev_bkt_a5[ev][bucket].append(row_alpha5[eid])
         if eid in row_alpha20:
             buckets_a20[ev].append(row_alpha20[eid])
+            ev_bkt_a20[ev][bucket].append(row_alpha20[eid])
 
     now_iso    = datetime.now().isoformat()
     stats_rows = []
@@ -957,6 +968,63 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         logger.info(f"  [OK] event_stats {len(stats_rows)}건 upsert 완료")
     except Exception as e:
         logger.error(f"  [ERR] event_stats 저장 실패: {e}")
+
+    # ── 시총 버킷별 조건부 통계 집계 + upsert ────────────────────────────────
+    MIN_BUCKET = 30   # 버킷당 최소 표본
+    bucket_rows = []
+    for ev in set(list(ev_bkt_open.keys()) + list(ev_bkt_a20.keys())):
+        for bkt in ('LARGE', 'MID', 'SMALL'):
+            open_raw = ev_bkt_open.get(ev, {}).get(bkt, [])
+            r20_raw  = ev_bkt_r20.get(ev,  {}).get(bkt, [])
+            mdd_raw  = ev_bkt_mdd.get(ev,  {}).get(bkt, [])
+            a5_raw   = ev_bkt_a5.get(ev,   {}).get(bkt, [])
+            a20_raw  = ev_bkt_a20.get(ev,  {}).get(bkt, [])
+
+            n = max(len(open_raw), len(r20_raw))
+            if n < MIN_BUCKET:
+                continue
+
+            hit5  = (round(sum(1 for r in open_raw if r > 0) / len(open_raw), 4)
+                     if open_raw else None)
+            hit20 = (round(sum(1 for r in r20_raw if r > 0) / len(r20_raw), 4)
+                     if r20_raw else None)
+            avg_open = (round(sum(_winsorize(open_raw) if len(open_raw) >= 10 else open_raw)
+                              / len(open_raw), 4)
+                        if open_raw else None)
+            avg_mdd_b = (round(sum(mdd_raw) / len(mdd_raw), 4) if mdd_raw else None)
+
+            a5tr  = (round(_trimmed_mean(a5_raw),  4) if a5_raw  else None)
+            a20tr = (round(_trimmed_mean(a20_raw), 4) if a20_raw else None)
+            a20md = (round(_median(a20_raw),       4) if a20_raw else None)
+
+            bucket_rows.append({
+                "event_type":         ev,
+                "bucket":             bkt,
+                "sample_size":        n,
+                "hit_ratio":          hit5,
+                "hit_ratio_20d":      hit20,
+                "avg_5d_open_return": avg_open,
+                "alpha5_trimmed":     a5tr,
+                "alpha20_trimmed":    a20tr,
+                "alpha20_median":     a20md,
+                "avg_mdd":            avg_mdd_b,
+                "updated_at":         now_iso,
+            })
+
+    if bucket_rows:
+        logger.info(f"\n  event_stats_by_bucket 집계: {len(bucket_rows)}개 (event×bucket)")
+        for r in bucket_rows:
+            a20_s = f"{r['alpha20_trimmed']:+.2f}%" if r['alpha20_trimmed'] is not None else "N/A"
+            hit_s = f"{r['hit_ratio']*100:.1f}%"   if r['hit_ratio']        is not None else "N/A"
+            logger.info(f"    {r['event_type']:15s} {r['bucket']:5s}  n={r['sample_size']:4d}  "
+                        f"hit5={hit_s}  a20tr={a20_s}")
+        try:
+            sb.table("event_stats_by_bucket").upsert(
+                bucket_rows, on_conflict="event_type,bucket"
+            ).execute()
+            logger.info(f"  [OK] event_stats_by_bucket {len(bucket_rows)}건 upsert 완료")
+        except Exception as e:
+            logger.error(f"  [ERR] event_stats_by_bucket 저장 실패: {e}")
 
     return len(stats_rows)
 

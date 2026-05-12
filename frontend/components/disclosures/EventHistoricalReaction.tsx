@@ -4,11 +4,12 @@
  * 이벤트 유형별 과거 시장 반응 통계를 보여주는 서버 컴포넌트.
  *
  * UI 구조:
- *   Primary   — Hit Rate + Trimmed Alpha (outlier 제거 후 대표값)
- *   Secondary — Median Alpha + Distribution (>5%, <-10%, max/min)
- *   Footer    — Avg MDD + Disclaimer
+ *   Primary    — Hit Rate + Trimmed Alpha (outlier 제거 후 대표값)
+ *   Secondary  — Median Alpha + Distribution (>5%, <-10%, max/min)
+ *   Contextual — By Market Cap (LARGE / MID / SMALL 버킷별 비교)
+ *   Footer     — Avg MDD + Disclaimer + Grade methodology
  *
- * 데이터 출처: event_stats 테이블 (EOD 배치 업데이트)
+ * 데이터 출처: event_stats, event_stats_by_bucket 테이블 (EOD 배치 업데이트)
  * 접근 제한: 없음 (aggregate 통계 — 모든 방문자에게 공개)
  */
 
@@ -52,6 +53,16 @@ interface EventStats {
   signal_score:       number | null
 }
 
+interface BucketStats {
+  bucket:             string           // LARGE | MID | SMALL
+  sample_size:        number | null
+  hit_ratio:          number | null
+  hit_ratio_20d:      number | null
+  alpha20_trimmed:    number | null
+  alpha20_median:     number | null
+  avg_mdd:            number | null
+}
+
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 
 function fmt(v: number | null, digits = 1): string {
@@ -80,6 +91,12 @@ function colorHit(v: number | null, isRatio = true): string {
   const pctVal = isRatio ? (v ?? 0) * 100 : (v ?? 0)
   if (v == null) return 'text-gray-400'
   return pctVal >= 55 ? 'text-emerald-400' : pctVal >= 50 ? 'text-yellow-400' : 'text-red-400'
+}
+
+const BUCKET_META: Record<string, { label: string; sub: string; color: string }> = {
+  LARGE: { label: 'Large Cap',  sub: '> ₩1T mktcap',   color: 'text-blue-400' },
+  MID:   { label: 'Mid Cap',    sub: '₩100B–₩1T',      color: 'text-purple-400' },
+  SMALL: { label: 'Small Cap',  sub: '< ₩100B mktcap', color: 'text-orange-400' },
 }
 
 const GRADE_STYLE: Record<string, string> = {
@@ -130,21 +147,36 @@ export default async function EventHistoricalReaction({
   if (!eventType || !EVENT_TYPE_LABELS[eventType]) return null
 
   const sb = createServiceClient()
-  const { data, error } = await sb
-    .from('event_stats')
-    .select(
-      'event_type, sample_size, hit_ratio, hit_ratio_20d, ' +
-      'avg_5d_open_return, alpha_5d, alpha_20d, ' +
-      'alpha5_trimmed, alpha20_trimmed, alpha5_median, alpha20_median, ' +
-      'alpha20_pos_pct, pct_gt5_20d, pct_lt10_20d, max_gain_20d, max_loss_20d, ' +
-      'avg_mdd, signal_grade, signal_score'
-    )
-    .eq('event_type', eventType)
-    .maybeSingle()
+
+  // 메인 통계 + 버킷별 통계 병렬 fetch
+  const [{ data, error }, { data: bktData }] = await Promise.all([
+    sb
+      .from('event_stats')
+      .select(
+        'event_type, sample_size, hit_ratio, hit_ratio_20d, ' +
+        'avg_5d_open_return, alpha_5d, alpha_20d, ' +
+        'alpha5_trimmed, alpha20_trimmed, alpha5_median, alpha20_median, ' +
+        'alpha20_pos_pct, pct_gt5_20d, pct_lt10_20d, max_gain_20d, max_loss_20d, ' +
+        'avg_mdd, signal_grade, signal_score'
+      )
+      .eq('event_type', eventType)
+      .maybeSingle(),
+    sb
+      .from('event_stats_by_bucket')
+      .select('bucket, sample_size, hit_ratio, hit_ratio_20d, alpha20_trimmed, alpha20_median, avg_mdd')
+      .eq('event_type', eventType)
+      .order('bucket'),   // LARGE → MID → SMALL
+  ])
 
   if (error || !data) return null
 
-  const s = data as unknown as EventStats
+  const s       = data as unknown as EventStats
+  const buckets = (bktData ?? []) as unknown as BucketStats[]
+  // LARGE / MID / SMALL 순서로 정렬
+  const BUCKET_ORDER = ['LARGE', 'MID', 'SMALL']
+  const sortedBuckets = [...buckets].sort(
+    (a, b) => BUCKET_ORDER.indexOf(a.bucket) - BUCKET_ORDER.indexOf(b.bucket)
+  )
 
   // trimmed 또는 median 중 하나라도 있어야 렌더
   const hasAlpha = s.alpha20_trimmed != null || s.alpha20_median != null
@@ -314,6 +346,61 @@ export default async function EventHistoricalReaction({
           <span className={`font-semibold ${colorVal(s.avg_5d_open_return)}`}>
             {fmt(s.avg_5d_open_return)}
           </span>
+        </div>
+      )}
+
+      {/* ── Contextual: By Market Cap ── */}
+      {sortedBuckets.length >= 2 && (
+        <div>
+          <p className="text-xs text-gray-600 uppercase tracking-widest mb-3">
+            By Market Cap
+          </p>
+          <div className={`grid gap-3 ${sortedBuckets.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {sortedBuckets.map((b) => {
+              const meta = BUCKET_META[b.bucket]
+              if (!meta) return null
+              return (
+                <div key={b.bucket} className="rounded-lg bg-gray-800/40 border border-gray-800 px-3 py-3 space-y-2">
+                  {/* 버킷 헤더 */}
+                  <div>
+                    <p className={`text-xs font-bold ${meta.color}`}>{meta.label}</p>
+                    <p className="text-xs text-gray-600">{meta.sub}</p>
+                  </div>
+                  {/* Hit Rate */}
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Hit Rate</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className={`text-sm font-bold tabular-nums ${colorHit(b.hit_ratio)}`}>
+                        {hitPct(b.hit_ratio)}
+                      </span>
+                      {b.hit_ratio_20d != null && (
+                        <span className={`text-xs tabular-nums ${colorHit(b.hit_ratio_20d)}`}>
+                          / {hitPct(b.hit_ratio_20d)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-700">5D / 20D</p>
+                  </div>
+                  {/* Alpha 20D */}
+                  <div>
+                    <p className="text-xs text-gray-600 mb-0.5">Alpha 20D</p>
+                    <p className={`text-sm font-bold tabular-nums ${colorVal(b.alpha20_trimmed)}`}>
+                      {fmt(b.alpha20_trimmed)}
+                    </p>
+                    <p className="text-xs text-gray-700">trimmed avg</p>
+                  </div>
+                  {/* 샘플 수 */}
+                  <p className="text-xs text-gray-700 pt-1 border-t border-gray-800/60">
+                    n={b.sample_size?.toLocaleString() ?? '—'}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-xs text-gray-700 mt-2 leading-relaxed">
+            Market cap buckets: Large &gt; ₩1T · Mid ₩100B–₩1T · Small &lt; ₩100B (at time of filing).
+            Min. 30 events per bucket shown.
+          </p>
         </div>
       )}
 
