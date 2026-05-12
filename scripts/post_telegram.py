@@ -153,7 +153,7 @@ def build_message(row: dict) -> str:
         kn_lines.append(tg_escape(_trunc(kn_str, 80)))
 
     # 스코어 바
-    score_bar = f"{direction} Sentiment: {tg_escape(f'{score:+.2f}')}  |  Score: {tg_escape(str(int(final_score)))}"
+    score_bar = f"{direction} Sentiment: {tg_escape(f'{score:+.2f}')}  \\|  Score: {tg_escape(str(int(final_score)))}"
 
     # 링크 (MarkdownV2 인라인 링크)
     url = f"{BASE_URL}/{sig_id}"
