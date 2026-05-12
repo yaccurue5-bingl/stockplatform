@@ -34,7 +34,7 @@ import { formatResponse } from '@/lib/v1/format'
 import { createServiceClient } from '@/lib/supabase/server'
 
 const ALLOWED_EVENT_TYPES = new Set([
-  'EARNINGS', 'CONTRACT', 'DILUTION', 'BUYBACK',
+  'EARNINGS', 'CONTRACT', 'DILUTION', 'BUYBACK', 'DISPOSAL',
   'RIGHTS', 'MERGER', 'SPINOFF', 'EQUITY',
 ])
 

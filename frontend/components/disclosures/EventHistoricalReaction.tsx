@@ -21,6 +21,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   CONTRACT: 'Strategic Contract',
   DILUTION: 'Capital Increase',
   BUYBACK:  'Share Buyback',
+  DISPOSAL: 'Treasury Share Disposal',
   RIGHTS:   'Rights Offering',
   MERGER:   'M&A / Merger',
   SPINOFF:  'Spin-off',
