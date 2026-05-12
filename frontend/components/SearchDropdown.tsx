@@ -14,7 +14,7 @@ interface SearchResult {
     report_nm: string;
     sentiment: string;
     importance: string;
-    analyzed_at: string;
+    updated_at: string;
   } | null;
 }
 
