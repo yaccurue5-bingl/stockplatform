@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SearchDropdown from '@/components/SearchDropdown';
 import BookmarkButton from '@/components/BookmarkButton';
+import ExternalDataNotice from '@/components/ExternalDataNotice';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperAdmin } from '@/lib/constants';
 import SignalStrength from '@/components/disclosures/SignalStrength';
@@ -1004,6 +1005,8 @@ function DisclosuresContent() {
             </button>
           </div>
         )}
+        {/* 외부 데이터 소스 고지 */}
+        <ExternalDataNotice className="mt-8 pb-2" />
       </main>
     </div>
   );

@@ -41,7 +41,23 @@ export default function TermsPage() {
             <ul className="space-y-2 text-gray-400 mb-4">
               <li className="flex items-start gap-2">
                 <span className="text-blue-400">•</span>
-                <a href="https://dart.fss.or.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">DART (Financial Supervisory Service)</a>
+                <a href="https://dart.fss.or.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">DART — Financial Supervisory Service (금융감독원 전자공시시스템)</a>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400">•</span>
+                <a href="https://www.data.go.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">data.go.kr — Korea Public Data Portal (공공데이터포털)</a>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400">•</span>
+                <a href="https://ecos.bok.or.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">ECOS — Bank of Korea Economic Statistics System</a>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400">•</span>
+                <a href="https://www.motie.go.kr" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 underline">MOTIE — Ministry of Trade, Industry and Energy (산업통상자원부)</a>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-400">•</span>
+                Other official Korean government Open APIs
               </li>
             </ul>
             <p className="text-blue-200 text-sm italic">
@@ -105,9 +121,32 @@ export default function TermsPage() {
           </div>
 
           <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl p-8">
-            <h2 className="text-2xl font-bold text-white mb-4">7. Service Availability</h2>
-            <p className="text-gray-300 leading-relaxed">
-              We strive to maintain continuous availability but do not guarantee uninterrupted access. The Service may be temporarily unavailable for maintenance or updates.
+            <h2 className="text-2xl font-bold text-white mb-4">7. Service Availability &amp; External Data Sources</h2>
+            <p className="text-gray-300 leading-relaxed mb-4">
+              We strive to maintain continuous availability but do not guarantee uninterrupted access. The Service may be temporarily unavailable for scheduled maintenance or updates.
+            </p>
+
+            <h3 className="text-lg font-semibold text-white mt-6 mb-3">External Data Source Availability</h3>
+            <p className="text-gray-300 leading-relaxed mb-4">
+              K-MarketInsight integrates data from external public institutions and government APIs, including DART, data.go.kr, ECOS, and MOTIE.
+              These third-party data sources are operated and maintained by their respective government agencies independently of K-MarketInsight.
+            </p>
+            <p className="text-gray-300 leading-relaxed mb-4">
+              Data updates may be temporarily delayed or interrupted due to reasons beyond our control, including but not limited to:
+            </p>
+            <ul className="space-y-2 text-gray-400 mb-4">
+              <li className="flex items-start gap-2"><span className="text-yellow-400 mt-0.5">•</span> Scheduled or emergency maintenance by the data provider</li>
+              <li className="flex items-start gap-2"><span className="text-yellow-400 mt-0.5">•</span> API rate limits, service outages, or infrastructure issues at the source</li>
+              <li className="flex items-start gap-2"><span className="text-yellow-400 mt-0.5">•</span> Changes to the data provider&apos;s API structure or access policies</li>
+              <li className="flex items-start gap-2"><span className="text-yellow-400 mt-0.5">•</span> Network interruptions or response delays</li>
+            </ul>
+            <p className="text-gray-300 leading-relaxed mb-3">
+              To mitigate these disruptions, the Service applies caching and error-handling measures.
+              In some cases, the most recently available data may be displayed rather than a real-time update.
+            </p>
+            <p className="text-amber-300 text-sm font-medium border border-amber-500/30 bg-amber-500/10 rounded-lg px-4 py-3">
+              K-MarketInsight does not guarantee complete real-time data availability and shall not be liable for any temporary data delays
+              or interruptions arising from the operational status of external data providers.
             </p>
           </div>
 
