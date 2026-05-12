@@ -448,6 +448,7 @@ export type Database = {
           sonnet_tokens_used: number | null
           stock_code: string | null
           system_score: number | null
+          telegram_at: string | null
           tweeted_at: string | null
           updated_at: string | null
         }
@@ -492,6 +493,7 @@ export type Database = {
           sonnet_tokens_used?: number | null
           stock_code?: string | null
           system_score?: number | null
+          telegram_at?: string | null
           tweeted_at?: string | null
           updated_at?: string | null
         }
@@ -536,6 +538,7 @@ export type Database = {
           sonnet_tokens_used?: number | null
           stock_code?: string | null
           system_score?: number | null
+          telegram_at?: string | null
           tweeted_at?: string | null
           updated_at?: string | null
         }
@@ -1712,6 +1715,7 @@ export type Database = {
           api_key: string | null
           api_key_created_at: string | null
           created_at: string | null
+          digest_unsubscribed: boolean
           email: string
           id: string
           last_session_id: string | null
@@ -1725,6 +1729,7 @@ export type Database = {
           api_key?: string | null
           api_key_created_at?: string | null
           created_at?: string | null
+          digest_unsubscribed?: boolean
           email: string
           id: string
           last_session_id?: string | null
@@ -1738,6 +1743,7 @@ export type Database = {
           api_key?: string | null
           api_key_created_at?: string | null
           created_at?: string | null
+          digest_unsubscribed?: boolean
           email?: string
           id?: string
           last_session_id?: string | null

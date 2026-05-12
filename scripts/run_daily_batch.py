@@ -324,6 +324,13 @@ def run_eod(args):
          "send_twitter_digest.py",
          ["--limit", "10", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
          False),
+
+        # Step 12: Free/Starter 유저 Daily Digest 이메일 발송 (리텐션 + Pro 업셀)
+        # RESEND_API_KEY 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Daily Digest 이메일",
+         "send_digest.py",
+         ["--limit", "5", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
+         False),
     ]
 
     return _execute_steps(steps)
