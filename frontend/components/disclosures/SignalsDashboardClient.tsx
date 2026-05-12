@@ -72,18 +72,52 @@ function Th({ children, right }: { children: React.ReactNode; right?: boolean })
     </th>
   )
 }
-function Td({ children, right, className }: { children: React.ReactNode; right?: boolean; className?: string }) {
+function Td({ children, right, className, title }: { children: React.ReactNode; right?: boolean; className?: string; title?: string }) {
   return (
-    <td className={`px-3 py-2.5 text-xs tabular-nums whitespace-nowrap
+    <td title={title} className={`px-3 py-2.5 text-xs tabular-nums whitespace-nowrap
       ${right ? 'text-right' : ''} ${className ?? ''}`}>
       {children}
     </td>
   )
 }
 
+// ── Best Environment 계산 헬퍼 ────────────────────────────────────────────────
+
+const MIN_BADGE_N = 50
+
+const DIM_SHORT: Record<string, string> = {
+  LARGE: 'Large Cap', MID: 'Mid Cap', SMALL: 'Small Cap',
+  UP: 'Bull Mkt', NEUTRAL: 'Neutral', DOWN: 'Bear Mkt',
+  HIGH: 'High Vol', NORMAL: 'Normal Vol', LOW: 'Low Vol',
+}
+const DIM_COLOR: Record<string, string> = {
+  LARGE: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+  MID:   'text-purple-400 bg-purple-500/10 border-purple-500/20',
+  SMALL: 'text-orange-400 bg-orange-500/10 border-orange-500/20',
+  UP:    'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  NEUTRAL: 'text-gray-400 bg-gray-500/10 border-gray-500/20',
+  DOWN:  'text-red-400 bg-red-500/10 border-red-500/20',
+  HIGH:  'text-red-400 bg-red-500/10 border-red-500/20',
+  NORMAL:'text-gray-400 bg-gray-500/10 border-gray-500/20',
+  LOW:   'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+}
+
+function bestDim(rows: ContextRow[], ev: string): { dim: string; alpha: number; n: number } | null {
+  const eligible = rows
+    .filter(r => r.event_type === ev && (r.sample_size ?? 0) >= MIN_BADGE_N && r.alpha20_trimmed != null)
+    .sort((a, b) => (b.alpha20_trimmed!) - (a.alpha20_trimmed!))
+  return eligible[0]
+    ? { dim: eligible[0].dim, alpha: eligible[0].alpha20_trimmed!, n: eligible[0].sample_size! }
+    : null
+}
+
 // ── Overview 탭 ───────────────────────────────────────────────────────────────
 
-function OverviewTab({ rows }: { rows: OverviewRow[] }) {
+function OverviewTab({ rows, byBucket, byRegime }: {
+  rows: OverviewRow[]
+  byBucket: ContextRow[]
+  byRegime: ContextRow[]
+}) {
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-800">
       <table className="w-full">
@@ -98,32 +132,57 @@ function OverviewTab({ rows }: { rows: OverviewRow[] }) {
             <Th right>Median α</Th>
             <Th right>MDD</Th>
             <Th right>Grade</Th>
+            <Th>Best Condition</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-800/60">
-          {rows.map(r => (
-            <tr key={r.event_type} className="hover:bg-gray-800/30 transition-colors">
-              <Td>
-                <span className="font-semibold text-white">
-                  {EVENT_LABELS[r.event_type] ?? r.event_type}
-                </span>
-              </Td>
-              <Td right className="text-gray-400">{r.sample_size?.toLocaleString()}</Td>
-              <Td right className={colorHit(r.hit_ratio)}>{hitPct(r.hit_ratio)}</Td>
-              <Td right className={colorHit(r.hit_ratio_20d)}>{hitPct(r.hit_ratio_20d)}</Td>
-              <Td right className={colorVal(r.alpha5_trimmed)}>{fmt(r.alpha5_trimmed)}</Td>
-              <Td right className={colorVal(r.alpha20_trimmed)}>{fmt(r.alpha20_trimmed)}</Td>
-              <Td right className={`${colorVal(r.alpha20_median)} opacity-70`}>{fmt(r.alpha20_median)}</Td>
-              <Td right className="text-red-400">{fmt(r.avg_mdd)}</Td>
-              <Td right>
-                {r.signal_grade ? (
-                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${GRADE_STYLE[r.signal_grade] ?? GRADE_STYLE['C']}`}>
-                    {r.signal_grade}
+          {rows.map(r => {
+            const bestBkt = bestDim(byBucket, r.event_type)
+            const bestRgm = bestDim(byRegime, r.event_type)
+            return (
+              <tr key={r.event_type} className="hover:bg-gray-800/30 transition-colors">
+                <Td>
+                  <span className="font-semibold text-white">
+                    {EVENT_LABELS[r.event_type] ?? r.event_type}
                   </span>
-                ) : '—'}
-              </Td>
-            </tr>
-          ))}
+                </Td>
+                <Td right>
+                  <span className="text-gray-300 font-medium">
+                    {r.sample_size?.toLocaleString()}
+                  </span>
+                </Td>
+                <Td right className={colorHit(r.hit_ratio)}>{hitPct(r.hit_ratio)}</Td>
+                <Td right className={colorHit(r.hit_ratio_20d)}>{hitPct(r.hit_ratio_20d)}</Td>
+                <Td right className={colorVal(r.alpha5_trimmed)}>{fmt(r.alpha5_trimmed)}</Td>
+                <Td right className={colorVal(r.alpha20_trimmed)}>{fmt(r.alpha20_trimmed)}</Td>
+                <Td right className={`${colorVal(r.alpha20_median)} opacity-70`}>{fmt(r.alpha20_median)}</Td>
+                <Td right className="text-red-400">{fmt(r.avg_mdd)}</Td>
+                <Td right>
+                  {r.signal_grade ? (
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${GRADE_STYLE[r.signal_grade] ?? GRADE_STYLE['C']}`}>
+                      {r.signal_grade}
+                    </span>
+                  ) : '—'}
+                </Td>
+                <Td>
+                  <div className="flex flex-wrap gap-1">
+                    {bestBkt && (
+                      <span className={`px-1.5 py-0.5 rounded border text-xs ${DIM_COLOR[bestBkt.dim] ?? 'text-gray-400'}`}
+                        title={`Best cap: α20=${fmt(bestBkt.alpha)} n=${bestBkt.n}`}>
+                        {DIM_SHORT[bestBkt.dim]}
+                      </span>
+                    )}
+                    {bestRgm && (
+                      <span className={`px-1.5 py-0.5 rounded border text-xs ${DIM_COLOR[bestRgm.dim] ?? 'text-gray-400'}`}
+                        title={`Best regime: α20=${fmt(bestRgm.alpha)} n=${bestRgm.n}`}>
+                        {DIM_SHORT[bestRgm.dim]}
+                      </span>
+                    )}
+                  </div>
+                </Td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -197,6 +256,9 @@ function ContextualTab({ rows, dimOrder, dimNote }: {
                 </Td>
                 {dimOrder.map(dim => {
                   const r = byEvent[ev]?.[dim]
+                  const n = r?.sample_size ?? 0
+                  // n<50: 소표본 경고색
+                  const nClass = n >= 100 ? 'text-gray-400' : n >= 50 ? 'text-yellow-600' : 'text-gray-700'
                   return (
                     <React.Fragment key={dim}>
                       <Td right className={`border-l border-gray-800/30 ${colorHit(r?.hit_ratio ?? null)}`}>
@@ -205,8 +267,10 @@ function ContextualTab({ rows, dimOrder, dimNote }: {
                       <Td right className={colorVal(r?.alpha20_trimmed ?? null)}>
                         {r ? fmt(r.alpha20_trimmed) : <span className="text-gray-700">—</span>}
                       </Td>
-                      <Td right className="text-gray-600">
-                        {r ? r.sample_size?.toLocaleString() : '—'}
+                      <Td right className={nClass} title={n < 50 ? 'Small sample — interpret with caution' : undefined}>
+                        {r ? (
+                          <span>{n.toLocaleString()}{n < 50 ? ' ⚠' : ''}</span>
+                        ) : '—'}
                       </Td>
                     </React.Fragment>
                   )
@@ -249,7 +313,7 @@ export default function SignalsDashboardClient({ data }: { data: DashboardData }
 
       {/* ── 탭 컨텐츠 ── */}
       {tab === 'overview' && (
-        <OverviewTab rows={data.overview} />
+        <OverviewTab rows={data.overview} byBucket={data.byBucket} byRegime={data.byRegime} />
       )}
 
       {tab === 'bucket' && (

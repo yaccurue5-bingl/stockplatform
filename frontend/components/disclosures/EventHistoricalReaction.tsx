@@ -219,6 +219,81 @@ export default async function EventHistoricalReaction({
   const a20secondary = s.alpha20_median
   const a5primary   = s.alpha5_trimmed   ?? s.alpha_5d
 
+  // ── Best Environment 계산 (n≥50 필터) ──────────────────────────────────────
+  const MIN_BADGE_N = 50
+
+  const bktWithData = sortedBuckets.filter(
+    b => (b.sample_size ?? 0) >= MIN_BADGE_N && b.alpha20_trimmed != null
+  )
+  const bestBucket = [...bktWithData].sort(
+    (a, b) => (b.alpha20_trimmed ?? -999) - (a.alpha20_trimmed ?? -999)
+  )[0]
+
+  const rgmWithData = sortedRegimes.filter(
+    r => (r.sample_size ?? 0) >= MIN_BADGE_N && r.alpha20_trimmed != null
+  )
+  const bestRegime = [...rgmWithData].sort(
+    (a, b) => (b.alpha20_trimmed ?? -999) - (a.alpha20_trimmed ?? -999)
+  )[0]
+
+  const volWithData = sortedVol.filter(
+    v => (v.sample_size ?? 0) >= MIN_BADGE_N && v.alpha20_trimmed != null
+  )
+  const worstVol = [...volWithData].sort(
+    (a, b) => (a.alpha20_trimmed ?? 999) - (b.alpha20_trimmed ?? 999)
+  )[0]
+
+  // Best Environment 문장
+  const bktLabel = bestBucket ? BUCKET_META[bestBucket.bucket]?.label : null
+  const rgmLabel = bestRegime ? REGIME_META[bestRegime.regime]?.label : null
+  const bestEnvText: string | null = (() => {
+    if (bktLabel && rgmLabel) {
+      return `Historically strongest in ${bktLabel} stocks during ${rgmLabel} conditions.`
+    }
+    if (bktLabel) return `Historically strongest in ${bktLabel} stocks.`
+    if (rgmLabel) return `Historically strongest in ${rgmLabel} conditions.`
+    return null
+  })()
+
+  // Contextual Badges
+  const large = sortedBuckets.find(b => b.bucket === 'LARGE')
+  const small = sortedBuckets.find(b => b.bucket === 'SMALL')
+  const upRgm = sortedRegimes.find(r => r.regime === 'UP')
+  const neuRgm = sortedRegimes.find(r => r.regime === 'NEUTRAL')
+  const highVol = sortedVol.find(v => v.vol_regime === 'HIGH')
+  const normalVol = sortedVol.find(v => v.vol_regime === 'NORMAL')
+
+  const badges: { label: string; style: string }[] = []
+
+  if (
+    large && small &&
+    (large.sample_size ?? 0) >= MIN_BADGE_N &&
+    (small.sample_size ?? 0) >= MIN_BADGE_N &&
+    (large.alpha20_trimmed ?? 0) - (small.alpha20_trimmed ?? 0) >= 3
+  ) {
+    badges.push({ label: 'Large-cap favorable', style: 'text-blue-400 bg-blue-500/10 border-blue-500/20' })
+  }
+
+  if (
+    upRgm && neuRgm &&
+    (upRgm.sample_size ?? 0) >= MIN_BADGE_N &&
+    (upRgm.alpha20_trimmed ?? 0) - (neuRgm.alpha20_trimmed ?? 0) >= 2
+  ) {
+    badges.push({ label: 'Bull market bias', style: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' })
+  }
+
+  if (
+    highVol && normalVol &&
+    (highVol.sample_size ?? 0) >= MIN_BADGE_N &&
+    (normalVol.alpha20_trimmed ?? 0) - (highVol.alpha20_trimmed ?? 0) >= 2
+  ) {
+    badges.push({ label: 'Avoid high volatility', style: 'text-red-400 bg-red-500/10 border-red-500/20' })
+  }
+
+  if (bestRegime && bestRegime.regime === 'DOWN') {
+    badges.push({ label: 'Bear market resilient', style: 'text-purple-400 bg-purple-500/10 border-purple-500/20' })
+  }
+
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5 space-y-5">
 
@@ -230,10 +305,29 @@ export default async function EventHistoricalReaction({
           </p>
           <p className="text-sm text-gray-400">
             Based on{' '}
-            <span className="text-white font-semibold">{s.sample_size.toLocaleString()}</span>
+            <span className="text-white font-semibold">n={s.sample_size.toLocaleString()}</span>
             {' '}similar{' '}
             <span className="text-[#00D4A6]">{eventLabel}</span> events
           </p>
+          {/* Best Environment 요약 문장 */}
+          {bestEnvText && (
+            <p className="text-xs text-[#00D4A6]/80 mt-1.5 leading-relaxed">
+              {bestEnvText}
+            </p>
+          )}
+          {/* Contextual Badges */}
+          {badges.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {badges.map(b => (
+                <span
+                  key={b.label}
+                  className={`text-xs px-2 py-0.5 rounded-md border font-medium ${b.style}`}
+                >
+                  {b.label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         {s.signal_grade && (
           <details className="flex-shrink-0 group">
