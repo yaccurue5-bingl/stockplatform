@@ -11,13 +11,14 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { TrendingUp, TrendingDown, Minus, Lock, ArrowLeft, ExternalLink } from 'lucide-react';
 import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
 import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard';
+import BookmarkButton from '@/components/BookmarkButton';
 
 export const revalidate = 3600;
 
@@ -349,7 +350,7 @@ export default async function SignalPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const signal = await fetchSignal(id);
+  const [signal, user] = await Promise.all([fetchSignal(id), getUser()]);
   if (!signal) notFound();
 
   const dateStr    = formatDate(signal.rcept_dt);
@@ -359,7 +360,6 @@ export default async function SignalPage({
   const hasMore    = keyNums.length > 2;
 
   // Capital Return 분류 (BUYBACK 이벤트 전용)
-  // 분류는 전체 keyNums 기반, 표시는 publicNums(잠금 우회 없음)
   const buybackSubtype =
     eventKey === 'BUYBACK'
       ? classifyBuybackSubtype(signal.headline, keyNums)
@@ -370,6 +370,19 @@ export default async function SignalPage({
 
   // Sector Context
   const sectorContext = signal.sector ? await fetchSectorContext(signal.sector) : null;
+
+  // 북마크 상태 (로그인 유저만)
+  let isBookmarked = false;
+  if (user) {
+    const sb = createServiceClient();
+    const { data: bk } = await sb
+      .from('bookmarks')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('disclosure_id', id)
+      .maybeSingle();
+    isBookmarked = !!bk;
+  }
 
   // per-signal JSON-LD  (Google NewsArticle 필수 필드 충족)
   const pubDate = signal.rcept_dt
@@ -415,20 +428,30 @@ export default async function SignalPage({
 
       {/* 상단 네비 */}
       <div className="border-b border-gray-800 px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
+        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
+            className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition shrink-0"
           >
             <ArrowLeft size={15} />
             K-MarketInsight
           </Link>
-          <Link
-            href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
-            className="text-xs text-[#00D4A6] hover:underline"
-          >
-            Sign in for full access →
-          </Link>
+          <div className="flex items-center gap-3">
+            <BookmarkButton
+              disclosureId={id}
+              initialBookmarked={isBookmarked}
+              isLoggedIn={!!user}
+              size="sm"
+            />
+            {!user && (
+              <Link
+                href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
+                className="text-xs text-[#00D4A6] hover:underline shrink-0"
+              >
+                Sign in for full access →
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 

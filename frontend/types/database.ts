@@ -182,6 +182,35 @@ export type Database = {
           },
         ]
       }
+      bookmarks: {
+        Row: {
+          created_at: string
+          disclosure_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          disclosure_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          disclosure_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmarks_disclosure_id_fkey"
+            columns: ["disclosure_id"]
+            isOneToOne: false
+            referencedRelation: "disclosure_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           corp_name: string
@@ -419,6 +448,7 @@ export type Database = {
           sonnet_tokens_used: number | null
           stock_code: string | null
           system_score: number | null
+          tweeted_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -462,6 +492,7 @@ export type Database = {
           sonnet_tokens_used?: number | null
           stock_code?: string | null
           system_score?: number | null
+          tweeted_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -505,6 +536,7 @@ export type Database = {
           sonnet_tokens_used?: number | null
           stock_code?: string | null
           system_score?: number | null
+          tweeted_at?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1897,4 +1929,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
