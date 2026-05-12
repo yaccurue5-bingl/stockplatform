@@ -34,6 +34,7 @@ env:
   DART_API_KEY: ${{ secrets.DART_API_KEY }}
   PUBLIC_DATA_API_KEY: ${{ secrets.PUBLIC_DATA_API_KEY }}
   ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
 
 jobs:
 

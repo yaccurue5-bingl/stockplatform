@@ -158,6 +158,7 @@ def fetch_targets(sb, limit: int | None) -> list[dict]:
         .select("id, corp_name, report_nm, content, stock_code, rcept_dt")
         .eq("analysis_status", "completed")
         .is_("sentiment_score", "null")
+        .not_.is_("content", "null")   # idx_insights_backfill_pending 인덱스 활용
         .order("rcept_dt", desc=True)
     )
     if limit:
