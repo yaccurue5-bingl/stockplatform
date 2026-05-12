@@ -139,7 +139,7 @@ def build_message(row: dict) -> str:
     # 기업명 (bold)
     corp_str = tg_escape(_trunc(corp, 35))
     code_str = f" \\[{tg_escape(code)}\\]" if code else ""
-    line1 = f"🇰🇷 *{corp_str}*{code_str}"
+    line1 = f"*{corp_str}*{code_str}"
 
     # 이벤트 + 헤드라인
     line2 = f"{emoji} {tg_escape(event)} — {tg_escape(headline)}"

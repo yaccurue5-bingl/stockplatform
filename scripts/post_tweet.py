@@ -149,9 +149,9 @@ def build_tweet(row: dict) -> tuple[str, int]:
 
     url = f"{BASE_URL}/{sig_id}"
 
-    # Line 1: 회사명 + 코드 (corp_name_en 없으면 한국어 그대로 — CJK=2 고려해 25자 제한)
-    corp_trimmed = _trunc(corp, 25)
-    corp_line = f"🇰🇷 {corp_trimmed}"
+    # Line 1: 회사명 + 코드 (🇰🇷 플래그 제거 — 일부 클라이언트에서 깨짐)
+    corp_trimmed = _trunc(corp, 30)
+    corp_line = corp_trimmed
     if code:
         corp_line += f" [{code}]"
 
@@ -275,6 +275,8 @@ def main() -> None:
     )
     parser.add_argument("--dry-run",     action="store_true",
                         help="트윗 텍스트 출력만, 실제 게시 안 함")
+    parser.add_argument("--output",      type=str,   default="tweets_draft.txt",
+                        help="dry-run 시 트윗 저장 파일 (기본 tweets_draft.txt, UTF-8)")
     parser.add_argument("--limit",       type=int,   default=5,
                         help="최대 게시 건수 (기본 5)")
     parser.add_argument("--min-score",   type=float, default=0.30,
@@ -314,6 +316,26 @@ def main() -> None:
 
     logger.info(f"  → {len(queue)}건 발견")
 
+    # ── dry-run: 파일로 저장 (Windows CMD에서도 열 수 있는 UTF-8) ────────────
+    if args.dry_run:
+        out_path = Path(args.output)
+        lines: list[str] = []
+        for i, row in enumerate(queue, 1):
+            tweet_text, tw_len = build_tweet(row)
+            corp_label = (row.get("corp_name_en") or row.get("corp_name") or "?")[:30]
+            score = row.get("sentiment_score") or 0
+            lines.append(f"{'='*55}")
+            lines.append(f"[{i}] {corp_label}  |  {row.get('event_type')}  |  score={score:+.2f}  |  {tw_len}/280자")
+            lines.append(f"ID: {row['id']}")
+            lines.append(f"{'─'*55}")
+            lines.append(tweet_text)
+            lines.append("")
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        logger.info(f"[DRY-RUN] {len(queue)}건 저장 → {out_path.resolve()}")
+        logger.info("  Notepad에서 열어 복사: notepad tweets_draft.txt")
+        return
+
     # ── 순서대로 게시 ────────────────────────────────────────────────────────
     posted = 0
     for row in queue:
@@ -321,18 +343,7 @@ def main() -> None:
         corp_label = (row.get("corp_name_en") or row.get("corp_name") or "?")[:30]
         score = row.get("sentiment_score") or 0
 
-        logger.info(
-            f"\n{'─'*55}\n"
-            f"  {corp_label}  |  {row.get('event_type')}  |  score={score:.2f}\n"
-            f"{'─'*55}\n"
-            + tweet_text +
-            f"\n{'─'*55}"
-        )
-        logger.info(f"  Twitter 가중 문자 수: {tw_len} / 280")
-
-        if args.dry_run:
-            logger.info("  [DRY-RUN] 실제 게시 스킵")
-            continue
+        logger.info(f"  {corp_label}  |  {row.get('event_type')}  |  {tw_len}/280자")
 
         tweet_id = post_tweet(
             tweet_text, api_key, api_secret,    # type: ignore[arg-type]
@@ -340,15 +351,12 @@ def main() -> None:
         )
         if tweet_id:
             mark_tweeted(row["id"])
-            logger.info(f"  ✅ 게시 완료 — tweet_id={tweet_id}")
+            logger.info(f"  게시 완료 — tweet_id={tweet_id}")
             posted += 1
         else:
-            logger.warning("  ⚠️ 게시 실패 — 다음 항목으로")
+            logger.warning("  게시 실패 — 다음 항목으로")
 
-    if not args.dry_run:
-        logger.info(f"\n🎉 {posted}/{len(queue)}건 게시 완료")
-    else:
-        logger.info(f"\n[DRY-RUN] {len(queue)}건 미리보기 완료")
+    logger.info(f"\n{posted}/{len(queue)}건 게시 완료")
 
 
 if __name__ == "__main__":
