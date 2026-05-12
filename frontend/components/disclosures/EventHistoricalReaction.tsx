@@ -161,7 +161,7 @@ export default async function EventHistoricalReaction({
     <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5 space-y-5">
 
       {/* ── 헤더 ── */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="relative flex items-start justify-between gap-3">
         <div>
           <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-1">
             Historical Market Reaction
@@ -174,9 +174,29 @@ export default async function EventHistoricalReaction({
           </p>
         </div>
         {s.signal_grade && (
-          <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-lg border ${gradeStyle}`}>
-            Grade {s.signal_grade}
-          </span>
+          <details className="flex-shrink-0 group">
+            <summary className={`cursor-pointer list-none text-xs font-bold px-2.5 py-1 rounded-lg border ${gradeStyle}`}>
+              Grade {s.signal_grade}
+            </summary>
+            <div className="absolute right-5 mt-2 z-10 w-64 rounded-xl border border-gray-700 bg-gray-900 shadow-xl p-4 text-xs space-y-2">
+              <p className="text-gray-300 font-semibold mb-1">How we grade signals</p>
+              <p className="text-gray-500 leading-relaxed">
+                Score = <span className="text-gray-300">risk-adjusted return</span> (median 5D ÷ volatility,
+                Sharpe-style), scaled by sample confidence (n/300, max 40% boost).
+              </p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 border-t border-gray-800">
+                <span className="text-emerald-400 font-bold">A  ≥ 75</span><span className="text-gray-400">Strong positive signal</span>
+                <span className="text-emerald-400 font-bold">B  60–74</span><span className="text-gray-400">Moderate positive signal</span>
+                <span className="text-blue-400 font-bold">C  45–59</span><span className="text-gray-400">Neutral / inconclusive</span>
+                <span className="text-yellow-400 font-bold">D  30–44</span><span className="text-gray-400">Weak or mixed signal</span>
+                <span className="text-red-400 font-bold">F  &lt; 30</span><span className="text-gray-400">Negative signal</span>
+              </div>
+              <p className="text-gray-600 leading-relaxed pt-1 border-t border-gray-800">
+                Grade reflects risk-adjusted consistency, not absolute return size.
+                A lower-return but stable event type may outgrade a high-variance one.
+              </p>
+            </div>
+          </details>
         )}
       </div>
 
@@ -305,10 +325,19 @@ export default async function EventHistoricalReaction({
         </div>
       )}
 
-      {/* ── 면책 ── */}
-      <p className="text-xs text-gray-700 leading-relaxed">
-        Based on DART filings since Jan 2025. Past market reactions do not guarantee future results.
-      </p>
+      {/* ── 면책 + 채점 방법론 ── */}
+      <div className="space-y-1.5 pt-1 border-t border-gray-800/60">
+        <p className="text-xs text-gray-700 leading-relaxed">
+          Based on DART filings since Jan 2025. Past market reactions do not guarantee future results.
+        </p>
+        {s.signal_grade && (
+          <p className="text-xs text-gray-700 leading-relaxed">
+            Signal grade: risk-adjusted return (median 5D ÷ vol, Sharpe-style) × sample confidence
+            — A≥75 / B≥60 / C≥45 / D≥30.{' '}
+            <span className="text-gray-600">Click the grade badge for details.</span>
+          </p>
+        )}
+      </div>
     </div>
   )
 }
