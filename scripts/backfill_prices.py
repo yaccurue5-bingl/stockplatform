@@ -354,6 +354,17 @@ def _winsorize(vals: list[float], lo_pct: float = 0.05, hi_pct: float = 0.95) ->
     return [v for v in vals if lo <= v <= hi]
 
 
+def _trimmed_mean(vals: list[float], cut_pct: float = 0.05) -> float | None:
+    """상하 각 cut_pct(기본 5%) 제거 후 평균 → 총 10% 제거."""
+    if not vals:
+        return None
+    sv  = sorted(vals)
+    n   = len(sv)
+    cut = int(n * cut_pct)
+    trimmed = sv[cut: n - cut] if cut * 2 < n else sv
+    return sum(trimmed) / len(trimmed) if trimmed else None
+
+
 def _median(vals: list[float]) -> float | None:
     if not vals:
         return None
@@ -822,13 +833,39 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         mdd_vals = buckets_mdd.get(ev, [])
         avg_mdd  = round(sum(mdd_vals) / len(mdd_vals), 4) if mdd_vals else None
 
-        # alpha_5d / alpha_20d: 이벤트 수익률 - 벤치마크 수익률 (winsorize 적용) — NEW
+        # alpha_5d / alpha_20d: 이벤트 수익률 - 벤치마크 수익률 (winsorize 적용)
         a5_raw  = buckets_a5.get(ev, [])
         a20_raw = buckets_a20.get(ev, [])
         a5_clean  = _winsorize(a5_raw)  if len(a5_raw)  >= 10 else a5_raw
         a20_clean = _winsorize(a20_raw) if len(a20_raw) >= 10 else a20_raw
         alpha_5d  = round(sum(a5_clean)  / len(a5_clean),  4) if a5_clean  else None
         alpha_20d = round(sum(a20_clean) / len(a20_clean), 4) if a20_clean else None
+
+        # alpha median (raw — outlier 영향 최소화)
+        alpha5_median  = round(_median(a5_raw),  4) if a5_raw  else None
+        alpha20_median = round(_median(a20_raw), 4) if a20_raw else None
+
+        # alpha trimmed mean (상하 5% 제거)
+        alpha5_trimmed  = round(_trimmed_mean(a5_raw),  4) if a5_raw  else None
+        alpha20_trimmed = round(_trimmed_mean(a20_raw), 4) if a20_raw else None
+
+        # alpha20 양의 초과수익률 비율 (벤치마크를 이긴 비율)
+        alpha20_pos_pct = (
+            round(sum(1 for a in a20_raw if a > 0) / len(a20_raw) * 100, 2)
+            if a20_raw else None
+        )
+
+        # distribution (raw 20d return 기준 — winsorize 전)
+        pct_gt5_20d  = (
+            round(sum(1 for r in vals20_raw if r > 5)   / len(vals20_raw) * 100, 2)
+            if vals20_raw else None
+        )
+        pct_lt10_20d = (
+            round(sum(1 for r in vals20_raw if r < -10) / len(vals20_raw) * 100, 2)
+            if vals20_raw else None
+        )
+        max_gain_20d = round(max(vals20_raw), 4) if vals20_raw else None
+        max_loss_20d = round(min(vals20_raw), 4) if vals20_raw else None
 
         # 버킷별 Z-score 계산 — open 수익률 기준 (스펙 일치)
         z_by_bucket: dict[str, float | None] = {}
@@ -854,11 +891,20 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             "avg_5d_open_return":    round(avg_open, 4) if avg_open is not None else None,
             "median_5d_open_return": round(med_open, 4) if med_open is not None else None,
             "hit_ratio":             hit_ratio,
-            "hit_ratio_20d":         hit_ratio_20d,   # NEW
+            "hit_ratio_20d":         hit_ratio_20d,
             "direction_score":       direction_score,
             "avg_mdd":               avg_mdd,
-            "alpha_5d":              alpha_5d,         # NEW
-            "alpha_20d":             alpha_20d,        # NEW
+            "alpha_5d":              alpha_5d,
+            "alpha_20d":             alpha_20d,
+            "alpha5_median":         alpha5_median,
+            "alpha20_median":        alpha20_median,
+            "alpha5_trimmed":        alpha5_trimmed,
+            "alpha20_trimmed":       alpha20_trimmed,
+            "alpha20_pos_pct":       alpha20_pos_pct,
+            "pct_gt5_20d":           pct_gt5_20d,
+            "pct_lt10_20d":          pct_lt10_20d,
+            "max_gain_20d":          max_gain_20d,
+            "max_loss_20d":          max_loss_20d,
             "std_5d":                round(std5,  4),
             "sample_size":           n_raw,
             "sample_size_clean":     n_clean,
@@ -889,12 +935,15 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         z_l = f"{r['avg_z_5d_large']:+.2f}" if r["avg_z_5d_large"] is not None else " N/A"
         z_m = f"{r['avg_z_5d_mid']:+.2f}"   if r["avg_z_5d_mid"]   is not None else " N/A"
         z_s = f"{r['avg_z_5d_small']:+.2f}" if r["avg_z_5d_small"] is not None else " N/A"
+        tr5_str  = f"{r['alpha5_trimmed']:+.2f}%"  if r["alpha5_trimmed"]  is not None else "N/A"
+        tr20_str = f"{r['alpha20_trimmed']:+.2f}%" if r["alpha20_trimmed"] is not None else "N/A"
+        med20_str = f"{r['alpha20_median']:+.2f}%" if r["alpha20_median"]  is not None else "N/A"
         logger.info(
             f"    {r['event_type']:20s} "
             f"n={r['sample_size']:4d}  "
             f"open={open_str}  hit5={hit_str}  hit20={hit20_str}  "
-            f"α5={a5_str}  α20={a20_str}  mdd={mdd_str}  "
-            f"score={r['signal_score']}({r['signal_grade']})"
+            f"a5={a5_str}(tr={tr5_str})  a20={a20_str}(tr={tr20_str},med={med20_str})  "
+            f"mdd={mdd_str}  score={r['signal_score']}({r['signal_grade']})"
         )
 
     if dry_run:

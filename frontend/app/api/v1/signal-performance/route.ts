@@ -72,6 +72,8 @@ export async function GET(req: NextRequest) {
         'hit_ratio, hit_ratio_20d, ' +
         'avg_5d_open_return, avg_5d_return, avg_20d_return, ' +
         'alpha_5d, alpha_20d, ' +
+        'alpha5_trimmed, alpha20_trimmed, alpha5_median, alpha20_median, ' +
+        'alpha20_pos_pct, pct_gt5_20d, pct_lt10_20d, max_gain_20d, max_loss_20d, ' +
         'avg_mdd, signal_grade, signal_score, updated_at'
       )
       .order('signal_score', { ascending: false })
@@ -84,13 +86,22 @@ export async function GET(req: NextRequest) {
     const rows = (data ?? []).map((r: any) => ({
       event_type:         r.event_type,
       sample_size:        r.sample_size,
-      hit_ratio_5d:       r.hit_ratio,       // 5일 적중률 (필드명 정규화)
+      hit_ratio_5d:       r.hit_ratio,
       hit_ratio_20d:      r.hit_ratio_20d,
       avg_5d_open_return: r.avg_5d_open_return,
       avg_5d_return:      r.avg_5d_return,
       avg_20d_return:     r.avg_20d_return,
       alpha_5d:           r.alpha_5d,
       alpha_20d:          r.alpha_20d,
+      alpha5_trimmed:     r.alpha5_trimmed,
+      alpha20_trimmed:    r.alpha20_trimmed,
+      alpha5_median:      r.alpha5_median,
+      alpha20_median:     r.alpha20_median,
+      alpha20_pos_pct:    r.alpha20_pos_pct,
+      pct_gt5_20d:        r.pct_gt5_20d,
+      pct_lt10_20d:       r.pct_lt10_20d,
+      max_gain_20d:       r.max_gain_20d,
+      max_loss_20d:       r.max_loss_20d,
       avg_mdd:            r.avg_mdd,
       signal_grade:       r.signal_grade,
       signal_score:       r.signal_score,
@@ -98,9 +109,13 @@ export async function GET(req: NextRequest) {
     }))
 
     const result = {
-      data:       rows,
-      total:      rows.length,
-      note:       'alpha = stock_return - benchmark_return (KOSPI for KOSPI-listed, KOSDAQ for KOSDAQ-listed)',
+      data:  rows,
+      total: rows.length,
+      notes: {
+        alpha:   'alpha = stock_return - benchmark_return (KOSPI for KOSPI-listed, KOSDAQ for KOSDAQ-listed)',
+        trimmed: 'trimmed alpha removes top/bottom 5% outliers per event type for robust estimation',
+        median:  'median alpha represents the typical (50th percentile) event experience',
+      },
       updated_at: rows[0]?.updated_at ?? null,
     }
 
