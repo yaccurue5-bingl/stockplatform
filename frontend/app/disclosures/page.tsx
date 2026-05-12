@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import SearchDropdown from '@/components/SearchDropdown';
+import BookmarkButton from '@/components/BookmarkButton';
 import { getSupabase } from '@/lib/supabase/client';
 import { isSuperAdmin } from '@/lib/constants';
 import SignalStrength from '@/components/disclosures/SignalStrength';
@@ -71,6 +72,8 @@ function DisclosuresContent() {
   const [, startTransition] = useTransition();
   // 접근 제어: null = 아직 확인 중, false = 접근 불가, true = 접근 허용
   const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
+  // 북마크 상태 (disclosure_id Set)
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
   // ── 접근 제어: super admin 또는 유료 plan 유저만 허용 ──
   // getSession() 대신 onAuthStateChange(INITIAL_SESSION) 사용
@@ -117,6 +120,21 @@ function DisclosuresContent() {
 
     return () => subscription.unsubscribe();
   }, [router]);
+
+  // 접근 허용 시 북마크 목록 한 번 로드
+  useEffect(() => {
+    if (!accessAllowed) return;
+    fetch('/api/bookmarks')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.bookmarks) {
+          setBookmarkedIds(new Set(
+            (data.bookmarks as { disclosure_id: string }[]).map(b => b.disclosure_id)
+          ));
+        }
+      })
+      .catch(() => {});
+  }, [accessAllowed]);
 
   // URL 파라미터를 수동으로 관리 (useSearchParams 제거 → Suspense fallback 깜빡임 완전 차단)
   const [stockCodeParam, setStockCodeParam]     = useState<string | null>(null);
@@ -796,9 +814,7 @@ function DisclosuresContent() {
                   }
                 }}
                 onSearch={(query) => {
-                  startTransition(() => {
-                    router.push(`/disclosures?search=${encodeURIComponent(query)}`);
-                  });
+                  setSearchQuery(query);
                 }}
                 isSuperUser={true}
                 placeholder="Search company..."
@@ -908,9 +924,20 @@ function DisclosuresContent() {
                         {latestDisclosure.sentiment || 'NEUTRAL'}
                       </span>
                     </div>
-                    <span className="text-blue-500 text-sm font-medium">
-                      View {disclosureCount > 1 ? 'All' : ''} →
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {/* 클릭이 부모(navigateToStock)로 전파되지 않도록 감싸기 */}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <BookmarkButton
+                          disclosureId={latestDisclosure.id}
+                          initialBookmarked={bookmarkedIds.has(latestDisclosure.id)}
+                          isLoggedIn={true}
+                          size="sm"
+                        />
+                      </div>
+                      <span className="text-blue-500 text-sm font-medium">
+                        View {disclosureCount > 1 ? 'All' : ''} →
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
