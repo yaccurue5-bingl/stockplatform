@@ -193,6 +193,13 @@ def run_prod(args):
          "compute_base_score.py",
          dry_flag,
          False),
+
+        # Step 7: 고품질 시그널 X(Twitter) 자동 게시
+        # TWITTER_API_KEY 등 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("트윗 게시",
+         "post_tweet.py",
+         ["--limit", "5"] + (["--dry-run"] if args.dry_run else []),
+         False),
     ]
 
     return _execute_steps(steps)
@@ -295,6 +302,13 @@ def run_eod(args):
         ("백테스트 갱신",
          "compute_backtest.py",
          dry_flag,
+         False),
+
+        # Step 10: 고품질 시그널 X(Twitter) 자동 게시 (EOD 스코어 확정 후)
+        # TWITTER_API_KEY 등 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("트윗 게시",
+         "post_tweet.py",
+         ["--limit", "5", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
          False),
     ]
 
