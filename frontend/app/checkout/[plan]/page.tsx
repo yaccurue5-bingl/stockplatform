@@ -11,25 +11,23 @@
  */
 
 import { notFound } from 'next/navigation';
-import { getUser } from '@/lib/supabase/server';
+import { getUser, createServerClient } from '@/lib/supabase/server';
 import Navbar from '@/components/landing/Navbar';
 import CheckoutClient from '@/components/checkout/CheckoutClient';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, CheckCircle } from 'lucide-react';
 
-type SupportedPlan = 'starter' | 'pro' | 'test';
-const SUPPORTED_PLANS: SupportedPlan[] = ['starter', 'pro', 'test'];
+type SupportedPlan = 'starter' | 'pro';
+const SUPPORTED_PLANS: SupportedPlan[] = ['starter', 'pro'];
 
 function getPriceId(plan: SupportedPlan): string {
-  if (plan === 'pro')  return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO  ?? '';
-  if (plan === 'test') return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_test ?? '';
+  if (plan === 'pro') return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_PRO ?? '';
   return process.env.NEXT_PUBLIC_PADDLE_PRICE_ID_STARTER ?? '';
 }
 
 const PAGE_TITLE: Record<SupportedPlan, string> = {
-  starter:    'Starter Plan — $99/mo',
-  pro:        'Pro Plan — $299/mo',
-  test:       '[TEST] $1 Live Payment Test',
+  starter: 'Starter Plan — $99/mo',
+  pro:     'Pro Plan — $299/mo',
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ plan: string }> }) {
@@ -54,6 +52,21 @@ export default async function CheckoutPage({
   // 사용자 정보 (미들웨어가 이미 인증을 보장하지만 방어 코드)
   const user = await getUser();
   if (!user) notFound();
+
+  // 기존 구독 상태 확인 — 이미 동일하거나 상위 플랜이면 결제 차단
+  const supabase = await createServerClient();
+  const { data: rawUserData } = await supabase
+    .from('users')
+    .select('plan, subscription_status')
+    .eq('id', user.id)
+    .single();
+  const userData = rawUserData as unknown as { plan: string | null; subscription_status: string | null } | null;
+
+  const PLAN_RANK: Record<string, number> = { free: 0, starter: 1, pro: 2, enterprise: 3 };
+  const currentRank   = PLAN_RANK[userData?.plan ?? 'free'] ?? 0;
+  const requestedRank = PLAN_RANK[plan] ?? 0;
+  const isAlreadySubscribed =
+    userData?.subscription_status === 'active' && currentRank >= requestedRank;
 
   const priceId     = getPriceId(plan);
   const clientToken = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? '';
@@ -86,7 +99,23 @@ export default async function CheckoutPage({
           </p>
         </div>
 
-        {configMissing ? (
+        {isAlreadySubscribed ? (
+          // 이미 동일하거나 상위 플랜 구독 중
+          <div className="text-center py-16">
+            <CheckCircle size={48} className="text-[#00D4A6] mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-white mb-2">You&apos;re already subscribed</h2>
+            <p className="text-gray-400 text-sm mb-6">
+              Your <span className="text-white font-semibold capitalize">{userData?.plan}</span> plan
+              is active. No further action needed.
+            </p>
+            <a
+              href="/api-key"
+              className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-[#0B0F14] font-bold text-sm hover:bg-[#00bfa0] transition"
+            >
+              View API Key →
+            </a>
+          </div>
+        ) : configMissing ? (
           <div className="text-center py-12">
             <p className="text-red-400 text-sm mb-2">Checkout is temporarily unavailable.</p>
             <p className="text-gray-500 text-xs">

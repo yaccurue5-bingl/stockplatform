@@ -241,7 +241,7 @@ Return JSON format:
     "• Key figure 2 (with unit)",
     "• Key figure 3 (with unit)"
   ],
-  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | DIVIDEND | MNA | LEGAL | CAPEX | EXECUTIVE_CHANGE | OTHER",
+  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | DISPOSAL | DIVIDEND | MNA | LEGAL | CAPEX | EXECUTIVE_CHANGE | OTHER",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
   "sentiment_score": <float -1.0 to +1.0>,
@@ -253,7 +253,8 @@ EVENT TYPE GUIDE (event_type) — pick exactly one:
 - EARNINGS  : 실적 발표, 사업/분기/반기 보고서, 결산 공시
 - CONTRACT  : 수주, 대규모 계약, MOU, 공급계약
 - DILUTION  : 유상증자, CB(전환사채), BW(신주인수권부사채) 발행
-- BUYBACK   : 자기주식 취득 또는 소각 결정
+- BUYBACK   : 자기주식 취득(매입) 또는 소각(소각·감자) 결정 — 주주 환원, 공급 감소 신호
+- DISPOSAL  : 자기주식 처분 결정 — 회사가 보유 자기주식을 시장에 매도, 주식 공급 증가 (BEARISH 신호)
 - DIVIDEND  : 현금배당, 주식배당, 중간배당, 결산배당 결정 (현금·현물배당결정 포함)
 - MNA       : 합병, 인수, 분할, 지분 취득
 - LEGAL              : 소송, 규제 조치, 과징금, 수사
@@ -294,7 +295,14 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             "BUYBACK": """
 - Specify acquisition amount and period.
 - Calculate the ratio against total outstanding shares.
-- Note whether shares will be cancelled (retired).
+- Note whether shares will be cancelled (retired / 소각).
+- IMPORTANT: If the disclosure is about SELLING (처분) treasury shares back to the market, set event_type=DISPOSAL instead.
+""",
+            "DISPOSAL": """
+- Specify disposal (처분) amount, period, and method (market sale / block deal / employee stock options, etc.).
+- Calculate the ratio against total outstanding shares (dilution effect).
+- Assess whether this increases share supply and the potential downward pressure on price.
+- Note the stated purpose of disposal (operating funds, employee compensation, etc.).
 """,
             "DIVIDEND": """
 - State the dividend amount per share (주당 배당금, DPS).
@@ -358,7 +366,11 @@ In ai_summary:
         if "단일판매" in t or "공급계약" in t or "수주" in t or "mou" in t:
             matched.append("CONTRACT")
         if "자기주식" in t:
-            matched.append("BUYBACK")
+            # 자기주식 처분(매도) → DISPOSAL, 취득/소각 → BUYBACK
+            if "처분" in t or "disposal" in t:
+                matched.append("DISPOSAL")
+            else:
+                matched.append("BUYBACK")
         if "배당" in t:
             matched.append("DIVIDEND")
         if "합병" in t or "인수" in t or "분할" in t or ("지분" in t and "취득" in t):

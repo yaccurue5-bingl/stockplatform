@@ -35,6 +35,7 @@ scripts/run_daily_batch.py
 
 EOD 배치 실행 순서 (장 마감 후 ~16:30 KST, cron/trigger.py 에서 1일 1회):
   1. fetch_market_data.py          : 당일 종가/거래량 확정 수집
+  1-2. fetch_index_data.py         : 주가지수 시세 수집 (KOSPI/KOSDAQ/KOSPI200 → market_index_history)
   2. fetch_ecos_foreign_flow.py    : 한국은행 ECOS API 외국인 순매수 KOSPI+KOSDAQ 수집
   3. fetch_corp_name_en.py --limit 100 : 영문사명 누락 기업 보강 (매일 100건씩 점진 채움)
   4. backfill_scores.py --limit N  : 누락 AI 분석 보완 (completed but no sentiment)
@@ -192,6 +193,20 @@ def run_prod(args):
          "compute_base_score.py",
          dry_flag,
          False),
+
+        # Step 7: 고품질 시그널 Telegram 채널 게시 (Bot API 무료)
+        # TELEGRAM_BOT_TOKEN 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Telegram 게시",
+         "post_telegram.py",
+         ["--limit", "5"] + (["--dry-run"] if args.dry_run else []),
+         False),
+
+        # Step 8: Twitter 초안 이메일 발송 (yaccurue5@gmail.com → 수동 게시용)
+        # RESEND_API_KEY 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Twitter 다이제스트 이메일",
+         "send_twitter_digest.py",
+         ["--limit", "10"] + (["--dry-run"] if args.dry_run else []),
+         False),
     ]
 
     return _execute_steps(steps)
@@ -229,6 +244,13 @@ def run_eod(args):
         # ※ 대차잔고 수집·LPS 계산 제거됨 — 금융위원회 상업용 금지 2026-04-20
         ("시세/거래량 수집",
          "fetch_market_data.py",
+         [],
+         False),
+
+        # Step 1-2: 주가지수 시세 수집 (KOSPI / KOSDAQ / KOSPI200)
+        # → market_index_history 테이블 upsert (백테스트 벤치마크용)
+        ("지수시세 수집",
+         "fetch_index_data.py",
          [],
          False),
 
@@ -287,6 +309,27 @@ def run_eod(args):
         ("백테스트 갱신",
          "compute_backtest.py",
          dry_flag,
+         False),
+
+        # Step 10: 고품질 시그널 Telegram 채널 게시 (EOD 스코어 확정 후, Bot API 무료)
+        # TELEGRAM_BOT_TOKEN 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Telegram 게시",
+         "post_telegram.py",
+         ["--limit", "5", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
+         False),
+
+        # Step 11: Twitter 초안 이메일 발송 (EOD 스코어 확정 후 yaccurue5@gmail.com)
+        # RESEND_API_KEY 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Twitter 다이제스트 이메일",
+         "send_twitter_digest.py",
+         ["--limit", "10", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
+         False),
+
+        # Step 12: Free/Starter 유저 Daily Digest 이메일 발송 (리텐션 + Pro 업셀)
+        # RESEND_API_KEY 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
+        ("Daily Digest 이메일",
+         "send_digest.py",
+         ["--limit", "5", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
          False),
     ]
 

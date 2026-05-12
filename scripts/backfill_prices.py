@@ -31,6 +31,7 @@ import os
 import sys
 import math
 import time
+import bisect
 import argparse
 import logging
 import requests
@@ -354,6 +355,17 @@ def _winsorize(vals: list[float], lo_pct: float = 0.05, hi_pct: float = 0.95) ->
     return [v for v in vals if lo <= v <= hi]
 
 
+def _trimmed_mean(vals: list[float], cut_pct: float = 0.05) -> float | None:
+    """상하 각 cut_pct(기본 5%) 제거 후 평균 → 총 10% 제거."""
+    if not vals:
+        return None
+    sv  = sorted(vals)
+    n   = len(sv)
+    cut = int(n * cut_pct)
+    trimmed = sv[cut: n - cut] if cut * 2 < n else sv
+    return sum(trimmed) / len(trimmed) if trimmed else None
+
+
 def _median(vals: list[float]) -> float | None:
     if not vals:
         return None
@@ -524,6 +536,79 @@ def compute_mdd(sb, dry_run: bool) -> int:
     return ok
 
 
+# ── 알파(초과수익률) 계산 헬퍼 ───────────────────────────────────────────────
+
+def _load_index_sorted(sb, index_code: str) -> list[tuple[str, float]]:
+    """
+    market_index_history에서 index_code 전체 이력을 로드해 (date_iso, close) 리스트 반환.
+    날짜 오름차순 정렬. market_index_history가 없으면 빈 리스트.
+    """
+    try:
+        resp = (
+            sb.table("market_index_history")
+            .select("date, close")
+            .eq("index_code", index_code)
+            .not_.is_("close", "null")
+            .order("date")
+            .execute()
+        )
+        return [(r["date"], float(r["close"])) for r in (resp.data or [])]
+    except Exception as ex:
+        logger.warning(f"  market_index_history 로드 실패 ({index_code}): {ex}")
+        return []
+
+
+def _build_alpha_lookup(
+    closes: list[tuple[str, float]],
+    disclosure_dates: list[str],
+    n_days: int,
+) -> dict[str, float | None]:
+    """
+    disclosure_date → index return 매핑 (사전 계산).
+
+    동작:
+      t0 = disclosure_date 이후 첫 거래일 (market_index_history 기준)
+      tn = t0에서 n_days 번째 거래일
+      return = (close_tn / close_t0 - 1) * 100
+
+    Returns: {disclosure_date_iso: return_pct | None}
+    """
+    if not closes:
+        return {}
+
+    all_dates = [d for d, _ in closes]   # 거래일만 (휴장일 없음)
+    close_map  = {d: c for d, c in closes}
+    result: dict[str, float | None] = {}
+
+    for disc_date in set(disclosure_dates):
+        # t0: disc_date 이후 첫 거래일 (당일 포함 안 함, 보수적 적용)
+        t0 = None
+        for d in all_dates:
+            if d > disc_date:
+                t0 = d
+                break
+        if t0 is None:
+            result[disc_date] = None
+            continue
+
+        t0_idx = all_dates.index(t0)
+        tn_idx = t0_idx + n_days
+        if tn_idx >= len(all_dates):
+            result[disc_date] = None
+            continue
+
+        tn = all_dates[tn_idx]
+        c0 = close_map[t0]
+        cn = close_map[tn]
+        if not c0:
+            result[disc_date] = None
+            continue
+
+        result[disc_date] = round((cn / c0 - 1) * 100, 4)
+
+    return result
+
+
 def compute_event_stats(sb, dry_run: bool) -> int:
     """
     scores_log → event_stats 집계 및 upsert.
@@ -532,12 +617,14 @@ def compute_event_stats(sb, dry_run: bool) -> int:
       1. Winsorize (5th~95th percentile): outlier 제거
       2. n < MIN_SAMPLE(50) 필터: 통계적으로 무의미한 이벤트 제외
       3. median 추가: avg 왜곡 보정
+      4. alpha_5d / alpha_20d: 종목수익률 - 벤치마크(KOSPI/KOSDAQ) 수익률
+      5. hit_ratio_20d: 20일 후 양수 수익률 비율
     """
     logger.info("\n  event_stats 집계 중...")
 
     def _sl_filters(q):
         return (
-            q.select("disclosure_id, stock_code, future_return_5d, future_return_20d, future_return_5d_open, mdd_20d")
+            q.select("disclosure_id, stock_code, date, future_return_5d, future_return_20d, future_return_5d_open, mdd_20d")
              .not_.is_("future_return_5d", "null")
         )
     log_rows = _paginate(sb, "scores_log", _sl_filters)
@@ -546,6 +633,100 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         logger.info("  → 집계할 데이터 없음")
         return 0
 
+    # ── 알파 계산 준비 ────────────────────────────────────────────────────────
+    # market_type 로드 (stock_code → KOSPI | KOSDAQ)
+    logger.info("  → 시장구분 데이터 로드 중...")
+    try:
+        mt_resp = sb.table("companies").select("stock_code, market_type").execute()
+        market_type_map: dict[str, str] = {
+            r["stock_code"]: (r["market_type"] or "KOSPI")
+            for r in (mt_resp.data or []) if r.get("stock_code")
+        }
+    except Exception as ex:
+        logger.warning(f"  market_type 로드 실패: {ex}")
+        market_type_map = {}
+
+    # market_index_history 로드 (KOSPI / KOSDAQ)
+    logger.info("  → 지수 이력 로드 중 (market_index_history)...")
+    kospi_closes  = _load_index_sorted(sb, "KOSPI")
+    kosdaq_closes = _load_index_sorted(sb, "KOSDAQ")
+    has_index = bool(kospi_closes and kosdaq_closes)
+    if not has_index:
+        logger.warning("  market_index_history 데이터 없음 → alpha 계산 생략")
+
+    # ── 레짐 헬퍼 (KOSPI 20D 추세 + 변동성) ─────────────────────────────────
+    _ki_dates  = [d for d, _ in kospi_closes]   # sorted asc
+    _ki_closes = [c for _, c in kospi_closes]
+
+    def _get_regime(date_str: str) -> str:
+        """공시일 이전 KOSPI 20거래일 수익률 → UP/NEUTRAL/DOWN."""
+        idx = bisect.bisect_right(_ki_dates, date_str) - 1
+        if idx < 20 or idx >= len(_ki_dates):
+            return 'NEUTRAL'
+        r = (_ki_closes[idx] / _ki_closes[idx - 20] - 1) * 100
+        if r >  5.0: return 'UP'
+        if r < -5.0: return 'DOWN'
+        return 'NEUTRAL'
+
+    def _get_vol_regime(date_str: str) -> str:
+        """공시일 이전 KOSPI 20거래일 롤링 변동성 → HIGH/NORMAL/LOW."""
+        idx = bisect.bisect_right(_ki_dates, date_str) - 1
+        if idx < 21 or idx >= len(_ki_dates):
+            return 'NORMAL'
+        closes = _ki_closes[idx - 20: idx + 1]
+        rets = [(closes[i] - closes[i-1]) / closes[i-1] * 100
+                for i in range(1, len(closes))]
+        std = _std(rets)
+        if std > 1.2: return 'HIGH'
+        if std < 0.6: return 'LOW'
+        return 'NORMAL'
+
+    # disclosure_date 목록 수집
+    disc_dates_all = [r.get("date", "") for r in log_rows if r.get("date")]
+
+    # 날짜별 지수 수익률 사전 계산 (중복 연산 방지)
+    if has_index:
+        kospi_alpha5_map  = _build_alpha_lookup(kospi_closes,  disc_dates_all, 5)
+        kospi_alpha20_map = _build_alpha_lookup(kospi_closes,  disc_dates_all, 20)
+        kosdaq_alpha5_map  = _build_alpha_lookup(kosdaq_closes, disc_dates_all, 5)
+        kosdaq_alpha20_map = _build_alpha_lookup(kosdaq_closes, disc_dates_all, 20)
+        logger.info(
+            f"  → 지수 수익률 캐시: KOSPI 5d={len(kospi_alpha5_map)}건, "
+            f"KOSDAQ 5d={len(kosdaq_alpha5_map)}건"
+        )
+    else:
+        kospi_alpha5_map = kospi_alpha20_map = {}
+        kosdaq_alpha5_map = kosdaq_alpha20_map = {}
+
+    # disclosure_id → alpha 매핑 (per row)
+    row_alpha5:  dict[str, float] = {}
+    row_alpha20: dict[str, float] = {}
+
+    if has_index:
+        for row in log_rows:
+            eid  = row.get("disclosure_id")
+            code = row.get("stock_code", "")
+            disc_date = row.get("date", "")   # YYYY-MM-DD
+            r5  = row.get("future_return_5d")
+            r20 = row.get("future_return_20d")
+            if not (eid and disc_date):
+                continue
+
+            mtype = market_type_map.get(code, "KOSPI")
+            a5_map  = kospi_alpha5_map  if mtype == "KOSPI" else kosdaq_alpha5_map
+            a20_map = kospi_alpha20_map if mtype == "KOSPI" else kosdaq_alpha20_map
+
+            if r5 is not None:
+                idx_r5 = a5_map.get(disc_date)
+                if idx_r5 is not None:
+                    row_alpha5[eid] = float(r5) - idx_r5
+
+            if r20 is not None:
+                idx_r20 = a20_map.get(disc_date)
+                if idx_r20 is not None:
+                    row_alpha20[eid] = float(r20) - idx_r20
+
+    # ── disclosure_id → event_type 매핑 ──────────────────────────────────────
     # disclosure_id → event_type 매핑
     disc_ids = list({r["disclosure_id"] for r in log_rows if r.get("disclosure_id")})
     id_to_event: dict[str, str] = {}
@@ -590,18 +771,41 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             logger.info(f"    {bkt} (open-based): n={len(rets)} mean={mean:+.2f}% std={std:.2f}%")
 
     # ── 이벤트별 수익률 수집 ──────────────────────────────────────────────────
-    buckets:      dict[str, list[float]] = defaultdict(list)   # close (signal_score v2용)
-    buckets20:    dict[str, list[float]] = defaultdict(list)   # close 20d
-    buckets_open: dict[str, list[float]] = defaultdict(list)   # open (집계 + hit_ratio)
-    buckets_mdd:  dict[str, list[float]] = defaultdict(list)   # MDD (avg_mdd용)
+    buckets:       dict[str, list[float]] = defaultdict(list)   # close 5d (signal_score용)
+    buckets20:     dict[str, list[float]] = defaultdict(list)   # close 20d
+    buckets_open:  dict[str, list[float]] = defaultdict(list)   # open-entry 5d (hit_ratio용)
+    buckets_mdd:   dict[str, list[float]] = defaultdict(list)   # MDD
+    buckets_a5:    dict[str, list[float]] = defaultdict(list)   # alpha 5d
+    buckets_a20:   dict[str, list[float]] = defaultdict(list)   # alpha 20d
     # Z-score용 버킷별 open 수익률: {event_type: {bucket: [open_returns]}}
     ev_bucket_open: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    # 시총 버킷별 조건부 통계용: {event_type: {bucket: [values]}}
+    ev_bkt_open:  dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_bkt_r20:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_bkt_mdd:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_bkt_a5:    dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_bkt_a20:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    # 시장 레짐별 조건부 통계용: {event_type: {regime: [values]}}
+    ev_rgm_open:  dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_rgm_r20:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_rgm_mdd:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_rgm_a5:    dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_rgm_a20:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    # 변동성 레짐별 조건부 통계용: {event_type: {vol_regime: [values]}}
+    ev_vol_open:  dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_vol_r20:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_vol_mdd:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_vol_a5:    dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    ev_vol_a20:   dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
 
     for row in log_rows:
         eid    = row.get("disclosure_id")
         ev     = id_to_event.get(eid)
         code   = row.get("stock_code", "")
+        dstr   = row.get("date", "")
         bucket = get_cap_bucket(cap_map.get(code))
+        regime = _get_regime(dstr)     if (_ki_dates and dstr) else 'NEUTRAL'
+        vol    = _get_vol_regime(dstr) if (_ki_dates and dstr) else 'NORMAL'
         if not ev:
             continue
         r5    = row.get("future_return_5d")
@@ -612,11 +816,31 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             buckets[ev].append(float(r5))
         if r20 is not None:
             buckets20[ev].append(float(r20))
+            ev_bkt_r20[ev][bucket].append(float(r20))
+            ev_rgm_r20[ev][regime].append(float(r20))
+            ev_vol_r20[ev][vol].append(float(r20))
         if r5_op is not None:
             buckets_open[ev].append(float(r5_op))
             ev_bucket_open[ev][bucket].append(float(r5_op))
+            ev_bkt_open[ev][bucket].append(float(r5_op))
+            ev_rgm_open[ev][regime].append(float(r5_op))
+            ev_vol_open[ev][vol].append(float(r5_op))
         if mdd is not None:
             buckets_mdd[ev].append(float(mdd))
+            ev_bkt_mdd[ev][bucket].append(float(mdd))
+            ev_rgm_mdd[ev][regime].append(float(mdd))
+            ev_vol_mdd[ev][vol].append(float(mdd))
+        # alpha 수집 (market_index_history 있을 때만)
+        if eid in row_alpha5:
+            buckets_a5[ev].append(row_alpha5[eid])
+            ev_bkt_a5[ev][bucket].append(row_alpha5[eid])
+            ev_rgm_a5[ev][regime].append(row_alpha5[eid])
+            ev_vol_a5[ev][vol].append(row_alpha5[eid])
+        if eid in row_alpha20:
+            buckets_a20[ev].append(row_alpha20[eid])
+            ev_bkt_a20[ev][bucket].append(row_alpha20[eid])
+            ev_rgm_a20[ev][regime].append(row_alpha20[eid])
+            ev_vol_a20[ev][vol].append(row_alpha20[eid])
 
     now_iso    = datetime.now().isoformat()
     stats_rows = []
@@ -656,10 +880,15 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             n_clean=n_clean,
         )
 
-        # hit_ratio: open return > 0 비율 (winsorize 전 raw 기준)
+        # hit_ratio: open return > 0 비율 (winsorize 전 raw 기준, 5d)
         vals_open_raw = buckets_open.get(ev, [])
         hit_count = sum(1 for r in vals_open_raw if r > 0)
         hit_ratio = round(hit_count / len(vals_open_raw), 4) if vals_open_raw else None
+
+        # hit_ratio_20d: 20d close return > 0 비율 (raw 기준) — NEW
+        vals20_raw = buckets20.get(ev, [])
+        hit_count_20d = sum(1 for r in vals20_raw if r > 0)
+        hit_ratio_20d = round(hit_count_20d / len(vals20_raw), 4) if vals20_raw else None
 
         # direction_score = (hit_ratio - 0.5) * 2  →  -1 ~ +1
         direction_score = round((hit_ratio - 0.5) * 2, 4) if hit_ratio is not None else None
@@ -667,6 +896,40 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         # avg_mdd: MDD 평균 (% 단위, 음수)
         mdd_vals = buckets_mdd.get(ev, [])
         avg_mdd  = round(sum(mdd_vals) / len(mdd_vals), 4) if mdd_vals else None
+
+        # alpha_5d / alpha_20d: 이벤트 수익률 - 벤치마크 수익률 (winsorize 적용)
+        a5_raw  = buckets_a5.get(ev, [])
+        a20_raw = buckets_a20.get(ev, [])
+        a5_clean  = _winsorize(a5_raw)  if len(a5_raw)  >= 10 else a5_raw
+        a20_clean = _winsorize(a20_raw) if len(a20_raw) >= 10 else a20_raw
+        alpha_5d  = round(sum(a5_clean)  / len(a5_clean),  4) if a5_clean  else None
+        alpha_20d = round(sum(a20_clean) / len(a20_clean), 4) if a20_clean else None
+
+        # alpha median (raw — outlier 영향 최소화)
+        alpha5_median  = round(_median(a5_raw),  4) if a5_raw  else None
+        alpha20_median = round(_median(a20_raw), 4) if a20_raw else None
+
+        # alpha trimmed mean (상하 5% 제거)
+        alpha5_trimmed  = round(_trimmed_mean(a5_raw),  4) if a5_raw  else None
+        alpha20_trimmed = round(_trimmed_mean(a20_raw), 4) if a20_raw else None
+
+        # alpha20 양의 초과수익률 비율 (벤치마크를 이긴 비율)
+        alpha20_pos_pct = (
+            round(sum(1 for a in a20_raw if a > 0) / len(a20_raw) * 100, 2)
+            if a20_raw else None
+        )
+
+        # distribution (raw 20d return 기준 — winsorize 전)
+        pct_gt5_20d  = (
+            round(sum(1 for r in vals20_raw if r > 5)   / len(vals20_raw) * 100, 2)
+            if vals20_raw else None
+        )
+        pct_lt10_20d = (
+            round(sum(1 for r in vals20_raw if r < -10) / len(vals20_raw) * 100, 2)
+            if vals20_raw else None
+        )
+        max_gain_20d = round(max(vals20_raw), 4) if vals20_raw else None
+        max_loss_20d = round(min(vals20_raw), 4) if vals20_raw else None
 
         # 버킷별 Z-score 계산 — open 수익률 기준 (스펙 일치)
         z_by_bucket: dict[str, float | None] = {}
@@ -692,8 +955,20 @@ def compute_event_stats(sb, dry_run: bool) -> int:
             "avg_5d_open_return":    round(avg_open, 4) if avg_open is not None else None,
             "median_5d_open_return": round(med_open, 4) if med_open is not None else None,
             "hit_ratio":             hit_ratio,
+            "hit_ratio_20d":         hit_ratio_20d,
             "direction_score":       direction_score,
             "avg_mdd":               avg_mdd,
+            "alpha_5d":              alpha_5d,
+            "alpha_20d":             alpha_20d,
+            "alpha5_median":         alpha5_median,
+            "alpha20_median":        alpha20_median,
+            "alpha5_trimmed":        alpha5_trimmed,
+            "alpha20_trimmed":       alpha20_trimmed,
+            "alpha20_pos_pct":       alpha20_pos_pct,
+            "pct_gt5_20d":           pct_gt5_20d,
+            "pct_lt10_20d":          pct_lt10_20d,
+            "max_gain_20d":          max_gain_20d,
+            "max_loss_20d":          max_loss_20d,
             "std_5d":                round(std5,  4),
             "sample_size":           n_raw,
             "sample_size_clean":     n_clean,
@@ -715,20 +990,24 @@ def compute_event_stats(sb, dry_run: bool) -> int:
 
     logger.info(f"  → {len(stats_rows)}개 이벤트 유형 집계 완료")
     for r in stats_rows:
-        med_str    = f"{r['median_5d_return']:+.2f}%"     if r["median_5d_return"]      is not None else "N/A"
-        open_str   = f"{r['avg_5d_open_return']:+.2f}%"  if r["avg_5d_open_return"]    is not None else "N/A"
-        hit_str    = f"{r['hit_ratio']*100:.1f}%"         if r["hit_ratio"]             is not None else "N/A"
-        dir_str    = f"{r['direction_score']:+.2f}"       if r["direction_score"]        is not None else "N/A"
-        mdd_str    = f"{r['avg_mdd']:+.2f}%"             if r["avg_mdd"]                is not None else "N/A"
+        open_str  = f"{r['avg_5d_open_return']:+.2f}%" if r["avg_5d_open_return"] is not None else "N/A"
+        hit_str   = f"{r['hit_ratio']*100:.1f}%"       if r["hit_ratio"]          is not None else "N/A"
+        hit20_str = f"{r['hit_ratio_20d']*100:.1f}%"   if r["hit_ratio_20d"]      is not None else "N/A"
+        a5_str    = f"{r['alpha_5d']:+.2f}%"           if r["alpha_5d"]           is not None else "N/A"
+        a20_str   = f"{r['alpha_20d']:+.2f}%"          if r["alpha_20d"]          is not None else "N/A"
+        mdd_str   = f"{r['avg_mdd']:+.2f}%"            if r["avg_mdd"]            is not None else "N/A"
         z_l = f"{r['avg_z_5d_large']:+.2f}" if r["avg_z_5d_large"] is not None else " N/A"
         z_m = f"{r['avg_z_5d_mid']:+.2f}"   if r["avg_z_5d_mid"]   is not None else " N/A"
         z_s = f"{r['avg_z_5d_small']:+.2f}" if r["avg_z_5d_small"] is not None else " N/A"
+        tr5_str  = f"{r['alpha5_trimmed']:+.2f}%"  if r["alpha5_trimmed"]  is not None else "N/A"
+        tr20_str = f"{r['alpha20_trimmed']:+.2f}%" if r["alpha20_trimmed"] is not None else "N/A"
+        med20_str = f"{r['alpha20_median']:+.2f}%" if r["alpha20_median"]  is not None else "N/A"
         logger.info(
             f"    {r['event_type']:20s} "
             f"n={r['sample_size']:4d}  "
-            f"avg(open)={open_str}  hit={hit_str}  dir={dir_str}  mdd={mdd_str}  "
-            f"z[L={z_l} M={z_m} S={z_s}]  "
-            f"score={r['signal_score']}({r['signal_grade']})"
+            f"open={open_str}  hit5={hit_str}  hit20={hit20_str}  "
+            f"a5={a5_str}(tr={tr5_str})  a20={a20_str}(tr={tr20_str},med={med20_str})  "
+            f"mdd={mdd_str}  score={r['signal_score']}({r['signal_grade']})"
         )
 
     if dry_run:
@@ -742,6 +1021,151 @@ def compute_event_stats(sb, dry_run: bool) -> int:
         logger.info(f"  [OK] event_stats {len(stats_rows)}건 upsert 완료")
     except Exception as e:
         logger.error(f"  [ERR] event_stats 저장 실패: {e}")
+
+    # ── 시총 버킷별 조건부 통계 집계 + upsert ────────────────────────────────
+    MIN_BUCKET = 30   # 버킷당 최소 표본
+    bucket_rows = []
+    for ev in set(list(ev_bkt_open.keys()) + list(ev_bkt_a20.keys())):
+        for bkt in ('LARGE', 'MID', 'SMALL'):
+            open_raw = ev_bkt_open.get(ev, {}).get(bkt, [])
+            r20_raw  = ev_bkt_r20.get(ev,  {}).get(bkt, [])
+            mdd_raw  = ev_bkt_mdd.get(ev,  {}).get(bkt, [])
+            a5_raw   = ev_bkt_a5.get(ev,   {}).get(bkt, [])
+            a20_raw  = ev_bkt_a20.get(ev,  {}).get(bkt, [])
+
+            n = max(len(open_raw), len(r20_raw))
+            if n < MIN_BUCKET:
+                continue
+
+            hit5  = (round(sum(1 for r in open_raw if r > 0) / len(open_raw), 4)
+                     if open_raw else None)
+            hit20 = (round(sum(1 for r in r20_raw if r > 0) / len(r20_raw), 4)
+                     if r20_raw else None)
+            avg_open = (round(sum(_winsorize(open_raw) if len(open_raw) >= 10 else open_raw)
+                              / len(open_raw), 4)
+                        if open_raw else None)
+            avg_mdd_b = (round(sum(mdd_raw) / len(mdd_raw), 4) if mdd_raw else None)
+
+            a5tr  = (round(_trimmed_mean(a5_raw),  4) if a5_raw  else None)
+            a20tr = (round(_trimmed_mean(a20_raw), 4) if a20_raw else None)
+            a20md = (round(_median(a20_raw),       4) if a20_raw else None)
+
+            bucket_rows.append({
+                "event_type":         ev,
+                "bucket":             bkt,
+                "sample_size":        n,
+                "hit_ratio":          hit5,
+                "hit_ratio_20d":      hit20,
+                "avg_5d_open_return": avg_open,
+                "alpha5_trimmed":     a5tr,
+                "alpha20_trimmed":    a20tr,
+                "alpha20_median":     a20md,
+                "avg_mdd":            avg_mdd_b,
+                "updated_at":         now_iso,
+            })
+
+    if bucket_rows:
+        logger.info(f"\n  event_stats_by_bucket 집계: {len(bucket_rows)}개 (event×bucket)")
+        for r in bucket_rows:
+            a20_s = f"{r['alpha20_trimmed']:+.2f}%" if r['alpha20_trimmed'] is not None else "N/A"
+            hit_s = f"{r['hit_ratio']*100:.1f}%"   if r['hit_ratio']        is not None else "N/A"
+            logger.info(f"    {r['event_type']:15s} {r['bucket']:5s}  n={r['sample_size']:4d}  "
+                        f"hit5={hit_s}  a20tr={a20_s}")
+        try:
+            sb.table("event_stats_by_bucket").upsert(
+                bucket_rows, on_conflict="event_type,bucket"
+            ).execute()
+            logger.info(f"  [OK] event_stats_by_bucket {len(bucket_rows)}건 upsert 완료")
+        except Exception as e:
+            logger.error(f"  [ERR] event_stats_by_bucket 저장 실패: {e}")
+
+    # ── 레짐/변동성 조건부 통계 집계 헬퍼 ─────────────────────────────────────
+    def _build_conditional_rows(
+        ev_open:  dict[str, dict[str, list[float]]],
+        ev_r20:   dict[str, dict[str, list[float]]],
+        ev_mdd:   dict[str, dict[str, list[float]]],
+        ev_a5:    dict[str, dict[str, list[float]]],
+        ev_a20:   dict[str, dict[str, list[float]]],
+        dim_key:  str,
+    ) -> list[dict]:
+        MIN_COND = 30
+        rows: list[dict] = []
+        all_evs = set(list(ev_open.keys()) + list(ev_a20.keys()))
+        all_dims = set()
+        for d in ev_open.values():  all_dims |= set(d.keys())
+        for d in ev_a20.values():   all_dims |= set(d.keys())
+        for ev in all_evs:
+            for dim in all_dims:
+                open_raw = ev_open.get(ev, {}).get(dim, [])
+                r20_raw  = ev_r20.get(ev,  {}).get(dim, [])
+                mdd_raw  = ev_mdd.get(ev,  {}).get(dim, [])
+                a5_raw   = ev_a5.get(ev,   {}).get(dim, [])
+                a20_raw  = ev_a20.get(ev,  {}).get(dim, [])
+                n = max(len(open_raw), len(r20_raw))
+                if n < MIN_COND:
+                    continue
+                hit5  = (round(sum(1 for r in open_raw if r > 0) / len(open_raw), 4)
+                         if open_raw else None)
+                hit20 = (round(sum(1 for r in r20_raw if r > 0) / len(r20_raw), 4)
+                         if r20_raw else None)
+                avg_open = (round(sum(_winsorize(open_raw) if len(open_raw) >= 10 else open_raw)
+                                  / len(open_raw), 4) if open_raw else None)
+                avg_mdd_c = (round(sum(mdd_raw) / len(mdd_raw), 4) if mdd_raw else None)
+                a5tr  = (round(_trimmed_mean(a5_raw),  4) if a5_raw  else None)
+                a20tr = (round(_trimmed_mean(a20_raw), 4) if a20_raw else None)
+                a20md = (round(_median(a20_raw),       4) if a20_raw else None)
+                rows.append({
+                    "event_type":         ev,
+                    dim_key:              dim,
+                    "sample_size":        n,
+                    "hit_ratio":          hit5,
+                    "hit_ratio_20d":      hit20,
+                    "avg_5d_open_return": avg_open,
+                    "alpha5_trimmed":     a5tr,
+                    "alpha20_trimmed":    a20tr,
+                    "alpha20_median":     a20md,
+                    "avg_mdd":            avg_mdd_c,
+                    "updated_at":         now_iso,
+                })
+        return rows
+
+    # ── 시장 레짐 집계 + upsert ───────────────────────────────────────────────
+    regime_rows = _build_conditional_rows(
+        ev_rgm_open, ev_rgm_r20, ev_rgm_mdd, ev_rgm_a5, ev_rgm_a20, "regime"
+    )
+    if regime_rows:
+        logger.info(f"\n  event_stats_by_regime 집계: {len(regime_rows)}개 (event×regime)")
+        for r in regime_rows:
+            a20_s = f"{r['alpha20_trimmed']:+.2f}%" if r['alpha20_trimmed'] is not None else "N/A"
+            hit_s = f"{r['hit_ratio']*100:.1f}%"   if r['hit_ratio']        is not None else "N/A"
+            logger.info(f"    {r['event_type']:15s} {r['regime']:7s}  n={r['sample_size']:4d}  "
+                        f"hit5={hit_s}  a20tr={a20_s}")
+        try:
+            sb.table("event_stats_by_regime").upsert(
+                regime_rows, on_conflict="event_type,regime"
+            ).execute()
+            logger.info(f"  [OK] event_stats_by_regime {len(regime_rows)}건 upsert 완료")
+        except Exception as e:
+            logger.error(f"  [ERR] event_stats_by_regime 저장 실패: {e}")
+
+    # ── 변동성 레짐 집계 + upsert ─────────────────────────────────────────────
+    vol_rows = _build_conditional_rows(
+        ev_vol_open, ev_vol_r20, ev_vol_mdd, ev_vol_a5, ev_vol_a20, "vol_regime"
+    )
+    if vol_rows:
+        logger.info(f"\n  event_stats_by_vol 집계: {len(vol_rows)}개 (event×vol_regime)")
+        for r in vol_rows:
+            a20_s = f"{r['alpha20_trimmed']:+.2f}%" if r['alpha20_trimmed'] is not None else "N/A"
+            hit_s = f"{r['hit_ratio']*100:.1f}%"   if r['hit_ratio']        is not None else "N/A"
+            logger.info(f"    {r['event_type']:15s} {r['vol_regime']:6s}  n={r['sample_size']:4d}  "
+                        f"hit5={hit_s}  a20tr={a20_s}")
+        try:
+            sb.table("event_stats_by_vol").upsert(
+                vol_rows, on_conflict="event_type,vol_regime"
+            ).execute()
+            logger.info(f"  [OK] event_stats_by_vol {len(vol_rows)}건 upsert 완료")
+        except Exception as e:
+            logger.error(f"  [ERR] event_stats_by_vol 저장 실패: {e}")
 
     return len(stats_rows)
 

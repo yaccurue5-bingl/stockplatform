@@ -19,7 +19,8 @@ import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
-import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard';
+import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard'
+import EventHistoricalReaction from '@/components/disclosures/EventHistoricalReaction';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -32,6 +33,7 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT:         'Strategic Contract',
   DILUTION:         'Capital Increase',
   BUYBACK:          'Share Buyback',
+  DISPOSAL:         'Treasury Share Disposal',
   DIVIDEND:         'Dividend',
   MNA:              'M&A / Merger',
   LEGAL:            'Legal / Regulatory',
@@ -319,6 +321,9 @@ export default async function DisclosureDetailPage({
               stockCode={disclosure.stock_code ?? ''}
               eventType={disclosure.event_type ?? null}
             />
+
+            {/* Historical Market Reaction — event_stats 기반 aggregate 통계 */}
+            <EventHistoricalReaction eventType={disclosure.event_type ?? null} />
 
             {/* Sector Context */}
             {sectorContext && <SectorContextCard data={sectorContext} />}
