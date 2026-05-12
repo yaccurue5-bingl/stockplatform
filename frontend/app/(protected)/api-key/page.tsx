@@ -3,6 +3,7 @@ import { createServiceClient, getUser } from '@/lib/supabase/server';
 import { ShieldCheck, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import ApiKeyDisplay from '@/components/ApiKeyDisplay';
+import CodeBlock from '@/components/landing/ui/CodeBlock';
 
 export default async function ApiKeyPage() {
   const user = await getUser();
@@ -83,11 +84,17 @@ export default async function ApiKeyPage() {
 
       {/* Quick start */}
       {apiKey && (
-        <div className="bg-[#0d1117] border border-gray-800 rounded-xl p-5">
-          <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Quick Start</p>
-          <pre className="text-xs text-gray-300 font-mono bg-gray-900/60 rounded-lg p-4 overflow-x-auto leading-relaxed">{`curl https://k-marketinsight.com/api/v1/market-radar \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -H "Content-Type: application/json"`}</pre>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quick Start</p>
+          <CodeBlock
+            language="bash"
+            code={`curl https://k-marketinsight.com/api/v1/market-radar \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json"`}
+          />
+          <p className="text-xs text-gray-600">
+            Your API key is pre-filled above — click Copy to use immediately.
+          </p>
         </div>
       )}
     </AppShell>

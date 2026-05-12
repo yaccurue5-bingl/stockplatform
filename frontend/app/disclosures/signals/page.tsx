@@ -54,9 +54,13 @@ export interface DashboardData {
 // ── 메타데이터 ─────────────────────────────────────────────────────────────────
 
 export const metadata = {
-  title: 'Signal Statistics | KMI',
-  description: 'Event-type signal performance across market conditions — market cap, trend regime, and volatility regime.',
-  robots: { index: false },
+  title: 'Korean Stock Signal Performance Statistics | K-MarketInsight',
+  description: 'Backtested performance of DART disclosure event types across market cap, trend regime, and volatility conditions. Historical alpha analysis for Korean equities.',
+  openGraph: {
+    title: 'Korean Stock Signal Performance Statistics',
+    description: 'Historical win rates and alpha for DART disclosure events across market conditions.',
+    type: 'website',
+  },
 }
 
 // ── 데이터 fetch ──────────────────────────────────────────────────────────────

@@ -813,7 +813,15 @@ function DisclosuresContent() {
 
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8 min-h-[60px]">
-          <h1 className="text-3xl font-bold mb-2">All Disclosures</h1>
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
+            <h1 className="text-3xl font-bold">All Disclosures</h1>
+            <Link
+              href="/disclosures/signals"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-[#00D4A6]/30 text-[#00D4A6] bg-[#00D4A6]/8 hover:bg-[#00D4A6]/15 transition-colors font-medium whitespace-nowrap"
+            >
+              📊 Signal Statistics
+            </Link>
+          </div>
           <p className="text-gray-400 h-6">
             {isSearching ? (
               'Searching...'
