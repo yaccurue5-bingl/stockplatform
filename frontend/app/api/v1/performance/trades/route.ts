@@ -5,7 +5,7 @@
  *
  * 백테스트 데이터는 과거 전체 히스토리가 의미 있으므로
  * 날짜 범위 제한 대신 플랜별 레코드 수 상한으로 제어한다.
- *   developer : 최대 50건
+ *   starter : 최대 50건
  *   pro        : 최대 500건
  *
  * Query params:
@@ -14,7 +14,7 @@
  *   limit       - 요청 건수 (플랜 상한 이하, 기본: 50)
  *   offset      - 페이지네이션 offset (기본: 0)
  *
- * Plans: developer, pro
+ * Plans: starter, pro
  * Cache: 3600s (1시간)
  */
 
@@ -33,7 +33,7 @@ const TTL_PERFORMANCE = 3600   // 1 hour
 
 // 플랜별 최대 조회 레코드 수
 const PLAN_TRADE_LIMIT: Record<string, number> = {
-  developer: 50,
+  starter: 50,
   pro:       500,
 }
 
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   const { user, error: authError } = await resolveApiKey(req)
   if (authError) return authError
 
-  const planError = checkPlan(user, ['developer', 'pro'])
+  const planError = checkPlan(user, ['starter', 'pro'])
   if (planError) return planError
 
   const rateLimitError = await checkRateLimit(user.id, user.plan)

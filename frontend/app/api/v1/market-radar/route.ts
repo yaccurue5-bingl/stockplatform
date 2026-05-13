@@ -4,7 +4,7 @@
  * Daily market signal (Bullish/Bearish/Neutral), KOSPI/KOSDAQ change,
  * top sector, and summary text.
  *
- * Plans: developer (3d), pro (30d)
+ * Plans: starter (3d), pro (30d)
  * Cache: 900s (15 min)
  */
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const { user, error: authError } = await resolveApiKey(req)
   if (authError) return authError
 
-  const planError = checkPlan(user, ['developer', 'pro'])
+  const planError = checkPlan(user, ['starter', 'pro'])
   if (planError) return planError
 
   const rateLimitError = await checkRateLimit(user.id, user.plan)

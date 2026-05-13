@@ -17,10 +17,18 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [showEmailForm, setShowEmailForm] = useState(false);
+  // 세션 확인 중 플래그 — true이면 로그인 폼을 렌더하지 않음
+  // (뒤로가기 시 이미 로그인된 상태에서 로그인 화면이 반짝이는 것 방지)
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
     getSupabase().auth.getUser().then(({ data }) => {
-      if (data.user) router.replace(redirectTo);
+      if (data.user) {
+        router.replace(redirectTo);
+        // replace 후에도 컴포넌트가 잠깐 렌더될 수 있으므로 checkingAuth는 true 유지
+      } else {
+        setCheckingAuth(false);
+      }
     });
   }, [router, redirectTo]);
 
@@ -59,6 +67,15 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  // 세션 확인 중: 스피너만 표시 (이미 로그인 상태면 redirect되므로 폼 노출 없음)
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 px-4">
