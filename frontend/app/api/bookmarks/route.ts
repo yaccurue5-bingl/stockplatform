@@ -5,7 +5,8 @@
  *
  * POST { disclosure_id } → { bookmarked: boolean }  (toggle)
  * GET  ?disclosure_id=xxx → { bookmarked: boolean }  (단건 체크)
- * GET  (no param)         → { bookmarks: BookmarkItem[] }  (전체 목록)
+ * GET  ?ids_only=true     → { ids: string[] }        (disclosure_id 목록만, JOIN 없음 — 빠름)
+ * GET  (no param)         → { bookmarks: BookmarkItem[] }  (전체 목록, dashboard용)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -71,6 +72,20 @@ export async function GET(req: NextRequest) {
 
   const sb = await createServerClient();
   const disclosureId = req.nextUrl.searchParams.get('disclosure_id');
+  const idsOnly = req.nextUrl.searchParams.get('ids_only') === 'true';
+
+  // 경량 ID 목록 (JOIN 없음) — disclosures 페이지 북마크 초기화용
+  if (idsOnly) {
+    const { data, error } = await sb
+      .from('bookmarks')
+      .select('disclosure_id')
+      .eq('user_id', user.id)
+      .limit(500);
+    if (error) return NextResponse.json({ ids: [] });
+    return NextResponse.json({
+      ids: (data ?? []).map((r: { disclosure_id: string }) => r.disclosure_id),
+    });
+  }
 
   // 단건 체크
   if (disclosureId) {
