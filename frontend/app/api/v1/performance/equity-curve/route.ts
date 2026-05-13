@@ -10,7 +10,7 @@
  *   strategy  - 전략명 (기본: event_macro_v1)
  *   regime    - RISK_ON | RISK_OFF | all (기본: RISK_ON)
  *
- * Plans: developer, pro
+ * Plans: starter, pro
  * Cache: 3600s (1시간)
  *
  * Response:
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const { user, error: authError } = await resolveApiKey(req)
   if (authError) return authError
 
-  const planError = checkPlan(user, ['developer', 'pro'])
+  const planError = checkPlan(user, ['starter', 'pro'])
   if (planError) return planError
 
   const rateLimitError = await checkRateLimit(user.id, user.plan)

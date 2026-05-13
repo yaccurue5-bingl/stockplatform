@@ -3,7 +3,7 @@
  * ==================
  * Event type statistics (avg 5d/20d return) + recent event list.
  *
- * Plans: developer (3d), pro (30d)
+ * Plans: starter (3d), pro (30d)
  * Cache: 3600s (60 min)
  */
 
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const { user, error: authError } = await resolveApiKey(req)
   if (authError) return authError
 
-  const planError = checkPlan(user, ['developer', 'pro'])
+  const planError = checkPlan(user, ['starter', 'pro'])
   if (planError) return planError
 
   const rateLimitError = await checkRateLimit(user.id, user.plan)

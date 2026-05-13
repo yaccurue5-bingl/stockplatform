@@ -124,6 +124,7 @@ export default async function proxy(req: NextRequest) {
     '/sitemap.xml',
     '/sitemap/',          // paginated sub-sitemaps: /sitemap/0.xml, /sitemap/1.xml, …
     '/robots.txt',
+    '/monitoring',        // Sentry tunnel route — 광고차단기 우회 중계 엔드포인트
   ];
 
   // 로그인/회원가입/비밀번호 찾기 페이지 → 세션 상태와 무관하게 통과

@@ -603,6 +603,8 @@ if __name__ == "__main__":
                         help="sentiment_score 없는 completed 항목 재분석 (백테스트용)")
     parser.add_argument("--limit", type=int, default=200,
                         help="배치당 처리 건수 (기본 200)")
+    parser.add_argument("--single-pass", dest="single_pass", action="store_true",
+                        help="1회 배치만 실행 후 종료 (15분 prod 배치용 — 루프 방지)")
     parser.add_argument("--from", dest="date_from", type=str, default=None,
                         help="시작 날짜 YYYYMMDD (예: 20260401)")
     parser.add_argument("--to",   dest="date_to",   type=str, default=None,
@@ -620,7 +622,7 @@ if __name__ == "__main__":
             date_to=args.date_to,
         )
         total += processed
-        if processed == 0:
+        if processed == 0 or args.single_pass:
             break
         logger.info(f"[Batch #{batch}] 완료 {processed}건  /  누적 {total}건")
         batch += 1

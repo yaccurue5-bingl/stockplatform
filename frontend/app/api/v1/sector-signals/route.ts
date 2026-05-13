@@ -4,7 +4,7 @@
  * Sector-level sentiment aggregation (Bullish/Bearish/Neutral)
  * with confidence score and disclosure drivers.
  *
- * Plans: developer (3d), pro (30d)
+ * Plans: starter (3d), pro (30d)
  * Cache: 600s (10 min)
  */
 
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const { user, error: authError } = await resolveApiKey(req)
   if (authError) return authError
 
-  const planError = checkPlan(user, ['developer', 'pro'])
+  const planError = checkPlan(user, ['starter', 'pro'])
   if (planError) return planError
 
   const rateLimitError = await checkRateLimit(user.id, user.plan)

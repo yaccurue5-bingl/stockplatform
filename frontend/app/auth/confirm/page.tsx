@@ -3,17 +3,24 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { getSupabase } from '@/lib/supabase/client';
 
 export default function ConfirmPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // 3초 후 대시보드로 이동 (이미 로그인된 상태)
-    const timer = setTimeout(() => {
-      router.push('/dashboard');
-    }, 3000);
-
-    return () => clearTimeout(timer);
+    // 세션 확인 후 3초 뒤 대시보드 이동
+    getSupabase().auth.getUser().then(({ data }) => {
+      if (!data.user) {
+        // 세션 없음 → 링크가 만료됐거나 잘못된 접근
+        router.replace('/login?error=Confirmation+link+expired+or+already+used.+Please+sign+in.');
+        return;
+      }
+      const timer = setTimeout(() => {
+        router.replace('/dashboard');
+      }, 3000);
+      return () => clearTimeout(timer);
+    });
   }, [router]);
 
   return (

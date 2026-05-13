@@ -4,7 +4,7 @@
  * Corporate disclosures + AI analysis results.
  *
  * Plans:
- *   developer: last 3 days, is_visible=true, base fields + scores
+ *   starter: last 3 days, is_visible=true, base fields + scores
  *   pro:       last 30 days, all fields including risk_factors
  *
  * Cache: 300s (5 min)
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   const { user, error: authError } = await resolveApiKey(req)
   if (authError) return authError
 
-  const planError = checkPlan(user, ['developer', 'pro'])
+  const planError = checkPlan(user, ['starter', 'pro'])
   if (planError) return planError
 
   const rateLimitError = await checkRateLimit(user.id, user.plan)
