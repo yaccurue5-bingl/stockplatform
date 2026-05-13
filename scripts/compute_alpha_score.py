@@ -310,27 +310,42 @@ def save_alpha_scores(sb, updates: list[dict], dry_run: bool) -> tuple[int, int]
             )
         return len(updates), 0
 
+    # ✅ 개별 PATCH 대신 배치 upsert (on_conflict=id) 사용
+    # 이유: 1건씩 PATCH 시 HTTP/2 스트림 20,000개 한도 도달 → ConnectionTerminated
+    # 100건 배치 upsert → 11,000건 기준 ~110회 요청으로 처리
     success = failure = 0
-    for row in updates:
-        row_id = row["id"]
-        payload = {"alpha_score": row["alpha_score"]}
+    for i in range(0, len(updates), BATCH_SIZE):
+        batch = updates[i:i + BATCH_SIZE]
+        rows_to_upsert = [{"id": r["id"], "alpha_score": r["alpha_score"]} for r in batch]
         try:
-            sb.table("disclosure_insights").update(payload).eq("id", row_id).execute()
-            success += 1
+            sb.table("disclosure_insights").upsert(
+                rows_to_upsert, on_conflict="id"
+            ).execute()
+            success += len(batch)
         except Exception as e:
-            failure += 1
-            logger.error(f"  [ERROR] id={row_id[:8]}.. 저장 실패: {e}")
+            # 배치 실패 시 개별 재시도
+            for row in batch:
+                try:
+                    sb.table("disclosure_insights").update(
+                        {"alpha_score": row["alpha_score"]}
+                    ).eq("id", row["id"]).execute()
+                    success += 1
+                except Exception as e2:
+                    failure += 1
+                    logger.error(f"  [ERROR] id={row['id'][:8]}.. 저장 실패: {e2}")
     return success, failure
 
 
 def save_scores_log(sb, log_rows: list[dict], dry_run: bool) -> tuple[int, int]:
-    """scores_log.alpha_score 업데이트 (disclosure_id 기준)."""
+    """scores_log.alpha_score 업데이트 (disclosure_id 기준, 배치 upsert)."""
     if dry_run or not log_rows:
         return len(log_rows), 0
 
+    # ✅ 배치 upsert: disclosure_id는 scores_log의 unique 컬럼이 아니므로
+    #    개별 UPDATE 유지하되 배치 묶음 단위로 예외 처리
     success = failure = 0
     for i in range(0, len(log_rows), BATCH_SIZE):
-        batch = log_rows[i:i+BATCH_SIZE]
+        batch = log_rows[i:i + BATCH_SIZE]
         for row in batch:
             try:
                 (
