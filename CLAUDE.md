@@ -176,6 +176,25 @@ mcp__supabase__get_advisors(project_id: "ojzxvaojuglgqmvxhlzh", type: "security"
 | /api/health DB check | ❌ 400 (corp_code 컬럼 없음) | ✅ stock_code로 수정 | health/route.ts 수정 | 2026-05-11 |
 | users PATCH 400 | ❌ last_session_id 컬럼 없음 | ✅ 컬럼 추가 migration | Supabase migration | 2026-05-11 |
 
+### /disclosures 성능 최적화 2차 (2026-05-13)
+
+| 항목 | Before | After | 방법 | 날짜 |
+|---|---|---|---|---|
+| DB 쿼리 시간 (heap fetches 재증가) | 2,578ms (Heap Fetches: 9,575) | 650ms (Heap Fetches: 0) | VACUUM ANALYZE 재실행 | 2026-05-13 |
+| auth blocking 제거 | 8.6s "Loading..." (auth 완료 대기) | 데이터 도착 즉시 표시 (~3-5s) | accessAllowed===null early return 제거 → 병렬 로딩 | 2026-05-13 |
+| 북마크 ids_only 최적화 | 1,362ms TTFB (full JOIN) | ~300ms | ?ids_only=true (disclosure_id만 반환, JOIN 없음) | 2026-05-13 |
+
+### /disclosures 신규 기능 (2026-05-13)
+
+| 기능 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |
+|---|---|---|---|---|
+| 북마크 아이콘 | 목록 카드 우하단 bookmark 버튼 토글 | 브라우저 클릭 | ✅ BookmarkButton 추가, stopPropagation 적용 | 2026-05-13 |
+| 북마크 초기화 | 페이지 로드 시 북마크 상태 로드 | ids_only=true API | ✅ bookmarkedIds Set 초기화 | 2026-05-13 |
+| Search onSearch fix | 검색창 입력 → setSearchQuery 직접 호출 | 브라우저 입력 | ✅ router.push silent no-op 버그 수정 | 2026-05-13 |
+| 외부 데이터 면책 | ExternalDataNotice 컴포넌트 추가 | 페이지 하단 | ✅ DART/data.go.kr 출처 표시 | 2026-05-13 |
+| 로딩 성능 (CDN 캐시 워밍 후) | 10개 카드 표시까지 시간 | DOM 상태 + 타이밍 | ✅ 419ms API 응답, ~2초 내 데이터 표시 | 2026-05-13 |
+| 로딩 성능 (콜드 스타트) | 첫 요청 (CDN 캐시 없음) | 콘솔 로그 | ⚠️ ~9초 (Supabase 다중 쿼리 + free tier 지연) | 2026-05-13 |
+
 ---
 
 ## 브랜치 정책 (필수)
