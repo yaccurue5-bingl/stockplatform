@@ -78,6 +78,11 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
       (github.event_name == 'schedule' && github.event.schedule != '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
+    # 동일 그룹 실행 중이면 이전 run 취소 (15분 cron 중복 실행 방지)
+    concurrency:
+      group: prod-batch
+      cancel-in-progress: true
+    timeout-minutes: 30   # 30분 초과 시 강제 종료
 
     steps:
       - name: Checkout code
@@ -112,6 +117,11 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'eod') ||
       (github.event_name == 'schedule' && github.event.schedule == '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
+    # EOD는 1일 1회 — 중복 방지 + 120분 제한
+    concurrency:
+      group: eod-batch
+      cancel-in-progress: false  # EOD는 중간에 취소하지 않음 (데이터 무결성)
+    timeout-minutes: 120
 
     steps:
       - name: Checkout code

@@ -108,6 +108,7 @@ def analyze_one(groq_client, corp_name: str, report_nm: str, content: str) -> di
             response_format={"type": "json_object"},
             temperature=0.2,
             max_completion_tokens=1200,
+            timeout=60,  # 60초 초과 시 예외 → 무한 대기 방지
         )
         return json.loads(resp.choices[0].message.content)
     except Exception as e:

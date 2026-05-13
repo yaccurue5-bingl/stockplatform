@@ -431,7 +431,8 @@ In ai_summary:
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.2,
-                max_completion_tokens=2400
+                max_completion_tokens=2400,
+                timeout=60,  # 60초 초과 시 예외 → 무한 대기 방지
             )
 
             return json.loads(response.choices[0].message.content)
