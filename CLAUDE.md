@@ -184,6 +184,14 @@ mcp__supabase__get_advisors(project_id: "ojzxvaojuglgqmvxhlzh", type: "security"
 | auth blocking 제거 | 8.6s "Loading..." (auth 완료 대기) | 데이터 도착 즉시 표시 (~3-5s) | accessAllowed===null early return 제거 → 병렬 로딩 | 2026-05-13 |
 | 북마크 ids_only 최적화 | 1,362ms TTFB (full JOIN) | ~300ms | ?ids_only=true (disclosure_id만 반환, JOIN 없음) | 2026-05-13 |
 
+### Dashboard MarketRadar 3s 지연 수정 (2026-05-13)
+
+| 항목 | Before | After | 방법 | 날짜 |
+|---|---|---|---|---|
+| `/api/market-radar-widget` TTFB | 3,267ms (5개 쿼리 순차) | ~600ms (예상) | 5→4 쿼리 + Promise.all 1단계 병렬화 | 2026-05-13 |
+| 원인 분석 | `/api/market-radar-widget` 순차 쿼리 5개 | — | Performance Resource Timing API로 측정 | 2026-05-13 |
+| sector_signals 2-step 제거 | 날짜 조회 → 데이터 조회 (2 serial) | 단일 쿼리 + client-side filter | `.limit(10)` + `filter(date === maxDate).slice(0,3)` | 2026-05-13 |
+
 ### /disclosures 신규 기능 (2026-05-13)
 
 | 기능 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |
