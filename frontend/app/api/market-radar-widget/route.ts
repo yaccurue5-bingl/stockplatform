@@ -8,17 +8,38 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createServiceClient() as any;
 
-    // 1) daily_indicators 최근 15일 (foreign_net_buy_kospi)
-    const { data: indicators, error: indErr } = await supabase
-      .from('daily_indicators')
-      .select('date, foreign_net_buy_kospi')
-      .order('date', { ascending: false })
-      .limit(15);
+    // ── 4개 쿼리 병렬 실행 (기존 5개 순차 → 1 Promise.all 단계) ──────────────
+    // sector_signals: 최신 날짜를 별도 조회하는 대신, 최근 10행을 가져와서
+    //   client-side에서 최신 date만 필터링 → 쿼리 2회 → 1회로 단축
+    const [indicatorsRes, indicesRes, sectorsRes, macroRes] = await Promise.all([
+      supabase
+        .from('daily_indicators')
+        .select('date, foreign_net_buy_kospi')
+        .order('date', { ascending: false })
+        .limit(15),
+      supabase
+        .from('market_indices')
+        .select('symbol, price, change_rate')
+        .in('symbol', ['KOSPI', 'KOSDAQ']),
+      supabase
+        .from('sector_signals')
+        .select('date, sector_en, signal, avg_return_3d, disclosure_count, score')
+        .order('date', { ascending: false })
+        .order('score', { ascending: false })
+        .limit(10),
+      supabase
+        .from('sector_macro')
+        .select('sector_en, year_month, export_yoy, export_momentum, macro_score, macro_label')
+        .order('year_month', { ascending: false })
+        .limit(20),
+    ]);
 
-    if (indErr) throw indErr;
+    if (indicatorsRes.error) throw indicatorsRes.error;
+    if (indicesRes.error)    throw indicesRes.error;
 
+    // ── daily_indicators 처리 ─────────────────────────────────────────────────
     const sorted: Array<{ date: string; foreign_net_buy_kospi: number | null }> = (
-      (indicators ?? []) as Array<{ date: string; foreign_net_buy_kospi: number | null }>
+      (indicatorsRes.data ?? []) as Array<{ date: string; foreign_net_buy_kospi: number | null }>
     )
       .filter((r) => r.foreign_net_buy_kospi != null)
       .sort((a, b) => a.date.localeCompare(b.date)); // 오름차순으로 재정렬
@@ -42,14 +63,8 @@ export async function GET() {
       .reduce((acc, r) => acc + (r.foreign_net_buy_kospi as number), 0);
     const regime: 'RISK_ON' | 'RISK_OFF' = recent3 > 0 ? 'RISK_ON' : 'RISK_OFF';
 
-    // 2) market_indices
-    const { data: indices, error: idxErr } = await supabase
-      .from('market_indices')
-      .select('symbol, price, change_rate')
-      .in('symbol', ['KOSPI', 'KOSDAQ']);
-
-    if (idxErr) throw idxErr;
-
+    // ── market_indices 처리 ───────────────────────────────────────────────────
+    const indices = indicesRes.data;
     const parseIndex = (symbol: string) => {
       const row = (indices as Array<{ symbol: string; price: string; change_rate: number }> ?? [])
         .find((r) => r.symbol === symbol);
@@ -61,68 +76,20 @@ export async function GET() {
     const kospi = parseIndex('KOSPI');
     const kosdaq = parseIndex('KOSDAQ');
 
-    // 3) sector_signals: 최신 날짜 top 3 (score DESC)
-    const { data: sectorLatest, error: secErr } = await supabase
-      .from('sector_signals')
-      .select('date')
-      .order('date', { ascending: false })
-      .limit(1);
+    // ── sector_signals 처리: 최신 date 행만 추출 후 top 3 ────────────────────
+    type SectorRow = {
+      date: string; sector_en: string; signal: string;
+      avg_return_3d: number; disclosure_count: number; score: number;
+    };
+    const allSectors = (sectorsRes.data ?? []) as SectorRow[];
+    const latestSectorDate = allSectors[0]?.date ?? null;
+    const top3Sectors = latestSectorDate
+      ? allSectors.filter((s) => s.date === latestSectorDate).slice(0, 3)
+      : [];
 
-    if (secErr) throw secErr;
-
-    let top_sectors: Array<{
-      sector_en: string;
-      signal: string;
-      avg_return_3d: number;
-      disclosure_count: number;
-      score: number;
-      macro?: {
-        export_yoy: number;
-        export_momentum: string;
-        macro_score: number;
-        macro_label: string;
-        year_month: string;
-      } | null;
-    }> = [];
-
-    const sectorRows = sectorLatest as Array<{ date: string }> | null;
-    if (sectorRows && sectorRows.length > 0) {
-      const latestSectorDate = sectorRows[0].date;
-      const { data: sectors, error: secDataErr } = await supabase
-        .from('sector_signals')
-        .select('sector_en, signal, avg_return_3d, disclosure_count, score')
-        .eq('date', latestSectorDate)
-        .order('score', { ascending: false })
-        .limit(3);
-
-      if (secDataErr) throw secDataErr;
-
-      top_sectors = (
-        (sectors ?? []) as Array<{
-          sector_en: string;
-          signal: string;
-          avg_return_3d: number;
-          disclosure_count: number;
-          score: number;
-        }>
-      ).map((s) => ({
-        sector_en: s.sector_en,
-        signal: s.signal,
-        avg_return_3d: s.avg_return_3d,
-        disclosure_count: s.disclosure_count,
-        score: s.score,
-      }));
-    }
-
-    // 4) sector_macro: 최신 year_month 데이터 조회 후 top_sectors에 매핑
-    const { data: macroData } = await supabase
-      .from('sector_macro')
-      .select('sector_en, year_month, export_yoy, export_momentum, macro_score, macro_label')
-      .order('year_month', { ascending: false })
-      .limit(20);
-
+    // ── sector_macro 처리 ─────────────────────────────────────────────────────
     const macroMap = new Map(
-      ((macroData ?? []) as Array<{
+      ((macroRes.data ?? []) as Array<{
         sector_en: string;
         year_month: string;
         export_yoy: number;
@@ -132,8 +99,12 @@ export async function GET() {
       }>).map((m) => [m.sector_en, m])
     );
 
-    top_sectors = top_sectors.map((s) => ({
-      ...s,
+    const top_sectors = top3Sectors.map((s) => ({
+      sector_en: s.sector_en,
+      signal: s.signal,
+      avg_return_3d: s.avg_return_3d,
+      disclosure_count: s.disclosure_count,
+      score: s.score,
       macro: macroMap.get(s.sector_en) ?? null,
     }));
 
