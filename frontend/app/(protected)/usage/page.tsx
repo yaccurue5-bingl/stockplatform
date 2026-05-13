@@ -3,9 +3,11 @@ import { createServiceClient, getUser } from '@/lib/supabase/server';
 import Link from 'next/link';
 
 const PLAN_QUOTA: Record<string, { window: 'daily' | 'monthly'; limit: number; label: string }> = {
-  free:      { window: 'daily',   limit: 50,     label: 'Free' },
-  developer: { window: 'monthly', limit: 10_000,  label: 'Developer' },
-  pro:       { window: 'monthly', limit: 100_000, label: 'Pro' },
+  free:       { window: 'daily',   limit: 50,        label: 'Free' },
+  starter:    { window: 'monthly', limit: 10_000,    label: 'Starter' },
+  developer:  { window: 'monthly', limit: 10_000,    label: 'Starter' }, // silent alias
+  pro:        { window: 'monthly', limit: 100_000,   label: 'Pro' },
+  enterprise: { window: 'monthly', limit: 1_000_000, label: 'Enterprise' },
 };
 
 function fmtNum(n: number) {

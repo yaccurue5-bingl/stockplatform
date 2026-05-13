@@ -5,11 +5,13 @@ import { Zap, TrendingUp, FileText, Bell, Clock } from 'lucide-react';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import Link from 'next/link';
 
-// 플랜별 한도 (usage 페이지와 동일 기준)
+// 플랜별 한도 (rateLimit.ts 와 동일 기준)
 const PLAN_QUOTA: Record<string, { window: 'daily' | 'monthly'; limit: number; label: string }> = {
-  free:      { window: 'daily',   limit: 50,      label: 'Free' },
-  developer: { window: 'monthly', limit: 10_000,  label: 'Developer' },
-  pro:       { window: 'monthly', limit: 100_000, label: 'Pro' },
+  free:       { window: 'daily',   limit: 50,          label: 'Free' },
+  starter:    { window: 'monthly', limit: 10_000,      label: 'Starter' },
+  developer:  { window: 'monthly', limit: 10_000,      label: 'Starter' }, // silent alias
+  pro:        { window: 'monthly', limit: 100_000,     label: 'Pro' },
+  enterprise: { window: 'monthly', limit: 1_000_000,   label: 'Enterprise' },
 };
 
 export default async function DashboardPage() {
@@ -69,7 +71,7 @@ export default async function DashboardPage() {
       label: 'Access Level',
       value: quota.label,                                      // Free / Developer / Pro
       sub:   `${remainingLabel} ${windowLabel}`,               // "9,850 left this month"
-      color: plan === 'pro' ? '#00D4A6' : plan === 'developer' ? '#4EA3FF' : '#fb923c',
+      color: plan === 'pro' || plan === 'enterprise' ? '#00D4A6' : plan === 'starter' || plan === 'developer' ? '#4EA3FF' : '#fb923c',
     },
   ];
 
