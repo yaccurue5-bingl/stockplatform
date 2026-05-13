@@ -5,9 +5,17 @@ import { Zap, TrendingUp, FileText, Bell, Clock } from 'lucide-react';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
 import Link from 'next/link';
 
+// 플랜별 한도 (usage 페이지와 동일 기준)
+const PLAN_QUOTA: Record<string, { window: 'daily' | 'monthly'; limit: number; label: string }> = {
+  free:      { window: 'daily',   limit: 50,      label: 'Free' },
+  developer: { window: 'monthly', limit: 10_000,  label: 'Developer' },
+  pro:       { window: 'monthly', limit: 100_000, label: 'Pro' },
+};
+
 export default async function DashboardPage() {
   const user = await getUser();
   let userEmail = '';
+  let plan = 'free';
   let usedToday = 0;
   let usedMonth = 0;
   let recentLogs: Array<{ endpoint: string; status_code: number; created_at: string }> = [];
@@ -19,7 +27,7 @@ export default async function DashboardPage() {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 
     const [profileRes, dailyRes, logRes] = await Promise.all([
-      sb.from('users').select('email').eq('id', user.id).single(),
+      sb.from('users').select('email, plan').eq('id', user.id).single(),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (sb as any).from('api_usage_daily')
         .select('date, call_count')
@@ -35,6 +43,7 @@ export default async function DashboardPage() {
     ]);
 
     userEmail = profileRes.data?.email ?? user.email ?? '';
+    plan      = (profileRes.data?.plan ?? 'free').toLowerCase();
 
     const dailyRows: Array<{ date: string; call_count: number }> = dailyRes.data ?? [];
     usedMonth = dailyRows.reduce((s: number, r: { call_count: number }) => s + (r.call_count ?? 0), 0);
@@ -42,11 +51,26 @@ export default async function DashboardPage() {
     recentLogs = logRes.data ?? [];
   }
 
+  const quota       = PLAN_QUOTA[plan] ?? PLAN_QUOTA.free;
+  const usedInWindow = quota.window === 'daily' ? usedToday : usedMonth;
+  const remaining   = Math.max(0, quota.limit - usedInWindow);
+  const usagePct    = quota.limit > 0 ? Math.min(100, Math.round((usedInWindow / quota.limit) * 100)) : 0;
+  const barColor    = usagePct > 90 ? '#f87171' : usagePct > 70 ? '#fb923c' : '#00D4A6';
+
+  // 잔여량 표시 문자열
+  const remainingLabel = remaining.toLocaleString() + ' left';
+  const windowLabel    = quota.window === 'daily' ? 'today' : 'this month';
+
   const stats = [
-    { label: 'API Calls Today',  value: usedToday.toLocaleString(),  sub: 'Today',          color: '#00D4A6' },
-    { label: 'Monthly Usage',    value: usedMonth.toLocaleString(),  sub: 'This month',      color: '#4EA3FF' },
-    { label: 'Endpoints',        value: 'All',                       sub: 'Full access',     color: '#a78bfa' },
-    { label: 'Access Level',     value: 'Member',                    sub: 'All features on', color: '#fb923c' },
+    { label: 'API Calls Today',  value: usedToday.toLocaleString(), sub: 'Today',                          color: '#00D4A6' },
+    { label: 'Monthly Usage',    value: usedMonth.toLocaleString(), sub: 'This month',                     color: '#4EA3FF' },
+    { label: 'Endpoints',        value: 'All',                      sub: 'Full access',                    color: '#a78bfa' },
+    {
+      label: 'Access Level',
+      value: quota.label,                                      // Free / Developer / Pro
+      sub:   `${remainingLabel} ${windowLabel}`,               // "9,850 left this month"
+      color: plan === 'pro' ? '#00D4A6' : plan === 'developer' ? '#4EA3FF' : '#fb923c',
+    },
   ];
 
   return (
@@ -75,19 +99,40 @@ export default async function DashboardPage() {
           {/* API Usage bar */}
           <div className="bg-[#0d1117] border border-gray-800 rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-white">API Usage — This Month</p>
-              <span className="text-xs text-gray-500">resets monthly</span>
+              <p className="text-sm font-semibold text-white">
+                API Usage — {quota.window === 'daily' ? 'Today' : 'This Month'}
+              </p>
+              <span className="text-xs text-gray-500">
+                resets {quota.window === 'daily' ? 'daily' : 'monthly'}
+              </span>
             </div>
             <div className="flex justify-between text-xs text-gray-400 mb-2">
-              <span>Today: <span className="text-white font-semibold">{usedToday.toLocaleString()}</span> calls</span>
-              <span>Month: <span className="text-white font-semibold">{usedMonth.toLocaleString()}</span> calls</span>
+              <span>
+                Used:{' '}
+                <span className="text-white font-semibold">{usedInWindow.toLocaleString()}</span>
+                {' '}/ {quota.limit.toLocaleString()}
+              </span>
+              <span style={{ color: usagePct > 90 ? '#f87171' : '#6b7280' }}>
+                {usagePct}% · <span className="text-white font-semibold">{remaining.toLocaleString()}</span> remaining
+              </span>
             </div>
             <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full bg-[#00D4A6]"
-                style={{ width: usedMonth > 0 ? `${Math.min(100, Math.round((usedToday / Math.max(usedMonth, 1)) * 100))}%` : '0%' }}
+                className="h-full rounded-full transition-all"
+                style={{ width: `${usagePct}%`, background: barColor }}
               />
             </div>
+            {plan === 'free' && (
+              <div className="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between">
+                <p className="text-xs text-gray-600">Upgrade for higher limits</p>
+                <Link
+                  href="/pricing"
+                  className="text-xs px-3 py-1 rounded-full bg-[#00D4A6]/10 text-[#00D4A6] hover:bg-[#00D4A6]/20 transition font-medium"
+                >
+                  Upgrade →
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Quick actions */}
