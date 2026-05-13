@@ -359,14 +359,10 @@ function DisclosuresContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // 접근 확인 중 로딩 (모든 hooks 이후에 배치)
-  if (accessAllowed === null) {
-    return (
-      <div className="bg-gray-950 text-white font-sans min-h-screen flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
-      </div>
-    );
-  }
+  // ── auth 대기 중에도 데이터 fetch/렌더는 계속 진행 ──
+  // (accessAllowed === null) early return 제거 → fetchDisclosures가 auth와 병렬로 실행됨
+  // 인가 실패 시 checkPlan/SIGNED_OUT 핸들러가 router.replace()로 리다이렉트
+  // 인가 성공까지 bookmark 상태는 빈 Set → 아이콘 비활성, auth 완료 후 정상화
 
   async function fetchDisclosures(stockCode?: string, page: number = 1) {
     try {
