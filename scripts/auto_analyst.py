@@ -511,9 +511,16 @@ def run(backfill: bool = False, limit: int = 200,
             logger.debug(f"  ⏭️  skipped (no-signal type): {item_report_nm}")
             continue
 
-        supabase.table("disclosure_insights").update({
+        # 낙관적 락: pending 상태일 때만 processing으로 변경
+        # 두 인스턴스가 동시에 같은 item을 SELECT 했더라도,
+        # 먼저 update한 쪽만 rows가 반환됨 → 나머지는 skip → Groq 중복 호출 방지
+        lock_res = supabase.table("disclosure_insights").update({
             "analysis_status": "processing"
-        }).eq("id", item['id']).execute()
+        }).eq("id", item['id']).eq("analysis_status", "pending").execute()
+
+        if not lock_res.data:
+            logger.debug(f"  ⏭️  skip (already processing by another instance): {item['id'][:8]}")
+            continue
 
         # 영문 기업명 우선 사용 → AI가 한국어 번역에 토큰 낭비 방지
         corp_name_for_ai = corp_name_en_map.get(item.get('stock_code', '')) or item['corp_name']
