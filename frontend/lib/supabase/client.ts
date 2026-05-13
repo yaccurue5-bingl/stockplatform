@@ -143,6 +143,12 @@ export async function signUp(email: string, password: string) {
     throw new Error(error.message);
   }
 
+  // Supabase returns fake-success (no error) for existing emails.
+  // Detect this via empty identities array.
+  if (data.user?.identities?.length === 0) {
+    throw new Error('User already exists');
+  }
+
   return data;
 }
 

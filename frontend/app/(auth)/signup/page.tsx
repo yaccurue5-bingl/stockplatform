@@ -8,9 +8,17 @@ import { signUp, signInWithGoogle, getSupabase } from '@/lib/supabase/client';
 export default function SignupPage() {
   const router = useRouter();
 
+  // 세션 확인 중 플래그 — true이면 폼을 렌더하지 않음 (이미 로그인 시 플래시 방지)
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
   useEffect(() => {
-    getSupabase().auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) router.replace('/');
+    getSupabase().auth.getUser().then(({ data }) => {
+      if (data.user) {
+        router.replace('/');
+        // replace 후에도 컴포넌트가 잠깐 렌더될 수 있으므로 checkingAuth는 true 유지
+      } else {
+        setCheckingAuth(false);
+      }
     });
   }, [router]);
 
@@ -53,7 +61,8 @@ export default function SignupPage() {
       const isExisting =
         msg.toLowerCase().includes('already registered') ||
         msg.toLowerCase().includes('already been registered') ||
-        msg.toLowerCase().includes('user already exists');
+        msg.toLowerCase().includes('user already exists') ||
+        msg.toLowerCase().includes('already exists');
       const isEmailError =
         msg.toLowerCase().includes('sending confirmation') ||
         msg.toLowerCase().includes('email');
@@ -69,6 +78,15 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
+  /* ── 세션 확인 중 ── */
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   /* ── Account already exists ── */
   if (alreadyExists) {
