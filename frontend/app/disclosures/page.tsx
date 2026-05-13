@@ -122,16 +122,14 @@ function DisclosuresContent() {
     return () => subscription.unsubscribe();
   }, [router]);
 
-  // 접근 허용 시 북마크 목록 한 번 로드
+  // 접근 허용 시 북마크 ID 목록 로드 (ids_only=true → JOIN 없이 빠름)
   useEffect(() => {
     if (!accessAllowed) return;
-    fetch('/api/bookmarks')
+    fetch('/api/bookmarks?ids_only=true')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data?.bookmarks) {
-          setBookmarkedIds(new Set(
-            (data.bookmarks as { disclosure_id: string }[]).map(b => b.disclosure_id)
-          ));
+        if (data?.ids) {
+          setBookmarkedIds(new Set(data.ids as string[]));
         }
       })
       .catch(() => {});
