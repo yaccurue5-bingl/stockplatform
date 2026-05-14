@@ -153,14 +153,95 @@ def _strengthen_headline(headline: str, event: str, kn_list: list) -> str:
         if m:
             val = m.group(0)
             return {
-                "CONTRACT": f"Wins {val} Contract",
-                "DILUTION": f"Capital Raise {val}",
+                "CONTRACT": f"Wins {val} contract",
+                "DILUTION": f"Capital raise {val}",
                 "BUYBACK":  f"Buyback {val}",
                 "DISPOSAL": f"Disposal {val}",
                 "DIVIDEND": f"Dividend {val}",
                 "CAPEX":    f"Investment {val}",
             }.get(event, headline)
     return headline
+
+
+# ── Company name display cleaner ──────────────────────────────────────────────
+
+_LEGAL_SUFFIX_RE = re.compile(
+    r'[\s,\.]*(?:co\.?,?\s*ltd\.?|corp(?:oration)?\.?|inc\.?|ltd\.?|llc\.?|'
+    r'plc\.?|company|corporation|limited|holdings?|group|co\.,\s*ltd\.?)\s*$',
+    re.IGNORECASE,
+)
+_AMP_SUFFIX_RE = re.compile(r'\s*&\s*\w[\w\s]*$')
+_ABBREV_RE     = re.compile(r'^[A-Z]{1,4}$')   # KCC, HD, GS, SK, LG, AP, NC …
+
+
+def clean_corp_name(name: str) -> str:
+    """
+    Remove legal suffixes and produce a clean display name.
+    'MIRAE ASSET SECURITIES CO.,LTD.' → 'Mirae Asset Securities'
+    'KCC ENGINEERING & CONSTRUCTION'  → 'KCC Engineering'
+    'PearlAbyss Corp.'                → 'PearlAbyss'
+    """
+    n = name.strip()
+    # Remove legal suffixes (iterate in case of stacked suffixes)
+    prev = None
+    while prev != n:
+        prev = n
+        n = _LEGAL_SUFFIX_RE.sub('', n).strip().rstrip(',. ')
+    # Remove trailing industry descriptor after "&"
+    n = _AMP_SUFFIX_RE.sub('', n).strip()
+    if not n:
+        return name
+
+    # Determine casing: if name is mostly uppercase → apply title case
+    alpha = [c for c in n if c.isalpha()]
+    upper_ratio = sum(1 for c in alpha if c.isupper()) / max(len(alpha), 1)
+    if upper_ratio > 0.7:
+        return ' '.join(
+            w if _ABBREV_RE.match(w) else w.capitalize()
+            for w in n.split()
+        )
+    # Mixed-case name (PearlAbyss, UniTestInc, SolDefense) — keep as-is
+    return n
+
+
+# ── Key-number simplifier ─────────────────────────────────────────────────────
+
+_PAREN_RE       = re.compile(r'\s*\(.*')
+_COMMA_TAIL_RE  = re.compile(r',\s+\S.*$')
+# Metric labels that add little value as supporting lines
+_LOW_VALUE_KN   = re.compile(
+    r'^[•\-]?\s*(?:recent\s+(?:annual\s+)?revenue|annual\s+revenue)',
+    re.IGNORECASE,
+)
+
+
+def _simplify_kn(kn: str) -> str:
+    """
+    Strip parenthetical notes and noisy trailing clauses from key_numbers.
+    '• Revenue: 14.4B KRW (138.4% YoY growth)' → '• Revenue: 14.4B KRW'
+    """
+    kn = _PAREN_RE.sub('', kn)           # remove (...) and everything after
+    m = _COMMA_TAIL_RE.search(kn)
+    if m and m.start() > 10:
+        kn = kn[:m.start()]              # trim long comma clauses
+    return kn.strip().rstrip(',.')
+
+
+# ── Headline case normaliser ──────────────────────────────────────────────────
+
+_LOWER_TAIL = frozenset({
+    'contract', 'contracts', 'earnings', 'report', 'reports',
+    'update', 'announcement', 'notice', 'decision',
+    'dividend', 'acquisition', 'investment', 'disposal', 'buyback',
+})
+
+
+def _normalize_headline_case(headline: str) -> str:
+    """Lowercase trailing generic event words for a more natural, less robotic tone."""
+    words = headline.split()
+    if words and words[-1].lower() in _LOWER_TAIL:
+        words[-1] = words[-1].lower()
+    return ' '.join(words)
 
 
 # ── Twitter weighted character count ─────────────────────────────────────────
@@ -214,38 +295,51 @@ def build_tweet(row: dict) -> tuple[str, int]:
     key_numbers: list = row.get("key_numbers") or []
     sig_id = row["id"]
 
-    # Headline: strip redundant corp prefix → strengthen if generic → truncate
+    # Headline: strip corp prefix → strengthen if generic → normalize case → truncate
     raw_hl = (row.get("headline") or "").strip()
     raw_hl = _strip_corp_prefix(raw_hl, corp)
     raw_hl = _strengthen_headline(raw_hl, event, key_numbers)
+    raw_hl = _normalize_headline_case(raw_hl)
     headline = _trunc(raw_hl, 55)
 
     url = f"{BASE_URL}/{sig_id}"
 
-    # Line 1: company name + ticker code
-    corp_trimmed = _trunc(corp, 30)
-    corp_line = corp_trimmed
+    # Line 1: clean company name + ticker code (no ugly truncation)
+    corp_display = clean_corp_name(corp)
+    corp_line = corp_display
     if code:
         corp_line += f" [{code}]"
 
-    # Line 2: emoji + headline (emoji conveys event type; no ALLCAPS label)
+    # Line 2: emoji + headline
     event_line = f"{emoji} {headline}"
 
-    # Key numbers (up to 2, KRW compacted + capped at 52 chars)
+    # Key numbers: simplify (strip parentheticals) → compact KRW → cap length
+    # Skip low-value labels (Recent Revenue, Annual Revenue) as supporting lines.
+    # For CONTRACT tweets, skip "Contract Amount" if the amount is already in the headline.
+    _contract_amount_re = re.compile(r'contract\s+amount', re.IGNORECASE)
+    _headline_has_value = bool(re.search(r'[\d.]+[BMTK]?\s*KRW', headline))
+    raw_kns = [
+        kn for kn in key_numbers
+        if not _LOW_VALUE_KN.match(str(kn))
+        and not (event == "CONTRACT" and _headline_has_value
+                 and _contract_amount_re.search(str(kn)))
+    ]
     kn_lines: list[str] = []
-    for kn in key_numbers[:2]:
-        kn_str = compact_krw(str(kn).strip())
+    for kn in raw_kns[:2]:
+        kn_str = _simplify_kn(compact_krw(str(kn).strip()))
         if not kn_str.startswith("•"):
             kn_str = "• " + kn_str
         kn_lines.append(_trunc(kn_str, 52))
 
     def _assemble(kn: list[str]) -> str:
-        parts = [corp_line, event_line]
+        parts = [corp_line, ""]          # blank line after company name
+        parts.append(event_line)
         if kn:
             parts.append("")
             parts.extend(kn)
         parts.append("")
         parts.append(url)
+        parts.append("")                 # blank line before hashtags
         parts.append(HASHTAGS)
         return "\n".join(parts)
 
@@ -258,7 +352,7 @@ def build_tweet(row: dict) -> tuple[str, int]:
 
     # Last resort: shorten headline
     headline = _trunc(headline, 35)
-    event_line = f"{emoji} {event} — {headline}"
+    event_line = f"{emoji} {headline}"
     text = _assemble([])
     return text, tweet_len(text, url)
 
@@ -420,8 +514,9 @@ def main() -> None:
             event = row.get("event_type") or ""
             sid   = row["id"][:8]
             lines.append(f"── {i}/{total} {'─'*40}")
+            lines.append("")
             lines.append(tweet_text)
-            lines.append(f"  ↑ {tw_len}/280 · score={score:+.2f} · {event} · id:{sid}")
+            lines.append(f"  {tw_len}/280 · score={score:+.2f} · {event} · id:{sid}")
             lines.append("")
         with open(out_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
