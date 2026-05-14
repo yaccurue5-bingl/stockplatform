@@ -39,16 +39,49 @@
    - 스크립트(service_role)만 쓰는 내부 테이블 → RLS만 켜고 정책 없음 (service_role은 자동 bypass)
    - 사용자별 데이터 테이블 → `auth.uid() = user_id` 조건 필수
    - `USING(true)` 남용 금지 → Supabase Advisor "RLS Policy Always True" 경고 발생
+4. **GRANT 추가** (2026-10-30 이후 신규 테이블 필수) → 아래 참고
+
+### GRANT 규칙 (Supabase Data API 접근 제어 변경 대응)
+
+> Supabase는 2026-10-30부터 기존 프로젝트의 신규 테이블에 대해 public 스키마 auto-grant를 제거한다.
+> 기존 테이블은 영향 없음. **신규 테이블 생성 시 반드시 명시적 GRANT를 migration SQL에 포함한다.**
+
+```sql
+-- ✅ 공개 읽기 테이블 (supabase-js 클라이언트가 SELECT)
+ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public read new_table" ON public.new_table FOR SELECT USING (true);
+GRANT SELECT ON public.new_table TO anon, authenticated;
+
+-- ✅ 인증 사용자 읽기/쓰기 테이블
+ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated CRUD" ON public.new_table
+  FOR ALL USING (auth.uid() = user_id);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.new_table TO authenticated;
+
+-- ✅ 스크립트(service_role) 전용 내부 테이블
+-- GRANT 불필요 — service_role은 RLS + GRANT 모두 bypass
+ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
+-- (정책 없음)
+```
+
+**판단 기준 요약**:
+- `supabase-js` / PostgREST (`/rest/v1/`) 로 접근 → GRANT 필수
+- Railway Python 스크립트 (`service_role` key 사용) → GRANT 불필요
 
 ### 확인 SQL (작업 후 반드시 실행)
 
 ```sql
--- 작업한 테이블의 RLS 상태 확인
+-- 작업한 테이블의 RLS + GRANT 상태 확인
 SELECT t.tablename, t.rowsecurity, p.policyname, p.cmd, p.roles, p.qual
 FROM pg_tables t
 LEFT JOIN pg_policies p ON p.tablename = t.tablename AND p.schemaname = t.schemaname
 WHERE t.schemaname = 'public' AND t.tablename = '{{테이블명}}'
 ORDER BY p.policyname;
+
+-- GRANT 확인
+SELECT grantee, privilege_type
+FROM information_schema.role_table_grants
+WHERE table_schema = 'public' AND table_name = '{{테이블명}}';
 ```
 
 ### 잘못된 패턴 → Supabase Advisor ERROR 발생
@@ -58,9 +91,10 @@ ORDER BY p.policyname;
 ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
 -- (정책 추가 안 함)
 
--- ✅ 올바른 패턴: 용도에 맞는 정책 바로 추가
+-- ✅ 올바른 패턴: 용도에 맞는 정책 + GRANT 바로 추가
 ALTER TABLE public.new_table ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public read new_table" ON public.new_table FOR SELECT USING (true);
+GRANT SELECT ON public.new_table TO anon, authenticated;
 ```
 
 ### 정기 점검
@@ -287,6 +321,58 @@ cd ~/stockplatform/frontend && npx tsc --noEmit 2>&1 | grep -E "error TS"
 2. 패키지에 타입 포함 여부 확인: `ls node_modules/패키지명/index.d.ts`
 3. 타입 없으면 `@types/패키지명` 시도 → 없으면 `types/패키지명.d.ts` stub 작성
 4. `npx tsc --noEmit` 통과 확인 후 커밋
+
+---
+
+## Playwright E2E 테스트 규칙 (필수)
+
+### 환경변수 — Supabase Key 에러 반복 방지
+
+**`npx playwright test` 실행 전에 반드시 `.env.local`을 로드해야 한다.**
+
+Playwright webServer가 Next.js를 띄울 때 `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`가 없으면 아래 에러가 발생한다:
+
+```
+⨯ Error: Your project's URL and Key are required to create a Supabase client!
+   at proxy.ts:37  →  createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, ...)
+```
+
+**`.env.local`은 `playwright.config.ts`에서 자동 로드된다 — 별도 셸 명령 불필요.**
+
+`playwright.config.ts` 상단에 `dotenv.config({ path: '../.env.local' })` 가 설정되어 있으므로
+CMD / PowerShell / bash 어디서 실행해도 환경변수가 자동으로 주입된다.
+
+```bash
+# CMD / PowerShell / bash 모두 동일하게 사용
+cd frontend
+npx playwright test e2e/tests/auth.spec.ts --project=public   # auth 9항목
+npx playwright test e2e/tests/mobile.spec.ts --project=mobile-ios  # [8] back-swipe
+npx playwright test   # 전체
+```
+
+`.env.local` 위치: 프로젝트 루트 `~/stockplatform/.env.local` (frontend 상위 디렉터리)
+
+### ESM / `__dirname` 에러 방지
+
+`package.json`에 `"type": "module"`이 설정되어 있으므로 `.ts` 설정 파일에서 `__dirname`을 직접 쓰면 에러 발생.
+모든 `__dirname` 사용처는 아래 패턴으로 작성한다:
+
+```typescript
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+```
+
+적용된 파일: `playwright.config.ts`, `e2e/global.setup.ts`
+
+### 테스트 파일 구조
+
+| 파일 | Project | 설명 |
+|---|---|---|
+| `e2e/tests/auth.spec.ts` | `public` (no auth) | 로그인/로그아웃/만료세션/멀티탭/소셜로그인 등 9항목 |
+| `e2e/tests/mobile.spec.ts` | `mobile-ios`, `mobile-android` | 뷰포트·터치·back-swipe([8]) |
+| `e2e/global.setup.ts` | `setup` | 최초 1회 로그인 → `e2e/.auth/user.json` 저장 |
 
 ---
 

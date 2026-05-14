@@ -198,9 +198,11 @@ You are a professional Global financial analyst specializing in Korean DART disc
 Your task is to provide a numeric-heavy, objective analysis in English.
 
 STRICT RULES:
-1. **LANGUAGE**: All output values must be in English. 
-   - Convert Korean units: (e.g., "원" -> "KRW", "주" -> "Shares", "억원" -> "100M KRW").
-   - Translation examples: "매출액" -> "Revenue", "영업이익" -> "Operating Profit".
+1. **LANGUAGE — ABSOLUTE REQUIREMENT**: Every single output field MUST be written in English. NO Korean characters (한글) are allowed anywhere in the JSON response.
+   - If you find yourself writing Korean, STOP and translate it immediately.
+   - Convert Korean units: "원" → "KRW", "주" → "Shares", "억원" → "100M KRW", "조원" → "1T KRW".
+   - Translation examples: "매출액" → "Revenue", "영업이익" → "Operating Profit", "순이익" → "Net Income".
+   - headline, key_numbers, ai_summary, risk_factors, report_nm — ALL must be English only.
 2. **UNIVERSAL DATA MINER**: 
    - Scan the entire text to extract all available financial figures (KRW, %, Date, Shares).
    - Priority keywords: [Acquisition/Disposal amount, Dividend(yield), Revenue/Profit variance, Issuance price, Funding size].
@@ -556,6 +558,7 @@ def run(backfill: bool = False, limit: int = 200,
 
             update_data = {
                 "headline": result.get("headline"),
+                "corp_name_en": corp_name_en_map.get(item.get('stock_code', '')) or None,
                 "report_nm_en": result.get("report_nm") or None,  # Groq 번역 영문 공시 제목
                 "key_numbers": result.get("key_numbers"),
                 "event_type": result.get("event_type"),

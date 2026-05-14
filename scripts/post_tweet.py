@@ -1,33 +1,33 @@
 """
 scripts/post_tweet.py
 ======================
-DART 공시 AI 분석 완료 항목 중 고품질 시그널을 X(Twitter)에 자동 게시.
+Posts high-quality DART disclosure signals (AI-analyzed) to X (Twitter).
 
-필터링 기준
------------
+Filter criteria
+---------------
   - analysis_status = 'completed', is_visible = true
-  - tweeted_at IS NULL          (아직 트윗 안 된 항목)
-  - event_type NOT IN ('OTHER') (잡음 제외)
-  - ABS(sentiment_score) >= min_score (기본 0.30)
-  - rcept_dt >= today - lookback_days (기본 2일)
-  → final_score DESC 정렬 후 최대 limit 건 게시
+  - tweeted_at IS NULL          (not yet posted)
+  - event_type NOT IN ('OTHER') (noise excluded)
+  - ABS(sentiment_score) >= min_score (default 0.30)
+  - rcept_dt >= today - lookback_days (default 2 days)
+  → sorted by final_score DESC, up to --limit items
 
-사용법
-------
-  python scripts/post_tweet.py               # 실제 게시 (최대 5건)
-  python scripts/post_tweet.py --dry-run     # 출력만, 실제 게시 안 함
-  python scripts/post_tweet.py --limit 3     # 최대 3건 게시
-  python scripts/post_tweet.py --min-score 0.5  # 강한 시그널만
+Usage
+-----
+  python scripts/post_tweet.py               # post (up to 5 items)
+  python scripts/post_tweet.py --dry-run     # preview only, no posting
+  python scripts/post_tweet.py --limit 3     # post up to 3 items
+  python scripts/post_tweet.py --min-score 0.5  # strong signals only
 
-필요 환경변수 (.env.local)
---------------------------
+Required env vars (.env.local)
+------------------------------
   TWITTER_API_KEY=...
   TWITTER_API_SECRET=...
   TWITTER_ACCESS_TOKEN=...
   TWITTER_ACCESS_TOKEN_SECRET=...
 
-트윗 형식 (≤280자)
--------------------
+Tweet format (≤280 chars)
+-------------------------
   🇰🇷 Kakao Corp [035720]
   📊 EARNINGS — Revenue miss Q1
 
@@ -40,12 +40,13 @@ DART 공시 AI 분석 완료 항목 중 고품질 시그널을 X(Twitter)에 자
 
 import os
 import sys
+import re
 import argparse
 import logging
 from datetime import date, timedelta
 from pathlib import Path
 
-# ── 경로 / 환경 변수 ───────────────────────────────────────────────────────────
+# ── Path / env setup ──────────────────────────────────────────────────────────
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -67,12 +68,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger("tweet_bot")
 
-# ── Supabase 클라이언트 ────────────────────────────────────────────────────────
+# ── Supabase client ───────────────────────────────────────────────────────────
 _sb_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 _sb_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(_sb_url, _sb_key)
 
-# ── 이벤트 유형 이모지 ─────────────────────────────────────────────────────────
+# ── Event type → emoji ────────────────────────────────────────────────────────
 EVENT_EMOJI: dict[str, str] = {
     "EARNINGS":         "📊",
     "CONTRACT":         "🤝",
@@ -87,31 +88,97 @@ EVENT_EMOJI: dict[str, str] = {
     "OTHER":            "📄",
 }
 
-# ── 트윗에 포함할 이벤트 유형 (OTHER 제외) ─────────────────────────────────────
+# Tweetable event types (OTHER excluded)
 TWEETABLE_TYPES = frozenset(EVENT_EMOJI.keys()) - {"OTHER"}
 
-BASE_URL  = "https://k-marketinsight.com/signal"
-HASHTAGS  = "#KoreanStocks #DART"
-_T_URL_W  = 23   # Twitter t.co 단축 URL 고정 가중치
-_MAX_TWEET = 275  # 280자 한도보다 5자 여유
+BASE_URL   = "https://k-marketinsight.com/signal"
+HASHTAGS   = "#KoreanStocks #DART"
+_T_URL_W   = 23   # Twitter t.co fixed URL weight
+_MAX_TWEET = 275  # 5-char buffer below 280
+
+# Korean character detector — signals that need re-analysis
+_KR = re.compile(r"[가-힣]")
+
+# ── KRW number compaction ─────────────────────────────────────────────────────
+
+_KRW_COMMA_RE = re.compile(r'(\d{1,3}(?:,\d{3})+)\s*KRW')
+_KRW_MIL_RE   = re.compile(r'([\d,]+(?:\.\d+)?)\s*million\s*KRW', re.IGNORECASE)
 
 
-# ── Twitter 가중 문자 수 계산 ─────────────────────────────────────────────────
+def _fmt_krw(n: float) -> str:
+    if n >= 1e12:  return f"{n/1e12:.3g}T KRW"
+    if n >= 1e9:   return f"{n/1e9:.3g}B KRW"
+    if n >= 1e6:   return f"{n/1e6:.3g}M KRW"
+    return f"{n:,.0f} KRW"
+
+
+def compact_krw(text: str) -> str:
+    """Compact verbose KRW figures: 2,971,838,400 KRW → 2.97B KRW."""
+    text = _KRW_COMMA_RE.sub(lambda m: _fmt_krw(float(m.group(1).replace(",", ""))), text)
+    text = _KRW_MIL_RE.sub(lambda m: _fmt_krw(float(m.group(1).replace(",", "")) * 1_000_000), text)
+    return text
+
+
+# ── Headline post-processing ──────────────────────────────────────────────────
+
+# Matches generic headlines like "UniTestInc Contract", "Contract Update"
+_GENERIC_HL_RE = re.compile(
+    r'^.{0,25}\s+(contract|update|report|announcement|notice|decision)\.?$',
+    re.IGNORECASE,
+)
+
+
+def _strip_corp_prefix(headline: str, corp: str) -> str:
+    """Remove leading company name from headline when it's already shown on line 1."""
+    if not corp:
+        return headline
+    for prefix in [corp, " ".join(corp.split()[:2])]:
+        if not prefix or len(prefix) < 3:
+            continue
+        if headline.lower().startswith(prefix.lower()):
+            rest = headline[len(prefix):].lstrip(" .,—-–")
+            # Only strip if remainder is meaningful (≥ 2 words)
+            if rest and len(rest.split()) >= 2:
+                return rest
+    return headline
+
+
+def _strengthen_headline(headline: str, event: str, kn_list: list) -> str:
+    """Replace generic headlines with value-driven ones using key_numbers."""
+    if not _GENERIC_HL_RE.match(headline.strip()):
+        return headline
+    for kn in kn_list[:2]:
+        kn_c = compact_krw(re.sub(r'^[•\-]\s*', '', str(kn)))
+        m = re.search(r'[\d.]+[BMTK]?\s*(?:KRW|%|Shares)', kn_c)
+        if m:
+            val = m.group(0)
+            return {
+                "CONTRACT": f"Wins {val} Contract",
+                "DILUTION": f"Capital Raise {val}",
+                "BUYBACK":  f"Buyback {val}",
+                "DISPOSAL": f"Disposal {val}",
+                "DIVIDEND": f"Dividend {val}",
+                "CAPEX":    f"Investment {val}",
+            }.get(event, headline)
+    return headline
+
+
+# ── Twitter weighted character count ─────────────────────────────────────────
 
 def twitter_weight(text: str) -> int:
     """
-    Twitter 가중 문자 수 근사치.
-    - CJK / 전각 문자: 2
-    - 이모지(BMP 밖): 2
-    - URL: 실제 길이 그대로 (호출 측에서 별도 처리)
-    - 나머지: 1
+    Approximate Twitter weighted character count.
+    - CJK / full-width: 2
+    - Emoji (above BMP): 2
+    - URL: handled separately by caller
+    - Everything else: 1
     """
     import unicodedata
     count = 0
     for ch in text:
         if unicodedata.east_asian_width(ch) in ("W", "F"):
             count += 2
-        elif ord(ch) > 0xFFFF:   # Supplementary plane (대부분 이모지)
+        elif ord(ch) > 0xFFFF:   # Supplementary plane (mostly emoji)
             count += 2
         else:
             count += 1
@@ -120,48 +187,54 @@ def twitter_weight(text: str) -> int:
 
 def tweet_len(text: str, url: str) -> int:
     """
-    URL 포함 트윗 가중 길이.
-    Twitter는 URL을 t.co 23자로 대체하므로 URL 부분 차감 후 23 추가.
+    Weighted tweet length including URL.
+    Twitter replaces any URL with a t.co 23-char link,
+    so subtract actual URL weight and add 23.
     """
     url_actual = twitter_weight(url)
     return twitter_weight(text) - url_actual + _T_URL_W
 
 
-# ── 트윗 텍스트 생성 ──────────────────────────────────────────────────────────
+# ── Tweet text builder ────────────────────────────────────────────────────────
 
 def _trunc(text: str, max_len: int) -> str:
-    """Python len() 기준 max_len 초과 시 끝에 … 붙여 자름."""
+    """Truncate to max_len chars, appending … if cut."""
     return text if len(text) <= max_len else text[:max_len - 1] + "…"
 
 
 def build_tweet(row: dict) -> tuple[str, int]:
     """
-    disclosure_insights 행 하나를 받아 (tweet_text, twitter_weight) 반환.
-    Twitter 가중 문자 기준 _MAX_TWEET(275) 이내로 자동 조정.
+    Build (tweet_text, twitter_weight) from a disclosure_insights row.
+    Auto-adjusts to fit within _MAX_TWEET (275) weighted chars.
     """
     corp = (row.get("corp_name_en") or row.get("corp_name") or "Unknown").strip()
     code = (row.get("stock_code") or "").strip()
     event = (row.get("event_type") or "OTHER").strip()
     emoji = EVENT_EMOJI.get(event, "📄")
-    headline = _trunc((row.get("headline") or "").strip(), 55)
     key_numbers: list = row.get("key_numbers") or []
     sig_id = row["id"]
 
+    # Headline: strip redundant corp prefix → strengthen if generic → truncate
+    raw_hl = (row.get("headline") or "").strip()
+    raw_hl = _strip_corp_prefix(raw_hl, corp)
+    raw_hl = _strengthen_headline(raw_hl, event, key_numbers)
+    headline = _trunc(raw_hl, 55)
+
     url = f"{BASE_URL}/{sig_id}"
 
-    # Line 1: 회사명 + 코드 (🇰🇷 플래그 제거 — 일부 클라이언트에서 깨짐)
+    # Line 1: company name + ticker code
     corp_trimmed = _trunc(corp, 30)
     corp_line = corp_trimmed
     if code:
         corp_line += f" [{code}]"
 
-    # Line 2: 이벤트 + 헤드라인
-    event_line = f"{emoji} {event} — {headline}"
+    # Line 2: emoji + headline (emoji conveys event type; no ALLCAPS label)
+    event_line = f"{emoji} {headline}"
 
-    # Key numbers (최대 2개, 각 52자)
+    # Key numbers (up to 2, KRW compacted + capped at 52 chars)
     kn_lines: list[str] = []
     for kn in key_numbers[:2]:
-        kn_str = str(kn).strip()
+        kn_str = compact_krw(str(kn).strip())
         if not kn_str.startswith("•"):
             kn_str = "• " + kn_str
         kn_lines.append(_trunc(kn_str, 52))
@@ -176,27 +249,26 @@ def build_tweet(row: dict) -> tuple[str, int]:
         parts.append(HASHTAGS)
         return "\n".join(parts)
 
-    # 최대 2개로 시도 → 초과 시 1개 → 초과 시 0개
+    # Try 2 key numbers → 1 → 0 until it fits
     for n in (2, 1, 0):
         text = _assemble(kn_lines[:n])
         w = tweet_len(text, url)
         if w <= _MAX_TWEET:
             return text, w
 
-    # 최후 수단: 헤드라인 단축
+    # Last resort: shorten headline
     headline = _trunc(headline, 35)
     event_line = f"{emoji} {event} — {headline}"
     text = _assemble([])
     return text, tweet_len(text, url)
 
 
-# ── 대기 중인 공시 조회 ────────────────────────────────────────────────────────
+# ── Fetch pending queue ───────────────────────────────────────────────────────
 
 def fetch_queue(min_score: float, lookback_days: int, limit: int) -> list[dict]:
     """
-    트윗 대기 중인 고품질 공시 조회.
-    Supabase Python SDK는 partial index 필터를 그대로 전달하므로
-    abs() 조건만 클라이언트 사이드에서 처리.
+    Fetch high-quality disclosures pending a tweet.
+    abs(sentiment_score) filter and Korean text guard applied client-side.
     """
     cutoff_dt = (date.today() - timedelta(days=lookback_days)).strftime("%Y%m%d")
 
@@ -213,34 +285,56 @@ def fetch_queue(min_score: float, lookback_days: int, limit: int) -> list[dict]:
         .gte("rcept_dt", cutoff_dt)
         .in_("event_type", list(TWEETABLE_TYPES))
         .order("final_score", desc=True)
-        .limit(limit * 5)   # min_score 클라이언트 필터 여유분
+        .limit(limit * 5)   # extra buffer for client-side filtering
         .execute()
     )
 
     rows = res.data or []
 
-    # 클라이언트 사이드 abs(sentiment_score) 필터
-    filtered = [
-        r for r in rows
-        if r.get("sentiment_score") is not None
-        and abs(float(r["sentiment_score"])) >= min_score
-    ]
+    filtered = []
+    for r in rows:
+        if r.get("sentiment_score") is None:
+            continue
+        if abs(float(r["sentiment_score"])) < min_score:
+            continue
+
+        # Skip rows with no English company name
+        corp_en = (r.get("corp_name_en") or "").strip()
+        if not corp_en:
+            logger.warning(
+                f"  [SKIP] No English company name — corp_name={r.get('corp_name')}  "
+                f"id={r['id'][:8]}..."
+            )
+            continue
+
+        # Skip rows whose corp name, headline, or key_numbers contain Korean characters
+        # (indicates AI output language failure — needs re-analysis)
+        headline_text = r.get("headline") or ""
+        kn_text = " ".join(r.get("key_numbers") or [])
+        if _KR.search(corp_en) or _KR.search(headline_text) or _KR.search(kn_text):
+            logger.warning(
+                f"  [SKIP] Korean text in signal — corp={corp_en}  "
+                f"id={r['id'][:8]}... — re-run auto_analyst to regenerate in English"
+            )
+            continue
+
+        filtered.append(r)
 
     return filtered[:limit]
 
 
-# ── 트윗 게시 ─────────────────────────────────────────────────────────────────
+# ── Post to Twitter ───────────────────────────────────────────────────────────
 
 def post_tweet(text: str, api_key: str, api_secret: str,
                access_token: str, access_secret: str) -> str | None:
     """
-    Twitter API v2 (OAuth 1.0a User Context) 로 트윗 게시.
-    성공 시 tweet_id 반환, 실패 시 None.
+    Post a tweet via Twitter API v2 (OAuth 1.0a User Context).
+    Returns tweet_id on success, None on failure.
     """
     try:
         import tweepy  # noqa: PLC0415
     except ImportError:
-        logger.error("tweepy 미설치 — `pip install tweepy` 실행 후 재시도")
+        logger.error("tweepy not installed — run `pip install tweepy` and retry")
         return None
 
     client = tweepy.Client(
@@ -254,38 +348,38 @@ def post_tweet(text: str, api_key: str, api_secret: str,
         tweet_id = resp.data["id"] if resp.data else None
         return tweet_id
     except tweepy.TweepyException as exc:
-        logger.error(f"트윗 게시 실패: {exc}")
+        logger.error(f"Tweet post failed: {exc}")
         return None
 
 
 def mark_tweeted(row_id: str) -> None:
-    """DB에 tweeted_at 타임스탬프 기록."""
+    """Record tweeted_at timestamp in DB."""
     from datetime import datetime, timezone
     supabase.table("disclosure_insights").update({
         "tweeted_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", row_id).execute()
 
 
-# ── 메인 ──────────────────────────────────────────────────────────────────────
+# ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="DART 공시 자동 트윗 게시",
+        description="Post DART disclosure signals to X (Twitter)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--dry-run",     action="store_true",
-                        help="트윗 텍스트 출력만, 실제 게시 안 함")
-    parser.add_argument("--output",      type=str,   default="tweets_draft.txt",
-                        help="dry-run 시 트윗 저장 파일 (기본 tweets_draft.txt, UTF-8)")
-    parser.add_argument("--limit",       type=int,   default=5,
-                        help="최대 게시 건수 (기본 5)")
-    parser.add_argument("--min-score",   type=float, default=0.30,
-                        help="최소 abs(sentiment_score) (기본 0.30)")
-    parser.add_argument("--lookback-days", type=int, default=2,
-                        help="최근 N일 이내 공시만 대상 (기본 2)")
+    parser.add_argument("--dry-run",       action="store_true",
+                        help="Preview tweet text only, do not post")
+    parser.add_argument("--output",        type=str,   default="tweets_draft.txt",
+                        help="Output file for dry-run (default: tweets_draft.txt, UTF-8)")
+    parser.add_argument("--limit",         type=int,   default=5,
+                        help="Max items to post (default: 5)")
+    parser.add_argument("--min-score",     type=float, default=0.30,
+                        help="Min abs(sentiment_score) (default: 0.30)")
+    parser.add_argument("--lookback-days", type=int,   default=2,
+                        help="Include disclosures from last N days (default: 2)")
     args = parser.parse_args()
 
-    # ── Twitter 자격증명 로드 ─────────────────────────────────────────────────
+    # Load Twitter credentials
     api_key      = os.environ.get("TWITTER_API_KEY")
     api_secret   = os.environ.get("TWITTER_API_SECRET")
     access_token = os.environ.get("TWITTER_ACCESS_TOKEN")
@@ -294,8 +388,8 @@ def main() -> None:
     creds_ok = all([api_key, api_secret, access_token, access_secret])
     if not creds_ok and not args.dry_run:
         logger.warning(
-            "Twitter 자격증명 미설정 → --dry-run 모드로 전환.\n"
-            "  .env.local에 다음 변수를 추가하세요:\n"
+            "Twitter credentials not set — switching to --dry-run mode.\n"
+            "  Add the following to .env.local:\n"
             "    TWITTER_API_KEY=...\n"
             "    TWITTER_API_SECRET=...\n"
             "    TWITTER_ACCESS_TOKEN=...\n"
@@ -303,47 +397,46 @@ def main() -> None:
         )
         args.dry_run = True
 
-    # ── 대기 항목 조회 ────────────────────────────────────────────────────────
     logger.info(
-        f"트윗 대기 항목 조회 | "
+        f"Fetching tweet queue | "
         f"min_score={args.min_score}  lookback={args.lookback_days}d  limit={args.limit}"
     )
     queue = fetch_queue(args.min_score, args.lookback_days, args.limit)
 
     if not queue:
-        logger.info("✅ 트윗 대기 항목 없음 — 완료")
+        logger.info("✅ No pending signals — done")
         return
 
-    logger.info(f"  → {len(queue)}건 발견")
+    logger.info(f"  → {len(queue)} item(s) found")
 
-    # ── dry-run: 파일로 저장 (Windows CMD에서도 열 수 있는 UTF-8) ────────────
+    # Dry-run: save to file (UTF-8 for Windows Notepad)
     if args.dry_run:
         out_path = Path(args.output)
         lines: list[str] = []
+        total = len(queue)
         for i, row in enumerate(queue, 1):
             tweet_text, tw_len = build_tweet(row)
-            corp_label = (row.get("corp_name_en") or row.get("corp_name") or "?")[:30]
             score = row.get("sentiment_score") or 0
-            lines.append(f"{'='*55}")
-            lines.append(f"[{i}] {corp_label}  |  {row.get('event_type')}  |  score={score:+.2f}  |  {tw_len}/280자")
-            lines.append(f"ID: {row['id']}")
-            lines.append(f"{'─'*55}")
+            event = row.get("event_type") or ""
+            sid   = row["id"][:8]
+            lines.append(f"── {i}/{total} {'─'*40}")
             lines.append(tweet_text)
+            lines.append(f"  ↑ {tw_len}/280 · score={score:+.2f} · {event} · id:{sid}")
             lines.append("")
         with open(out_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
-        logger.info(f"[DRY-RUN] {len(queue)}건 저장 → {out_path.resolve()}")
-        logger.info("  Notepad에서 열어 복사: notepad tweets_draft.txt")
+        logger.info(f"[DRY-RUN] {len(queue)} item(s) saved → {out_path.resolve()}")
+        logger.info("  Open with: notepad tweets_draft.txt")
         return
 
-    # ── 순서대로 게시 ────────────────────────────────────────────────────────
+    # Post in order
     posted = 0
     for row in queue:
         tweet_text, tw_len = build_tweet(row)
         corp_label = (row.get("corp_name_en") or row.get("corp_name") or "?")[:30]
         score = row.get("sentiment_score") or 0
 
-        logger.info(f"  {corp_label}  |  {row.get('event_type')}  |  {tw_len}/280자")
+        logger.info(f"  {corp_label}  |  {row.get('event_type')}  |  {tw_len}/280")
 
         tweet_id = post_tweet(
             tweet_text, api_key, api_secret,    # type: ignore[arg-type]
@@ -351,12 +444,12 @@ def main() -> None:
         )
         if tweet_id:
             mark_tweeted(row["id"])
-            logger.info(f"  게시 완료 — tweet_id={tweet_id}")
+            logger.info(f"  Posted — tweet_id={tweet_id}")
             posted += 1
         else:
-            logger.warning("  게시 실패 — 다음 항목으로")
+            logger.warning("  Post failed — skipping to next")
 
-    logger.info(f"\n{posted}/{len(queue)}건 게시 완료")
+    logger.info(f"\n{posted}/{len(queue)} item(s) posted")
 
 
 if __name__ == "__main__":
