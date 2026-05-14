@@ -454,6 +454,89 @@ def mark_tweeted(row_id: str) -> None:
     }).eq("id", row_id).execute()
 
 
+# ── HTML draft generator ──────────────────────────────────────────────────────
+
+def build_html_drafts(queue: list[dict]) -> str:
+    """
+    Generate a mobile-friendly HTML file with one-tap copy buttons.
+    Open tweets_draft.html in Chrome/Safari and tap 📋 Copy per tweet.
+    """
+    today = date.today().strftime("%Y-%m-%d")
+    total = len(queue)
+
+    cards: list[str] = []
+    for i, row in enumerate(queue, 1):
+        tweet_text, tw_len = build_tweet(row)
+        score = row.get("sentiment_score") or 0
+        event = row.get("event_type") or ""
+        sid   = row["id"][:8]
+
+        # Escape for HTML content and JS string
+        tweet_esc = (tweet_text
+                     .replace("&", "&amp;")
+                     .replace("<", "&lt;")
+                     .replace(">", "&gt;"))
+        # For JS template literal — escape backticks
+        tweet_js  = tweet_text.replace("\\", "\\\\").replace("`", "\\`")
+
+        cards.append(f"""\
+  <div class="card">
+    <div class="meta">{i}/{total} &nbsp;·&nbsp; {event} &nbsp;·&nbsp; {tw_len}/280 &nbsp;·&nbsp; score={score:+.2f}</div>
+    <pre class="body" id="t{i}">{tweet_esc}</pre>
+    <button class="btn" onclick="copy({i}, this)">📋 Copy</button>
+  </div>""")
+
+    cards_html = "\n".join(cards)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+  <title>Tweet Drafts · {today}</title>
+  <style>
+    *{{box-sizing:border-box;margin:0;padding:0}}
+    body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+          background:#f0f2f5;padding:16px;color:#0f1419}}
+    h1{{font-size:15px;color:#777;margin-bottom:14px;font-weight:500}}
+    .card{{background:#fff;border-radius:16px;padding:16px;
+           margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)}}
+    .meta{{font-size:11px;color:#bbb;margin-bottom:10px}}
+    .body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+           font-size:15px;line-height:1.65;white-space:pre-wrap;
+           user-select:text;-webkit-user-select:text}}
+    .btn{{display:block;width:100%;margin-top:14px;padding:13px;
+          background:#1d9bf0;color:#fff;border:none;border-radius:10px;
+          font-size:15px;font-weight:600;cursor:pointer;transition:background .15s}}
+    .btn:active{{background:#1a8cd8}}
+    .btn.ok{{background:#00ba7c}}
+  </style>
+</head>
+<body>
+  <h1>📋 Tweet Drafts &nbsp;·&nbsp; {today}</h1>
+{cards_html}
+  <script>
+    function copy(n, btn) {{
+      const text = document.getElementById('t' + n).textContent.trimEnd();
+      navigator.clipboard.writeText(text).then(() => {{
+        btn.textContent = '✅ Copied!';
+        btn.classList.add('ok');
+        setTimeout(() => {{ btn.textContent = '📋 Copy'; btn.classList.remove('ok'); }}, 2000);
+      }}).catch(() => {{
+        // fallback: select text for manual copy
+        const el = document.getElementById('t' + n);
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }});
+    }}
+  </script>
+</body>
+</html>"""
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -503,25 +586,34 @@ def main() -> None:
 
     logger.info(f"  → {len(queue)} item(s) found")
 
-    # Dry-run: save to file (UTF-8 for Windows Notepad)
+    # Dry-run: save txt + html drafts
     if args.dry_run:
-        out_path = Path(args.output)
-        lines: list[str] = []
+        out_path  = Path(args.output)
+        html_path = out_path.with_suffix(".html")
         total = len(queue)
+
+        # ── Plain-text draft (for email / quick view) ──────────────────────
+        lines: list[str] = []
         for i, row in enumerate(queue, 1):
             tweet_text, tw_len = build_tweet(row)
             score = row.get("sentiment_score") or 0
             event = row.get("event_type") or ""
             sid   = row["id"][:8]
-            lines.append(f"── {i}/{total} {'─'*40}")
+            lines.append(f"{i}/{total}")          # clean counter, no dashes
             lines.append("")
             lines.append(tweet_text)
             lines.append(f"  {tw_len}/280 · score={score:+.2f} · {event} · id:{sid}")
             lines.append("")
         with open(out_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
-        logger.info(f"[DRY-RUN] {len(queue)} item(s) saved → {out_path.resolve()}")
-        logger.info("  Open with: notepad tweets_draft.txt")
+
+        # ── HTML draft (mobile copy buttons) ───────────────────────────────
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(build_html_drafts(queue))
+
+        logger.info(f"[DRY-RUN] {total} item(s) saved")
+        logger.info(f"  txt  → {out_path.resolve()}")
+        logger.info(f"  html → {html_path.resolve()}  (open in browser for copy buttons)")
         return
 
     # Post in order
