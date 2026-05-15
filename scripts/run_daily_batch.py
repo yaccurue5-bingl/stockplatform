@@ -214,6 +214,76 @@ def run_prod(args):
     return _execute_steps(steps)
 
 
+def run_collect(args):
+    """
+    수집 전용 모드 (--collect):
+    DART 수집 + 시세 + 외국인지표만 실행.
+    cancel-in-progress: true 환경에서 취소돼도 무방 — 다음 실행이 이어받음.
+    """
+    logger.info("\n" + "="*55)
+    logger.info("  📥  COLLECT 배치 시작 (수집 전용)")
+    logger.info("="*55)
+
+    steps = [
+        ("DART 수집",
+         "dart_crawler.py",
+         [],
+         False),
+
+        ("영문사명 보강",
+         "fetch_corp_name_en.py",
+         ["--limit", "20"],
+         False),
+
+        ("시세/거래량 수집",
+         "fetch_market_data.py",
+         [],
+         False),
+
+        ("외국인지표 수집",
+         "fetch_ecos_foreign_flow.py",
+         [],
+         False),
+    ]
+    return _execute_steps(steps)
+
+
+def run_analyze(args):
+    """
+    분석 전용 모드 (--analyze):
+    pending 공시 AI 분석 + 스코어 + Telegram + Twitter.
+    cancel-in-progress: false — 반드시 완료까지 실행.
+    """
+    dry_flag = ["--dry-run"] if args.dry_run else []
+
+    logger.info("\n" + "="*55)
+    logger.info("  🤖  ANALYZE 배치 시작 (분석 전용)")
+    logger.info("="*55)
+
+    steps = [
+        ("AI 분석",
+         "auto_analyst.py",
+         ["--limit", "100", "--single-pass"],
+         False),
+
+        ("BaseScore 계산",
+         "compute_base_score.py",
+         dry_flag,
+         False),
+
+        ("Telegram 게시",
+         "post_telegram.py",
+         ["--limit", "5"] + (["--dry-run"] if args.dry_run else []),
+         False),
+
+        ("Twitter 다이제스트 이메일",
+         "send_twitter_digest.py",
+         ["--limit", "10"] + (["--dry-run"] if args.dry_run else []),
+         False),
+    ]
+    return _execute_steps(steps)
+
+
 def run_eod(args):
     """
     EOD (End-of-Day) 배치 모드:
@@ -397,7 +467,11 @@ def main():
     mode.add_argument("--backtest", action="store_true",
                       help="백테스트 모드: 기존 DB 데이터 AI 분석 + 스코어 계산")
     mode.add_argument("--prod",     action="store_true",
-                      help="정식 일배치 모드: 크롤링 → 분석 → 스코어 (장 중)")
+                      help="정식 일배치 모드: 크롤링 → 분석 → 스코어 (장 중) [레거시]")
+    mode.add_argument("--collect",  action="store_true",
+                      help="수집 전용: DART + 시세 + 외국인지표 (cancel-in-progress OK)")
+    mode.add_argument("--analyze",  action="store_true",
+                      help="분석 전용: AI 분석 + 스코어 + Telegram + Twitter (취소 금지)")
     mode.add_argument("--eod",      action="store_true",
                       help="EOD 배치 모드: 장 마감 후 시세 수집 → AI 백필 → 스코어 갱신 → 백테스트")
 
@@ -416,6 +490,10 @@ def main():
         ok = run_backtest(args)
     elif args.eod:
         ok = run_eod(args)
+    elif args.collect:
+        ok = run_collect(args)
+    elif args.analyze:
+        ok = run_analyze(args)
     else:
         ok = run_prod(args)
 
