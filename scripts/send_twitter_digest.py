@@ -1,24 +1,24 @@
 """
 scripts/send_twitter_digest.py
 ==============================
-트윗 대기 중인 고품질 공시를 매일 이메일(Resend)로 전송.
+Daily email digest (via Resend) of high-quality DART signals pending a tweet.
 
-개선사항:
-- 기본 limit 5건 (스팸 방지)
-- UUID 노출 제거 (숨김 처리)
-- HTML에 "Copy" 버튼 추가 (클립보드 복사)
-- 각 카드마다 "Mark as Tweeted" 1-click 커맨드 제공
-- X 포맷과 이메일 정보 분리
+Features:
+- Default limit 5 items (anti-spam)
+- UUID hidden from visible card content
+- HTML "Copy Tweet" button (clipboard)
+- Per-card "Mark as Tweeted" 1-click command
+- X post format separated from email metadata
 
-사용법
-------
-  python scripts/send_twitter_digest.py               # 실제 발송 (기본 5건)
-  python scripts/send_twitter_digest.py --dry-run     # 출력만, 발송 안 함
+Usage
+-----
+  python scripts/send_twitter_digest.py               # send (default 5 items)
+  python scripts/send_twitter_digest.py --dry-run     # preview only, no send
   python scripts/send_twitter_digest.py --limit 3
   python scripts/send_twitter_digest.py --min-score 0.5
 
-필요 환경변수 (.env.local)
---------------------------
+Required env vars (.env.local)
+------------------------------
   RESEND_API_KEY=re_...
   NEXT_PUBLIC_SUPABASE_URL=...
   SUPABASE_SERVICE_ROLE_KEY=...
@@ -32,7 +32,7 @@ import requests
 from datetime import date, timedelta
 from pathlib import Path
 
-# ── 경로 / 환경 변수 ───────────────────────────────────────────────────────────
+# ── Path / env setup ─────────────────────────────────────────────────────────
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
@@ -45,7 +45,7 @@ except Exception:
     local_env = _ROOT / ".env.local"
     load_dotenv(local_env if local_env.exists() else None)
 
-# post_tweet.py에서 공통 로직 재사용
+# Reuse shared logic from post_tweet.py
 from post_tweet import build_tweet, fetch_queue  # noqa: E402
 
 from supabase import create_client, Client
@@ -66,10 +66,10 @@ FROM_EMAIL  = "KMI Signals <noreply@k-marketinsight.com>"
 BASE_URL    = "https://k-marketinsight.com/signal"
 
 
-# ── tweeted_at 마킹 커맨드 생성 ──────────────────────────────────────────────
+# ── Generate mark-as-tweeted command ─────────────────────────────────────────
 
 def mark_tweeted_cmd(sig_id: str) -> str:
-    """1-click 마킹용 Python 커맨드 (ID 포함)."""
+    """Generate a 1-click Python command to mark a signal as tweeted."""
     return (
         f"python -c \""
         f"from supabase import create_client; from dotenv import load_dotenv; import os; "
@@ -80,20 +80,20 @@ def mark_tweeted_cmd(sig_id: str) -> str:
     )
 
 
-# ── 이메일 본문 생성 ──────────────────────────────────────────────────────────
+# ── Build email body ──────────────────────────────────────────────────────────
 
 def build_email_body(queue: list[dict]) -> tuple[str, str]:
     """
-    (plain_text, html) 반환.
-    plain_text: 복붙용 트윗 블록 목록 (ID 숨김)
-    html: Copy 버튼 + 1-click Mark as Tweeted 포함
+    Returns (plain_text, html).
+    plain_text: copy-paste tweet blocks (no UUID exposed)
+    html: Copy button + 1-click Mark as Tweeted per card
     """
     today = date.today().strftime("%Y-%m-%d")
     total = len(queue)
 
-    # ── Plain text ─────────────────────────────────────────────────────────────
+    # ── Plain text ────────────────────────────────────────────────────────────
     lines = [
-        f"[KMI] X 게시 초안 — {today}  ({total}건)",
+        f"[KMI] X Draft Posts — {today}  ({total} items)",
         "=" * 60,
         "",
     ]
@@ -113,7 +113,7 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
 
     plain = "\n".join(lines)
 
-    # ── HTML ───────────────────────────────────────────────────────────────────
+    # ── HTML ─────────────────────────────────────────────────────────────────
     cards_html = ""
     for i, row in enumerate(queue, 1):
         tweet_text, tw_len = build_tweet(row)
@@ -125,7 +125,7 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
         mark_cmd = mark_tweeted_cmd(sig_id).replace('"', "&quot;").replace("'", "&#39;")
 
         score_color = "#16a34a" if score >= 0.3 else ("#dc2626" if score <= -0.3 else "#ca8a04")
-        # tweet_text를 JS string으로 안전하게 이스케이프
+        # Safely escape tweet_text for use as a JS template literal
         tweet_js = (
             tweet_text
             .replace("\\", "\\\\")
@@ -140,6 +140,9 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
             .replace("\n", "<br>")
         )
 
+        # plain tweet text for textarea (no HTML escaping)
+        tweet_textarea = tweet_text.replace("</", "<\\/")
+
         cards_html += f"""
         <div style="
             background:#ffffff;
@@ -149,7 +152,7 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
             margin-bottom:20px;
             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
         ">
-            <!-- 헤더: 회사 + 이벤트 + 스코어 -->
+            <!-- Header: company + event + score -->
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                 <span style="font-size:15px;font-weight:700;color:#111827;">{corp}</span>
                 <span style="font-size:12px;font-weight:600;color:{score_color};background:#f3f4f6;padding:3px 8px;border-radius:6px;">
@@ -157,7 +160,7 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
                 </span>
             </div>
 
-            <!-- 트윗 텍스트 박스 -->
+            <!-- Tweet text box (formatted display) -->
             <div style="
                 background:#f8fafc;
                 border:1px solid #e2e8f0;
@@ -168,41 +171,48 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
                 color:#111827;
                 white-space:pre-wrap;
                 font-family:'Courier New',Courier,monospace;
-                margin-bottom:12px;
-                position:relative;
-            " id="tweet-{i}">{tweet_display}</div>
-
-            <!-- 하단 액션 바 -->
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                <!-- Copy 버튼 -->
-                <button onclick="(function(){{
-                    var t=`{tweet_js}`;
-                    navigator.clipboard.writeText(t).then(function(){{
-                        var btn=document.getElementById('copy-btn-{i}');
-                        btn.textContent='✅ Copied!';
-                        btn.style.background='#16a34a';
-                        setTimeout(function(){{btn.textContent='📋 Copy Tweet';btn.style.background='#1d4ed8';}},2000);
-                    }}).catch(function(){{alert('Copy failed — select text manually');}});
-                }})()" id="copy-btn-{i}" style="
-                    background:#1d4ed8;color:#ffffff;border:none;
-                    padding:7px 14px;border-radius:6px;font-size:13px;
-                    font-weight:600;cursor:pointer;
-                ">📋 Copy Tweet</button>
-
-                <!-- Signal 링크 -->
-                <a href="{signal_url}" style="
-                    font-size:12px;color:#6366f1;text-decoration:none;font-weight:500;
-                ">📊 Signal →</a>
-
-                <!-- 글자수 -->
-                <span style="font-size:11px;color:#9ca3af;margin-left:auto;">{tw_len}/280</span>
+            ">{tweet_display}
+                <!-- Signal link + char count INSIDE the box -->
+                <div style="
+                    margin-top:10px;
+                    padding-top:8px;
+                    border-top:1px solid #e2e8f0;
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                ">
+                    <a href="{signal_url}" style="
+                        font-size:12px;color:#6366f1;text-decoration:none;
+                        font-weight:600;font-family:-apple-system,sans-serif;
+                    ">📊 View Signal →</a>
+                    <span style="font-size:11px;color:#9ca3af;font-family:-apple-system,sans-serif;">{tw_len}/280</span>
+                </div>
             </div>
 
-            <!-- Mark as Tweeted 커맨드 (접을 수 있는 details) -->
-            <details style="margin-top:12px;">
-                <summary style="font-size:11px;color:#6b7280;cursor:pointer;">Mark as Tweeted (게시 후 실행)</summary>
+            <!-- Copy toggle: <details>+<textarea> works in all email clients, no JS needed -->
+            <details style="margin-top:10px;">
+                <summary style="
+                    font-size:12px;font-weight:600;color:#1d4ed8;
+                    cursor:pointer;list-style:none;padding:6px 0;
+                ">📋 Copy tweet text ▾</summary>
+                <textarea readonly rows="7" style="
+                    width:100%;box-sizing:border-box;
+                    margin-top:6px;padding:10px 12px;
+                    font-size:13px;line-height:1.6;
+                    font-family:'Courier New',Courier,monospace;
+                    color:#111827;background:#f8fafc;
+                    border:1px solid #6366f1;border-radius:6px;
+                    resize:vertical;
+                ">{tweet_text}</textarea>
+            </details>
+
+            <!-- Mark as Tweeted command (collapsible) -->
+            <details style="margin-top:6px;">
+                <summary style="font-size:11px;color:#6b7280;cursor:pointer;list-style:none;padding:4px 0;">
+                    ✅ Mark as Tweeted (run after posting) ▾
+                </summary>
                 <div style="
-                    margin-top:8px;
+                    margin-top:6px;
                     background:#f1f5f9;
                     border-radius:6px;
                     padding:10px 12px;
@@ -225,34 +235,34 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
 <body style="margin:0;padding:0;background:#f3f4f6;">
 <div style="max-width:640px;margin:32px auto;padding:0 16px;">
 
-    <!-- 헤더 -->
+    <!-- Header -->
     <div style="
         background:linear-gradient(135deg,#1d4ed8,#7c3aed);
         border-radius:12px 12px 0 0;
         padding:20px 28px;
     ">
         <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:700;font-family:-apple-system,sans-serif;">
-            𝕏 게시 초안 — {today}
+            𝕏 Draft Posts — {today}
         </h1>
         <p style="margin:6px 0 0;color:#c7d2fe;font-size:13px;">
-            상위 {total}건 · score ≥ 0.30 · tweeted_at IS NULL
+            Top {total} · score ≥ 0.30 · not yet tweeted
         </p>
     </div>
 
-    <!-- 안내 -->
+    <!-- Instructions -->
     <div style="
         background:#eff6ff;border:1px solid #bfdbfe;
         border-radius:0 0 0 0;padding:12px 20px;
         font-size:13px;color:#1e40af;margin-bottom:20px;
         font-family:-apple-system,sans-serif;
     ">
-        📋 <strong>Copy Tweet</strong> 버튼 클릭 → X에 붙여넣기 → 게시 후 "Mark as Tweeted" 커맨드 실행
+        📋 Click <strong>Copy Tweet</strong> → Paste into X → After posting, run the "Mark as Tweeted" command
     </div>
 
-    <!-- 카드 목록 -->
+    <!-- Cards -->
     {cards_html}
 
-    <!-- 푸터 -->
+    <!-- Footer -->
     <div style="
         text-align:center;font-size:12px;color:#9ca3af;
         margin-top:24px;padding-bottom:32px;font-family:-apple-system,sans-serif;
@@ -267,10 +277,10 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
     return plain, html
 
 
-# ── Resend 이메일 발송 ────────────────────────────────────────────────────────
+# ── Send email via Resend ─────────────────────────────────────────────────────
 
 def send_email(subject: str, plain: str, html: str, api_key: str) -> bool:
-    """Resend API로 이메일 발송. 성공 시 True."""
+    """Send email via Resend API. Returns True on success."""
     resp = requests.post(
         "https://api.resend.com/emails",
         headers={
@@ -288,47 +298,47 @@ def send_email(subject: str, plain: str, html: str, api_key: str) -> bool:
     )
     if resp.ok:
         data = resp.json()
-        logger.info(f"  이메일 발송 완료 — id={data.get('id')}")
+        logger.info(f"  Email sent — id={data.get('id')}")
         return True
     else:
-        logger.error(f"  Resend API 오류: {resp.status_code} {resp.text[:300]}")
+        logger.error(f"  Resend API error: {resp.status_code} {resp.text[:300]}")
         return False
 
 
-# ── 메인 ──────────────────────────────────────────────────────────────────────
+# ── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Twitter 초안 이메일 다이제스트 발송")
-    parser.add_argument("--dry-run",       action="store_true", help="출력만, 발송 안 함")
-    parser.add_argument("--limit",         type=int,   default=5, help="최대 건수 (기본 5)")
+    parser = argparse.ArgumentParser(description="Twitter draft email digest sender")
+    parser.add_argument("--dry-run",       action="store_true", help="Preview only, do not send")
+    parser.add_argument("--limit",         type=int,   default=5, help="Max items (default: 5)")
     parser.add_argument("--min-score",     type=float, default=0.30)
     parser.add_argument("--lookback-days", type=int,   default=2)
     args = parser.parse_args()
 
     api_key = os.environ.get("RESEND_API_KEY")
     if not api_key and not args.dry_run:
-        logger.warning("RESEND_API_KEY 미설정 → dry-run 전환")
+        logger.warning("RESEND_API_KEY not set — switching to dry-run")
         args.dry_run = True
 
     logger.info(
-        f"Twitter 다이제스트 조회 | "
+        f"Fetching Twitter digest | "
         f"min_score={args.min_score}  lookback={args.lookback_days}d  limit={args.limit}"
     )
 
     queue = fetch_queue(args.min_score, args.lookback_days, args.limit)
     if not queue:
-        logger.info("게시 대기 항목 없음 — 발송 스킵")
+        logger.info("No pending signals — skipping send")
         return
 
-    logger.info(f"  → {len(queue)}건 발견")
+    logger.info(f"  → {len(queue)} item(s) found")
 
     plain, html = build_email_body(queue)
     today = date.today().strftime("%Y-%m-%d")
-    subject = f"[KMI] X 초안 {today} ({len(queue)}건)"
+    subject = f"[KMI] X Draft Posts {today} ({len(queue)} items)"
 
     if args.dry_run:
-        logger.info(f"\n[DRY-RUN] 수신자: {RECIPIENT}")
-        logger.info(f"[DRY-RUN] 제목: {subject}")
+        logger.info(f"\n[DRY-RUN] Recipient: {RECIPIENT}")
+        logger.info(f"[DRY-RUN] Subject: {subject}")
         logger.info(f"\n{'='*60}\n{plain}\n{'='*60}")
         return
 
