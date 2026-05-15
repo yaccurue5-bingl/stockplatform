@@ -184,10 +184,10 @@ def run_prod(args):
 
         # Step 5: AI 분석 (pending → sentiment_score + completed)
         # ⚠️ --single-pass: 1회 배치만 실행 후 종료 (무한루프 방지 — Groq 비용 제어)
-        # ⚠️ --limit 30: 15분 배치당 최대 30건 처리 (Groq 호출 상한)
+        # ⚠️ --limit 100: 런당 최대 100건 처리 (Groq 0.43% 사용, 런 시간 +6분 → ~25분 이내)
         ("AI 분석",
          "auto_analyst.py",
-         ["--limit", "30", "--single-pass"],
+         ["--limit", "100", "--single-pass"],
          False),
 
         # Step 6: BaseScore / FinalScore
