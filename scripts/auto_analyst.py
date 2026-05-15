@@ -482,6 +482,25 @@ def run(backfill: bool = False, limit: int = 200,
             q = q.lte("rcept_dt", date_to)
         res = q.order("rcept_dt", desc=True).limit(limit).execute()
 
+    # ── processing 상태 stuck 행 복구 (2시간 이상 멈춘 행 → pending으로 되돌림) ──
+    try:
+        reap_res = supabase.rpc("reap_stuck_processing", {}).execute()
+        if reap_res.data:
+            logger.info(f"♻️  [reaper] stuck processing → pending 복구: {reap_res.data}건")
+    except Exception:
+        # RPC 없으면 직접 SQL (fallback)
+        try:
+            two_hours_ago = (datetime.now() - timedelta(hours=2)).isoformat()
+            stuck = supabase.table("disclosure_insights") \
+                .update({"analysis_status": "pending", "updated_at": datetime.now().isoformat()}) \
+                .eq("analysis_status", "processing") \
+                .lt("updated_at", two_hours_ago) \
+                .execute()
+            if stuck.data:
+                logger.info(f"♻️  [reaper] stuck processing → pending 복구: {len(stuck.data)}건")
+        except Exception as re:
+            logger.warning(f"[reaper] stuck 복구 실패 (무시): {re}")
+
     if not res.data:
         logger.info("✅ 분석할 데이터가 없습니다.")
         return 0

@@ -500,8 +500,8 @@ def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
                     },
                     on_conflict="hash_key",
                 ).execute()
-            except Exception:
-                pass  # 해시 저장 실패는 무시 (disclosure_insights 저장이 우선)
+            except Exception as hash_err:
+                logger.warning(f"[hash] disclosure_hashes 저장 실패 (무시, disclosure_insights 저장 우선): {hash_err}")
 
         except Exception as e:
             logger.error(f"DB 저장 실패: {e}")
