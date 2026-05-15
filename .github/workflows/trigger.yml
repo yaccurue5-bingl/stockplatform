@@ -82,7 +82,7 @@ jobs:
     concurrency:
       group: prod-batch
       cancel-in-progress: true
-    timeout-minutes: 30   # 30분 초과 시 강제 종료
+    timeout-minutes: 50   # 50분 초과 시 강제 종료 (DART수집+시세수집 최대 29분 + Groq 여유)
 
     steps:
       - name: Checkout code

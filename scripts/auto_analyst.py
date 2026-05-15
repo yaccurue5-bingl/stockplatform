@@ -592,7 +592,7 @@ def run(backfill: bool = False, limit: int = 200,
 
             logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-        time.sleep(1.0)
+        time.sleep(2.5)  # free tier RPM 30 대응 (30건 × 2.5s = 75s, 분당 24건)
 
     processed = len(res.data)
     logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")
