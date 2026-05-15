@@ -226,8 +226,15 @@ def _fetch_from_viewer(rcept_no):
             return None
 
         # dcmNo 추출 (여러 패턴 시도)
+        # pat1: dcmNo = "123" / dcmNo:"123"
+        # pat2: node1['dcmNo'] = "123"  ← 일부 문서 전용 포맷
+        # pat3: <option value="rcpNo=...&dcmNo=123">  ← HTML option 태그
+        # pat4/5: dcm_no=123 형식 fallback
         dcm_match = (
             re.search(r"dcmNo['\"]?\s*[=:]\s*['\"]?(\d+)", resp.text) or
+            re.search(r"node1\['dcmNo'\]\s*=\s*\"(\d+)\"", resp.text) or
+            re.search(r"rcpNo=" + rcept_no + r"&(?:amp;)?dcmNo=(\d+)", resp.text) or
+            re.search(r"node\d+\['dcmNo'\]\s*=\s*\"(\d+)\"", resp.text) or
             re.search(r"dcm_no[=:](\d+)", resp.text, re.IGNORECASE) or
             re.search(r"viewer\.do[^'\"]*dcm_no=(\d+)", resp.text, re.IGNORECASE)
         )
