@@ -73,7 +73,10 @@ export default async function proxy(req: NextRequest) {
   }
 
   // ── 4) Cron Job / Admin API 보안 ────────────────────────────────────────
-  const isAdminRoute = pathname.startsWith('/api/cron/') || pathname.startsWith('/api/admin/');
+  // /api/cron/trigger-batch 는 자체 ?secret= 쿼리 파라미터 인증을 사용하므로 제외
+  const isAdminRoute =
+    (pathname.startsWith('/api/cron/') && pathname !== '/api/cron/trigger-batch') ||
+    pathname.startsWith('/api/admin/');
   if (isAdminRoute) {
     const authHeader = req.headers.get('authorization');
     const expectedToken = process.env.CRON_SECRET_TOKEN;
