@@ -120,25 +120,25 @@ def _score_bar(score: float) -> str:
     return "★" * stars + "☆" * (5 - stars)
 
 def _direction(score: float) -> tuple[str, str]:
-    """(방향 텍스트, 색상) 반환."""
+    """(direction label, color) — English."""
     if score >= 0.3:
-        return "강세", "#16a34a"
+        return "Bullish", "#16a34a"
     elif score <= -0.3:
-        return "약세", "#dc2626"
-    return "중립", "#ca8a04"
+        return "Bearish", "#dc2626"
+    return "Neutral", "#ca8a04"
 
 
 def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
-    """(subject, plain_text, html) 반환."""
+    """Return (subject, plain_text, html)."""
     today = date.today()
-    date_str = today.strftime("%Y년 %m월 %d일")
+    date_str = today.strftime("%B %d, %Y")          # e.g. May 15, 2026
     uid = user["id"]
     unsub_url = f"{SITE_URL}/api/digest/unsubscribe?uid={uid}"
     total = len(signals)
 
-    subject = f"[KMI] 오늘의 한국 시장 시그널 {total}건 — {today.strftime('%m/%d')}"
+    subject = f"[KMI] {total} Korean Market Signal{'s' if total != 1 else ''} Today — {today.strftime('%m/%d')}"
 
-    # ── HTML ─────────────────────────────────────────────────────────────────
+    # ── HTML cards ────────────────────────────────────────────────────────────
     cards_html = ""
     for i, row in enumerate(signals, 1):
         corp = (row.get("corp_name_en") or row.get("corp_name") or "Unknown").strip()[:35]
@@ -157,7 +157,7 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
         cards_html += f"""
         <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;
                     padding:20px 22px;margin-bottom:16px;">
-          <!-- 헤더 -->
+          <!-- Header row -->
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
             <div>
               <span style="font-weight:700;font-size:15px;color:#111827;">{corp}</span>
@@ -168,32 +168,35 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
               {direction}
             </span>
           </div>
-          <!-- 이벤트 + 헤드라인 -->
+          <!-- Event + headline -->
           <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.5;">
             {emoji} <strong>{event}</strong> — {headline}
           </p>
-          <!-- 스코어 + 잠금 안내 -->
+          <!-- Score + lock notice + CTA — all inside one box -->
           <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;
-                      padding:12px 14px;margin-bottom:14px;">
+                      padding:12px 14px;">
             <div style="font-size:13px;color:#6b7280;margin-bottom:6px;">
-              시그널 강도: <span style="color:#1a3fa8;font-weight:700;">{stars}</span>
+              Signal Strength: <span style="color:#1a3fa8;font-weight:700;">{stars}</span>
             </div>
-            <div style="font-size:13px;color:#9ca3af;">
-              🔒 핵심 수치 및 AI 분석은 <strong style="color:#7c3aed;">Pro</strong>에서 확인하세요
+            <div style="font-size:13px;color:#9ca3af;margin-bottom:10px;">
+              🔒 Full metrics &amp; AI analysis available in <strong style="color:#7c3aed;">Pro</strong>
             </div>
-          </div>
-          <!-- CTA -->
-          <div style="display:flex;gap:10px;align-items:center;">
+            <!-- View Signal link + copyable URL -->
             <a href="{signal_url}"
-               style="font-size:13px;color:#1a3fa8;text-decoration:none;font-weight:500;">
-              시그널 보기 →
+               style="display:inline-block;font-size:13px;color:#1a3fa8;
+                      text-decoration:none;font-weight:600;">
+              View Signal →
             </a>
+            <div style="margin-top:6px;font-size:11px;color:#9ca3af;
+                        word-break:break-all;font-family:monospace;">
+              {signal_url}
+            </div>
           </div>
         </div>
         """
 
     html = f"""<!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -203,7 +206,7 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:24px 16px 48px;">
 
-  <!-- 헤더 -->
+  <!-- Header -->
   <div style="background:linear-gradient(135deg,#1a3fa8,#6d28d9);
               border-radius:14px 14px 0 0;padding:28px 28px 24px;">
     <a href="{SITE_URL}" style="text-decoration:none;">
@@ -212,45 +215,45 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
       </span>
     </a>
     <h1 style="margin:12px 0 4px;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">
-      오늘의 한국 시장 시그널
+      Today's Korean Market Signals
     </h1>
-    <p style="margin:0;font-size:14px;color:#c4b5fd;">{date_str} · DART 공시 AI 분석</p>
+    <p style="margin:0;font-size:14px;color:#c4b5fd;">{date_str} · DART Filing AI Analysis</p>
   </div>
 
-  <!-- 서브헤더 -->
+  <!-- Sub-header -->
   <div style="background:#ede9fe;border-left:4px solid #7c3aed;
               padding:14px 20px;margin-bottom:20px;font-size:13px;color:#4c1d95;">
-    오늘 <strong>{total}건</strong>의 주목할 만한 공시 시그널이 발견됐습니다.
-    Pro 플랜에서 핵심 수치와 AI 분석 전문을 확인하세요.
+    <strong>{total} notable filing signal{'s' if total != 1 else ''}</strong> found today.
+    Unlock full metrics and AI analysis with a Pro plan.
   </div>
 
-  <!-- 시그널 카드 목록 -->
+  <!-- Signal cards -->
   {cards_html}
 
-  <!-- Pro 업그레이드 CTA -->
+  <!-- Pro upgrade CTA -->
   <div style="background:linear-gradient(135deg,#1a3fa8,#6d28d9);
               border-radius:14px;padding:28px;text-align:center;margin-top:8px;">
     <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;color:#ffffff;">
-      💎 Pro로 업그레이드
+      💎 Upgrade to Pro
     </h2>
     <p style="margin:0 0 20px;font-size:14px;color:#c4b5fd;line-height:1.5;">
-      모든 핵심 수치, AI 분석 보고서, 실시간 시그널 알림을 제한 없이 이용하세요.
+      Get full financial metrics, AI analysis reports, and real-time signal alerts — unlimited.
     </p>
     <a href="{UPGRADE_URL}"
        style="display:inline-block;padding:13px 32px;background:#f0b429;
               color:#1a1a1a;border-radius:8px;text-decoration:none;
               font-size:14px;font-weight:700;letter-spacing:0.2px;">
-      Pro 시작하기 →
+      Start Pro →
     </a>
   </div>
 
-  <!-- 푸터 -->
+  <!-- Footer -->
   <div style="text-align:center;margin-top:28px;font-size:12px;color:#9ca3af;line-height:1.8;">
     <a href="{SITE_URL}" style="color:#6b7280;text-decoration:none;">k-marketinsight.com</a>
     &nbsp;·&nbsp;
-    <a href="{unsub_url}" style="color:#9ca3af;text-decoration:none;">수신 거부</a>
+    <a href="{unsub_url}" style="color:#9ca3af;text-decoration:none;">Unsubscribe</a>
     <br>
-    이 이메일은 K-MarketInsight 가입 계정({user.get('email','')})으로 발송되었습니다.
+    This email was sent to {user.get('email','')} because you have a K-MarketInsight account.
   </div>
 
 </div>
@@ -259,9 +262,9 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
 
     # ── Plain text ─────────────────────────────────────────────────────────────
     lines = [
-        f"[KMI] 오늘의 한국 시장 시그널 — {date_str}",
+        f"[KMI] Korean Market Signals — {date_str}",
         "=" * 55,
-        f"오늘 {total}건의 공시 시그널이 발견됐습니다.",
+        f"{total} filing signal{'s' if total != 1 else ''} found today.",
         "",
     ]
     for i, row in enumerate(signals, 1):
@@ -284,8 +287,8 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
 
     lines += [
         "=" * 55,
-        f"Pro 업그레이드: {UPGRADE_URL}",
-        f"수신 거부: {unsub_url}",
+        f"Upgrade to Pro: {UPGRADE_URL}",
+        f"Unsubscribe: {unsub_url}",
     ]
     plain = "\n".join(lines)
 
