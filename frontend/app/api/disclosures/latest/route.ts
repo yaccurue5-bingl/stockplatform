@@ -134,17 +134,18 @@ export async function GET(request: Request) {
       }
     );
 
-    const { data: { session } } = await authClient.auth.getSession();
-    if (!session?.user) {
+    // getUser() validates JWT against Supabase server — getSession() only reads cookie
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const email = session.user.email ?? '';
+    const email = user.email ?? '';
     if (!isSuperAdmin(email)) {
       const { data: userData } = await authClient
         .from('users')
         .select('plan, subscription_status')
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
       const isPaid = userData?.plan && userData.plan !== 'free' && userData?.subscription_status === 'active';
