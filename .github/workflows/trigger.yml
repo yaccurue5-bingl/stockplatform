@@ -35,6 +35,8 @@ env:
   PUBLIC_DATA_API_KEY: ${{ secrets.PUBLIC_DATA_API_KEY }}
   ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
   RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
 
 jobs:
 
