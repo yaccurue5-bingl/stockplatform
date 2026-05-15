@@ -121,9 +121,10 @@ export default async function proxy(req: NextRequest) {
     '/privacy',
     '/refund-policy',
     '/pricing',            // next.config.ts 301 리다이렉트가 처리하도록 통과
-    '/api/request-access', // 리드 수집 — 비로그인 공개
-    '/api/contact',        // 문의 폼 — 비로그인 공개
-    '/api/hot-stocks',     // 랜딩 위젯 — 공개
+    '/api/request-access',        // 리드 수집 — 비로그인 공개
+    '/api/contact',               // 문의 폼 — 비로그인 공개
+    '/api/hot-stocks',            // 랜딩 위젯 — 공개
+    '/api/cron/trigger-batch',    // 외부 cron relay — 자체 ?secret= 인증
     '/sitemap.xml',
     '/sitemap/',          // paginated sub-sitemaps: /sitemap/0.xml, /sitemap/1.xml, …
     '/robots.txt',
