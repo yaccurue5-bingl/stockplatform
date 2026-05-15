@@ -240,7 +240,12 @@ def _fetch_from_viewer(rcept_no):
         )
 
         if not dcm_match:
-            logger.warning(f"{rcept_no} dcmNo 추출 실패 - 메인 페이지 텍스트 시도")
+            # 진단용: 페이지 크기 + 앞 200자 로그 (DART 차단/세션만료/CAPTCHA 판별)
+            snippet = resp.text[:200].replace("\n", " ").strip()
+            logger.warning(
+                f"{rcept_no} dcmNo 추출 실패 "
+                f"(page_len={len(resp.text)}, snippet={snippet!r})"
+            )
             text = _clean_html_text(resp.text)
             if len(text) > 100:
                 return extract_key_sections(text)
