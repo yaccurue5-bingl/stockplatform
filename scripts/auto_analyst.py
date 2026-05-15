@@ -89,6 +89,14 @@ def _should_skip_report(report_nm: str) -> bool:
 # 하위호환: 기존 코드가 SKIP_REPORT_NM_TYPES 를 참조하는 경우를 위한 alias
 SKIP_REPORT_NM_TYPES = _SKIP_EXACT
 
+# ── event_type 허용 값 (스키마 강제) ─────────────────────────────────────────
+# Groq가 NEUTRAL, DEBT, STRUCTURAL, IPO 등 임의 값을 생성하는 문제 방지
+# analyze_content() 결과 수신 후 이 집합으로 검증 → 아니면 OTHER로 강제
+_VALID_EVENT_TYPES: frozenset[str] = frozenset({
+    "EARNINGS", "CONTRACT", "DILUTION", "BUYBACK", "DISPOSAL",
+    "DIVIDEND", "MNA", "LEGAL", "CAPEX", "EXECUTIVE_CHANGE", "OTHER",
+})
+
 # ── 스코어 인라인 계산 헬퍼 ───────────────────────────────────────────────────
 
 _event_stats_cache: dict | None = None   # 프로세스당 1회 로드
@@ -243,7 +251,7 @@ Return JSON format:
     "• Key figure 2 (with unit)",
     "• Key figure 3 (with unit)"
   ],
-  "event_type": "EARNINGS | CONTRACT | DILUTION | BUYBACK | DISPOSAL | DIVIDEND | MNA | LEGAL | CAPEX | EXECUTIVE_CHANGE | OTHER",
+  "event_type": "MUST be exactly one of: EARNINGS, CONTRACT, DILUTION, BUYBACK, DISPOSAL, DIVIDEND, MNA, LEGAL, CAPEX, EXECUTIVE_CHANGE, OTHER — no other values allowed",
   "financial_impact": "POSITIVE or NEGATIVE or NEUTRAL",
   "short_term_impact_score": 1-5,
   "sentiment_score": <float -1.0 to +1.0>,
@@ -373,7 +381,8 @@ In ai_summary:
                 matched.append("DISPOSAL")
             else:
                 matched.append("BUYBACK")
-        if "배당" in t:
+        if ("배당" in t or "dividend" in t or "기준일설정" in t
+                or "배당결정" in t or "현금·현물" in t):
             matched.append("DIVIDEND")
         if "합병" in t or "인수" in t or "분할" in t or ("지분" in t and "취득" in t):
             matched.append("MNA")
@@ -553,6 +562,16 @@ def run(backfill: bool = False, limit: int = 200,
         )
 
         if result:
+            # ── event_type 스키마 검증 — Groq가 임의 값 생성 시 OTHER로 강제 ──────
+            raw_et = (result.get("event_type") or "").strip().upper()
+            if raw_et not in _VALID_EVENT_TYPES:
+                logger.warning(
+                    f"  ⚠️ 비허용 event_type '{raw_et}' → OTHER 강제 ({item['corp_name']})"
+                )
+                result["event_type"] = "OTHER"
+            else:
+                result["event_type"] = raw_et
+
             # sentiment_score: float -1.0~+1.0 파싱 (AI가 문자열로 줄 수도 있으므로 방어 처리)
             raw_score = result.get("sentiment_score")
             try:
