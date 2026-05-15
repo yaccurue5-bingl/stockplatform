@@ -34,6 +34,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# ── 뷰어 폴백 실패 카운터 (run_crawler 종료 시 Telegram 경고용) ───────────────
+_viewer_fail_count = 0   # dcmNo 추출 실패 횟수
+_viewer_try_count  = 0   # 뷰어 폴백 시도 횟수 (014 에러 건수)
+
 # DART API 세션 (연결 재사용 + 헤더 + HTTP 레벨 재시도)
 session = requests.Session()
 session.headers.update({
@@ -240,6 +244,8 @@ def _fetch_from_viewer(rcept_no):
         )
 
         if not dcm_match:
+            global _viewer_fail_count
+            _viewer_fail_count += 1
             # 진단용: 페이지 크기 + 앞 200자 로그 (DART 차단/세션만료/CAPTCHA 판별)
             snippet = resp.text[:200].replace("\n", " ").strip()
             logger.warning(
@@ -325,6 +331,8 @@ def get_clean_content(rcept_no, max_retries=2):
 
                 # 014: 파일 미존재 → 재시도 없이 즉시 뷰어 폴백
                 if dart_status == "014":
+                    global _viewer_try_count
+                    _viewer_try_count += 1
                     logger.info(f"{rcept_no} document.xml 없음(014) -> 뷰어 스크래핑 폴백 시도")
                     return _fetch_from_viewer(rcept_no) # ✅ 단순히 마킹하지 말고 바로 스크래핑 함수 호출
                     
@@ -525,6 +533,52 @@ def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
     return count, saved_codes
 
 
+def _check_viewer_fail_rate(fail_threshold: float = 0.5):
+    """
+    뷰어 폴백 실패율이 threshold 초과 시 Telegram 경고.
+    - 실패율 = _viewer_fail_count / _viewer_try_count
+    - _viewer_try_count < 5 이면 샘플 부족으로 판단 보류
+    """
+    if _viewer_try_count < 5:
+        return  # 시도 건수 적으면 무시
+
+    fail_rate = _viewer_fail_count / _viewer_try_count
+    logger.info(
+        f"[뷰어 폴백] 시도={_viewer_try_count}건 "
+        f"실패={_viewer_fail_count}건 ({fail_rate*100:.0f}%)"
+    )
+
+    if fail_rate < fail_threshold:
+        return  # 정상 범위
+
+    # Telegram 경고 발송
+    bot_token  = os.environ.get("TELEGRAM_BOT_TOKEN")
+    channel_id = os.environ.get("TELEGRAM_CHANNEL_ID")
+    if not bot_token or not channel_id:
+        logger.warning("[뷰어 폴백 경고] TELEGRAM 미설정 — 알림 생략")
+        return
+
+    msg = (
+        f"⚠️ *DART 뷰어 폴백 실패율 급등*\n"
+        f"시도 {_viewer_try_count}건 중 {_viewer_fail_count}건 실패 "
+        f"({fail_rate*100:.0f}%)\n"
+        f"DART 서버 일시 장애 또는 IP 차단 가능성\n"
+        f"GitHub Actions 로그의 `snippet=` 확인 필요"
+    )
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+            json={"chat_id": channel_id, "text": msg, "parse_mode": "Markdown"},
+            timeout=10,
+        )
+        if resp.ok:
+            logger.info("[뷰어 폴백 경고] Telegram 발송 완료")
+        else:
+            logger.warning(f"[뷰어 폴백 경고] Telegram 오류: {resp.status_code}")
+    except Exception as e:
+        logger.warning(f"[뷰어 폴백 경고] Telegram 예외: {e}")
+
+
 def run_crawler(start_date: str | None = None, end_date: str | None = None):
     """
     DART 공시 수집.
@@ -582,6 +636,9 @@ def run_crawler(start_date: str | None = None, end_date: str | None = None):
         time.sleep(1.0)  # 날짜 간 DART API 부하 방지
 
     logger.info(f"[DONE] 총 저장: {total_saved}건 / 종목: {len(all_saved_codes)}개")
+
+    # ── 뷰어 폴백 실패율 체크 → Telegram 경고 ────────────────────────────────
+    _check_viewer_fail_rate()
 
     # 캐시 무효화 (신규 공시 저장된 경우)
     if all_saved_codes:
