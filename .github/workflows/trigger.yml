@@ -70,21 +70,20 @@ jobs:
         run: python scripts/backfill_sector_macro.py --status --alert
 
   # ════════════════════════════════════════════════════════════════════════════
-  # PROD — 장 전·장 중 배치 (15분마다)
-  #   트리거: 장 전/장 중 cron 3개  또는  workflow_dispatch(mode=prod)
+  # COLLECT — 장 전·장 중 수집 전용 (15분마다, 취소 허용)
+  #   DART 수집 + 시세 + 외국인지표
+  #   cancel-in-progress: true — 최신 실행이 이전 실행을 취소해도 무방
   # ════════════════════════════════════════════════════════════════════════════
-  prod-batch:
-    name: "Intraday Prod Batch"
-    # EOD/월별 cron 이 아닌 schedule 이거나, 수동 실행(mode != eod)일 때만 실행
+  prod-collect:
+    name: "Intraday Collect (DART + Market)"
     if: >-
       (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
       (github.event_name == 'schedule' && github.event.schedule != '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
-    # 동일 그룹 실행 중이면 이전 run 취소 (15분 cron 중복 실행 방지)
     concurrency:
-      group: prod-batch
-      cancel-in-progress: true
-    timeout-minutes: 50   # 50분 초과 시 강제 종료 (DART수집+시세수집 최대 29분 + Groq 여유)
+      group: prod-collect
+      cancel-in-progress: true   # 새 수집이 오면 이전 수집 취소 (최신 우선)
+    timeout-minutes: 90          # DART 1300건 × 3초 = 65분 + 여유
 
     steps:
       - name: Checkout code
@@ -101,13 +100,45 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 시장 지수는 별도로 유지 (run_daily_batch 와 무관한 외부 소스)
       - name: "① 시장 지수 업데이트"
         run: python scripts/update_indices.py
 
-      # DART 수집 → fetch_market/loan → LPS → AI 분석 → BaseScore/FinalScore
-      - name: "② 장 중 전체 배치 (--prod)"
-        run: python scripts/run_daily_batch.py --prod
+      - name: "② 수집 배치 (DART + 시세 + 외국인지표)"
+        run: python scripts/run_daily_batch.py --collect
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # ANALYZE — 장 전·장 중 분석 전용 (15분마다, 취소 금지)
+  #   AI 분석 + Score + Telegram + Twitter
+  #   cancel-in-progress: false — 큐잉 후 순차 실행, 반드시 완료
+  # ════════════════════════════════════════════════════════════════════════════
+  prod-analyze:
+    name: "Intraday Analyze (AI + Score + Notify)"
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
+      (github.event_name == 'schedule' && github.event.schedule != '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: prod-analyze
+      cancel-in-progress: false  # 분석은 절대 취소 금지 — 큐잉 후 순차 완료
+    timeout-minutes: 30          # AI 분석 100건 × ~4초 + 스코어 = 약 10분
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: "③ 분석 배치 (AI + Score + Telegram + Twitter)"
+        run: python scripts/run_daily_batch.py --analyze
 
   # ════════════════════════════════════════════════════════════════════════════
   # EOD — 장 마감 후 1일 1회 (KST 16:35)
