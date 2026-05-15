@@ -233,3 +233,53 @@ const { data: { user } } = await authClient.auth.getUser();
 
 9. **`alpha_score` backfill** — 7,916 scored disclosures missing `alpha_score`
    Run `python scripts/compute_alpha_score.py` to fill the gap.
+
+---
+
+## Re-Validation Pass — 2026-05-15
+
+### Previously CRITICAL Issues
+
+| Issue | Status | Evidence |
+|---|---|---|
+| `getSession()` → `getUser()` in `/api/disclosures/latest/route.ts` | ✅ RESOLVED | Line 138: `const { data: { user } } = await authClient.auth.getUser();`. Comment confirms intent: "getUser() validates JWT against Supabase server — getSession() only reads cookie". All downstream references use `user.id` and `user.email` — no residual `session.*` references in this file. |
+| `SIGNAL_TAG_VALUES` updated to emoji strings, `toUpperCase()` removed from `signalTag` | ✅ RESOLVED | Lines 31-39: Set contains `'🔥 High Conviction'`, `'📉 Earnings Miss'`, `'⚖️ Legal Alert'`, `'⛔ High Risk'`, `'⚠️ Dilution Risk'`, `'⚠️ Dilution Watch'`, `'🔄 Buyback Signal'` — all emoji-prefixed. Line 85: `signalTag = p.get('signal_tag') \|\| ''` with comment "emoji strings are case-sensitive, do NOT toUpperCase()". Sentiment param (line 83) still correctly applies `.toUpperCase()` separately. DB confirms all 7 values are present and `'⚠️ Smart Money Selling'` is gone (see DB checks below). |
+
+### Previously WARNING Issues
+
+| Issue | Status | Evidence |
+|---|---|---|
+| "Act before the market catches up" removed from `HowItWorks.tsx` | ✅ RESOLVED | Step 03 now reads: "Receive structured signal scores and AI-generated summaries for each filing. Data only — no investment advice." No investment-inducement language remains in HowItWorks. |
+| `investment_implications` / "Investor Impact Analysis" removed from `/disclosures` UI rendering | ⚠️ PARTIAL | The field `investment_implications?: string` remains in the `Disclosure` interface (line 34, `page.tsx`) but is **never rendered** in the JSX. Sections now show "AI Summary" (line 709) and "Key Takeaways" (line 677). The field is a dead TypeScript property — no user-visible rendering. It also still appears in `lib/api/claude.ts` (internal server-side type) and legacy SQL files — none are active UI. Risk: low (unused property), but the interface entry is misleading noise. |
+| `/api/search` N+1 replaced with single IN query | ✅ RESOLVED | Lines 53-61: single `.in('stock_code', stockCodes)` query fetching up to `stockCodes.length * 3` rows. Map lookup at lines 65-68 (`latestByStock`) correctly picks the first (latest) row per stock_code using insertion-order guarantee on `updated_at DESC` ordered results. Type safety: explicit `DisclosureRow` type cast at line 61. |
+| `dart_crawler.py` bare `except: pass` replaced with `logger.warning` | ✅ RESOLVED | No bare `except:` with `pass` remains in the file. All exception handlers use `logger.warning(...)` or `logger.error(...)`. One residual `except Exception: pass` exists at lines 307-308 (XML parse status extraction — benign, result is just `None`) and the env_loader `except Exception: pass` at lines 27-28 (bootstrap-only, intentionally silent). Neither matches the originally flagged pattern. |
+| `auto_analyst.py` processing reaper added | ✅ RESOLVED | Lines 486-502: tries `supabase.rpc("reap_stuck_processing")` first; on failure falls back to direct table update with `two_hours_ago = (datetime.now() - timedelta(hours=2)).isoformat()`. `timedelta` is imported at line 6 (`from datetime import datetime, timedelta`). Column names used (`analysis_status`, `updated_at`) are correct. |
+| `trigger.yml` `\|\| true` removed from lag check | ✅ RESOLVED | No `\|\| true` found anywhere in the file. The lag check step (line 148-150) now uses `continue-on-error: true` — this is semantically different: `continue-on-error` lets the job continue but marks the step as failed in GitHub UI (yellow warning), while `\|\| true` silently swallowed the failure. This is the intended behavior. |
+
+### DB Validation Results (live queries — 2026-05-15)
+
+| Check | Result | Status |
+|---|---|---|
+| `signal_tag = '⚠️ Smart Money Selling'` remaining rows | **0** | ✅ RESOLVED — fully purged |
+| `analysis_status = 'processing'` stuck rows (> 2 hours) | **0** | ✅ RESOLVED — no stuck rows |
+| `headline IS NOT NULL AND alpha_score IS NULL` | **7,916** | ⚠️ CARRY-OVER — unchanged from prior audit (backfill not yet run) |
+| Signal tag distribution | 🔥 High Conviction: 8,361 / 📉 Earnings Miss: 4,312 / ⚖️ Legal Alert: 1,253 / ⛔ High Risk: 161 / ⚠️ Dilution Risk: 100 / ⚠️ Dilution Watch: 3 / 🔄 Buyback Signal: 2 | ✅ All 7 values match SIGNAL_TAG_VALUES Set exactly. No legacy/malformed tags remain. |
+
+### New Issues Found
+
+| Issue | Severity | Evidence |
+|---|---|---|
+| `UseCases.tsx` — "Buy / Neutral / Sell signal" copy | ⚠️ WARNING | `frontend/components/landing/UseCases.tsx` line 21: "investor-focused analysis tells you what it means for the stock, with a clear Buy / Neutral / Sell signal." This is investment-inducement language — implies the product gives trading recommendations. Should be reworded to "Positive / Neutral / Negative sentiment signal" or similar data-descriptor language. Previously unscanned file. |
+| `DataProducts.tsx` — "decision-ready insights" copy | ⚠️ WARNING | Line 49: "Not just summaries — but decision-ready insights." Minor, but "decision-ready" implies actionability. Low priority vs. UseCases issue. |
+| `/api/search/route.ts` — still no auth check | ⚠️ WARNING (carry-over) | The route uses `service_role` key and returns company names + disclosure IDs. Previously flagged. Not fixed in this pass — still open. Any unauthenticated caller can enumerate the company database and get disclosure IDs. |
+| `investment_implications` dead property in `Disclosure` interface | 🆕 LOW | `page.tsx` line 34: `investment_implications?: string` declared but never read or rendered. Remove to avoid confusion about whether this field is still in use. |
+
+### Remaining Open Items
+
+| Item | Priority | Notes |
+|---|---|---|
+| `alpha_score` backfill (7,916 rows) | HIGH | Unchanged since last audit. Run `compute_alpha_score.py`. |
+| `UseCases.tsx` "Buy / Neutral / Sell signal" wording | MEDIUM | New find — reword before B2B launch |
+| `/api/search` missing auth check | MEDIUM | Any caller can search the company DB. Add `getUser()` check or restrict to authenticated sessions. |
+| `investment_implications` dead interface property | LOW | Dead code — remove from `Disclosure` interface in `page.tsx` |
+| `DataProducts.tsx` "decision-ready insights" | LOW | Minor copy compliance issue |

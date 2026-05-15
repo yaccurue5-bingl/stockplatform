@@ -31,7 +31,6 @@ interface Disclosure {
   sector?: string;
   sector_en?: string;
   detailed_analysis?: string;
-  investment_implications?: string;
   risk_factors?: string[];
   key_metrics?: string[];
   key_numbers?: Record<string, string> | null;
