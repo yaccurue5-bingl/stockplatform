@@ -82,7 +82,7 @@ jobs:
     concurrency:
       group: prod-batch
       cancel-in-progress: true
-    timeout-minutes: 30   # 30분 초과 시 강제 종료
+    timeout-minutes: 50   # 50분 초과 시 강제 종료 (DART수집+시세수집 최대 29분 + Groq 여유)
 
     steps:
       - name: Checkout code
@@ -146,8 +146,8 @@ jobs:
       # 처리 지연 메트릭 — 당일 파이프라인 품질 점검
       # P90 > 30분 또는 당일 수집률 < 80% 시 Actions 경고 (비블로킹)
       - name: "처리 지연 메트릭 점검"
-        run: python scripts/check_processing_lag.py --today --alert || true
-        continue-on-error: true
+        run: python scripts/check_processing_lag.py --today --alert
+        continue-on-error: true  # P90>30분 시 step 실패(노란 경고)로 표시, job은 계속
 
       # sector_macro 스테일니스 점검 (매월 15일 이후 실행 시 유효)
       - name: "sector_macro 데이터 현황 점검"

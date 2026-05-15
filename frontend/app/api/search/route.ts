@@ -46,31 +46,39 @@ export async function GET(request: Request) {
 
     console.log(`✅ [Search API] Found ${companies?.length || 0} companies (after SPAC filtering)`);
 
-    // 검색 결과에 최신 공시 정보 추가 (공시가 있는 종목만 반환)
-    const resultsWithDisclosures = await Promise.all(
-      (companies || []).map(async (company) => {
-        // 해당 종목의 최신 공시 1개 조회
-        const { data: latestDisclosure } = await supabase
-          .from('disclosure_insights')
-          .select('id, report_nm, sentiment, importance, updated_at, rcept_dt')
-          .eq('stock_code', company.stock_code)
-          .eq('analysis_status', 'completed')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+    // 단일 IN 쿼리로 최신 공시 일괄 조회 (N+1 → 1 쿼리)
+    type DisclosureRow = { id: string; stock_code: string; report_nm: string; sentiment: string; importance: string; updated_at: string; rcept_dt: string };
+    const stockCodes = companies.map(c => c.stock_code).filter(Boolean);
+    let disclosures: DisclosureRow[] = [];
+    if (stockCodes.length > 0) {
+      const { data } = await supabase
+        .from('disclosure_insights')
+        .select('id, stock_code, report_nm, sentiment, importance, updated_at, rcept_dt')
+        .in('stock_code', stockCodes)
+        .eq('analysis_status', 'completed')
+        .order('updated_at', { ascending: false })
+        .limit(stockCodes.length * 3); // 종목당 최대 3건 조회 후 최신 1건 선택
+      disclosures = (data as DisclosureRow[]) || [];
+    }
 
-        return {
-          stock_code: company.stock_code,
-          corp_code: company.corp_code,
-          corp_name: company.corp_name,
-          corp_name_en: company.corp_name_en,
-          latest_disclosure: latestDisclosure || null,
-        };
-      })
-    );
+    // stock_code → 최신 공시 맵 (updated_at 내림차순 정렬 유지, 첫 번째가 최신)
+    const latestByStock = new Map<string, DisclosureRow>();
+    for (const d of (disclosures || [])) {
+      if (d.stock_code && !latestByStock.has(d.stock_code)) {
+        latestByStock.set(d.stock_code, d);
+      }
+    }
 
-    // disclosure_insights에 데이터가 있는 종목만 필터링
-    const results = resultsWithDisclosures.filter(item => item.latest_disclosure !== null);
+    // disclosure_insights에 데이터가 있는 종목만 반환
+    const results = companies
+      .map(company => ({
+        stock_code: company.stock_code,
+        corp_code: company.corp_code,
+        corp_name: company.corp_name,
+        corp_name_en: company.corp_name_en,
+        latest_disclosure: latestByStock.get(company.stock_code) ?? null,
+      }))
+      .filter(item => item.latest_disclosure !== null);
 
     console.log(`✅ [Search API] Returning ${results.length} companies with disclosures`);
 

@@ -198,9 +198,11 @@ You are a professional Global financial analyst specializing in Korean DART disc
 Your task is to provide a numeric-heavy, objective analysis in English.
 
 STRICT RULES:
-1. **LANGUAGE**: All output values must be in English. 
-   - Convert Korean units: (e.g., "원" -> "KRW", "주" -> "Shares", "억원" -> "100M KRW").
-   - Translation examples: "매출액" -> "Revenue", "영업이익" -> "Operating Profit".
+1. **LANGUAGE — ABSOLUTE REQUIREMENT**: Every single output field MUST be written in English. NO Korean characters (한글) are allowed anywhere in the JSON response.
+   - If you find yourself writing Korean, STOP and translate it immediately.
+   - Convert Korean units: "원" → "KRW", "주" → "Shares", "억원" → "100M KRW", "조원" → "1T KRW".
+   - Translation examples: "매출액" → "Revenue", "영업이익" → "Operating Profit", "순이익" → "Net Income".
+   - headline, key_numbers, ai_summary, risk_factors, report_nm — ALL must be English only.
 2. **UNIVERSAL DATA MINER**: 
    - Scan the entire text to extract all available financial figures (KRW, %, Date, Shares).
    - Priority keywords: [Acquisition/Disposal amount, Dividend(yield), Revenue/Profit variance, Issuance price, Funding size].
@@ -480,6 +482,25 @@ def run(backfill: bool = False, limit: int = 200,
             q = q.lte("rcept_dt", date_to)
         res = q.order("rcept_dt", desc=True).limit(limit).execute()
 
+    # ── processing 상태 stuck 행 복구 (2시간 이상 멈춘 행 → pending으로 되돌림) ──
+    try:
+        reap_res = supabase.rpc("reap_stuck_processing", {}).execute()
+        if reap_res.data:
+            logger.info(f"♻️  [reaper] stuck processing → pending 복구: {reap_res.data}건")
+    except Exception:
+        # RPC 없으면 직접 SQL (fallback)
+        try:
+            two_hours_ago = (datetime.now() - timedelta(hours=2)).isoformat()
+            stuck = supabase.table("disclosure_insights") \
+                .update({"analysis_status": "pending", "updated_at": datetime.now().isoformat()}) \
+                .eq("analysis_status", "processing") \
+                .lt("updated_at", two_hours_ago) \
+                .execute()
+            if stuck.data:
+                logger.info(f"♻️  [reaper] stuck processing → pending 복구: {len(stuck.data)}건")
+        except Exception as re:
+            logger.warning(f"[reaper] stuck 복구 실패 (무시): {re}")
+
     if not res.data:
         logger.info("✅ 분석할 데이터가 없습니다.")
         return 0
@@ -556,6 +577,7 @@ def run(backfill: bool = False, limit: int = 200,
 
             update_data = {
                 "headline": result.get("headline"),
+                "corp_name_en": corp_name_en_map.get(item.get('stock_code', '')) or None,
                 "report_nm_en": result.get("report_nm") or None,  # Groq 번역 영문 공시 제목
                 "key_numbers": result.get("key_numbers"),
                 "event_type": result.get("event_type"),
@@ -589,7 +611,7 @@ def run(backfill: bool = False, limit: int = 200,
 
             logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-        time.sleep(1.0)
+        time.sleep(2.5)  # free tier RPM 30 대응 (30건 × 2.5s = 75s, 분당 24건)
 
     processed = len(res.data)
     logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")

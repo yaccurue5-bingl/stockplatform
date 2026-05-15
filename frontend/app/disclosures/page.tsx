@@ -31,7 +31,6 @@ interface Disclosure {
   sector?: string;
   sector_en?: string;
   detailed_analysis?: string;
-  investment_implications?: string;
   risk_factors?: string[];
   key_metrics?: string[];
   key_numbers?: Record<string, string> | null;
@@ -703,25 +702,24 @@ function DisclosuresContent() {
                     </div>
                   )}
 
-                  {/* Investor Impact Analysis */}
+                  {/* AI Summary */}
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold">Investor Impact Analysis</h3>
+                      <h3 className="text-lg font-bold">AI Summary</h3>
                       <span className={selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400'}>
                         {selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→'}
                       </span>
                     </div>
                     <div className="text-gray-300">
-                      {selectedDisclosure.investment_implications ? (
-                        <p className="whitespace-pre-wrap">{selectedDisclosure.investment_implications}</p>
-                      ) : selectedDisclosure.detailed_analysis ? (
+                      {selectedDisclosure.detailed_analysis ? (
                         <p className="whitespace-pre-wrap">{selectedDisclosure.detailed_analysis}</p>
                       ) : selectedDisclosure.summary ? (
                         <p className="whitespace-pre-wrap text-gray-400">{selectedDisclosure.summary}</p>
                       ) : (
-                        <p className="text-gray-500 italic">상세 분석 정보가 없습니다.</p>
+                        <p className="text-gray-500 italic">분석 정보가 없습니다.</p>
                       )}
                     </div>
+                    <p className="text-xs text-gray-600 mt-3">For informational purposes only. Not investment advice.</p>
                   </div>
 
                   {/* Data Source Attribution */}

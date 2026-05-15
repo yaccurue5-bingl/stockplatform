@@ -27,7 +27,16 @@ const PRO_COLUMNS =
   DEV_COLUMNS + ', headline, financial_impact, base_score_raw, risk_factors'
 
 const SORT_WHITELIST    = new Set(['rcept_dt', 'final_score', 'base_score', 'alpha_score'])
-const SIGNAL_TAG_VALUES = new Set(['HIGH_CONVICTION', 'CONSTRUCTIVE', 'NEUTRAL', 'NEGATIVE', 'HIGH_RISK'])
+// Actual DB values — emoji-prefixed strings as stored by compute_signal_tag()
+const SIGNAL_TAG_VALUES = new Set([
+  '🔥 High Conviction',
+  '📉 Earnings Miss',
+  '⚖️ Legal Alert',
+  '⛔ High Risk',
+  '⚠️ Dilution Risk',
+  '⚠️ Dilution Watch',
+  '🔄 Buyback Signal',
+])
 
 export async function GET(req: NextRequest) {
   // ── Auth ────────────────────────────────────────────────────────────────────
@@ -73,7 +82,7 @@ export async function GET(req: NextRequest) {
   const stockCode      = p.get('stock_code') || ''
   const sentiment      = (p.get('sentiment') || '').toUpperCase()
   const eventType      = p.get('event_type') || ''
-  const signalTag      = (p.get('signal_tag') || '').toUpperCase()
+  const signalTag      = p.get('signal_tag') || ''   // emoji strings are case-sensitive, do NOT toUpperCase()
   const alphaScoreMin  = parseFloat(p.get('alpha_score_min') || 'NaN')
   const sortBy         = SORT_WHITELIST.has(p.get('sort_by') || '') ? p.get('sort_by')! : 'rcept_dt'
   const limit          = Math.min(Math.max(parseInt(p.get('limit') || '50', 10), 1), 200)

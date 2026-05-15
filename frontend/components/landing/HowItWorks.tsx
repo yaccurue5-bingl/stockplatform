@@ -15,8 +15,8 @@ const steps = [
   },
   {
     num: '03',
-    title: 'Decide',
-    desc: 'Get instant investment interpretation and quantified signal scoring. Act before the market catches up.',
+    title: 'Signal',
+    desc: 'Receive structured signal scores and AI-generated summaries for each filing. Data only — no investment advice.',
     accent: '#a78bfa',
   },
 ];

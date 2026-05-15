@@ -18,7 +18,7 @@ const cases = [
   {
     Icon: PieChart,
     title: 'Understand the Real Impact',
-    desc: 'Not just the headline — investor-focused analysis tells you what it means for the stock, with a clear Buy / Neutral / Sell signal.',
+    desc: 'Not just the headline — AI extracts financial metrics and assigns a sentiment score (Positive / Neutral / Negative) for every filing.',
     accent: '#a78bfa',
   },
   {
