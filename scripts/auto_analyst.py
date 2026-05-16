@@ -4,10 +4,13 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-# ── Groq (주석 처리 — Groq Dev 플랜 전환 시 아래 블록 활성화) ─────────────────
+# ── Groq (주석 처리 — Groq Dev 플랜 복구 시 활성화) ──────────────────────────
 # from groq import Groq
+# ── Gemini (주석 처리 — Free 티어 quota 0 이슈) ───────────────────────────────
+# from google import genai
+# from google.genai import types as genai_types
 # ─────────────────────────────────────────────────────────────────────────────
-import google.generativeai as genai
+from cerebras.cloud.sdk import Cerebras
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -37,17 +40,21 @@ else:
 SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
-# ── Groq 클라이언트 (주석 처리 — Groq Dev 전환 시 활성화) ────────────────────
+# ── Groq 클라이언트 (주석 처리 — Groq Dev 복구 시 활성화) ───────────────────
 # GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 # groq_client = Groq(api_key=GROQ_API_KEY)
+# ── Gemini 클라이언트 (주석 처리 — Free 티어 quota 0 이슈) ───────────────────
+# GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+# _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+# _GEMINI_MODEL = "gemini-2.0-flash"
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Gemini 클라이언트 ─────────────────────────────────────────────────────────
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
-# Free tier: gemini-2.0-flash — 1M tokens/day, 15 RPM, 1500 req/day
-# Groq Dev 전환 시: 아래 MODEL 변수만 바꾸고 Groq 블록 활성화
-_GEMINI_MODEL = "gemini-2.0-flash"
+# ── Cerebras 클라이언트 (브릿지 — Groq Dev 복구 시 위 Groq 블록으로 교체) ────
+# 모델: qwen-3-235b-a22b-instruct-2507 (MoE 235B, llama-3.3-70b 동급 품질)
+# Free tier, OpenAI 호환 인터페이스
+CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY")
+_cerebras_client = Cerebras(api_key=CEREBRAS_API_KEY)
+_CEREBRAS_MODEL = "qwen-3-235b-a22b-instruct-2507"
 # ─────────────────────────────────────────────────────────────────────────────
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -448,24 +455,21 @@ In ai_summary:
         try:
             system_prompt, user_prompt = self.build_prompt(corp_name, report_nm, content)
 
-            # ── Gemini 호출 ───────────────────────────────────────────────────
-            gemini_model = genai.GenerativeModel(
-                model_name=_GEMINI_MODEL,
-                system_instruction=system_prompt,
+            # ── Cerebras 호출 (브릿지) ────────────────────────────────────────
+            response = _cerebras_client.chat.completions.create(
+                model=_CEREBRAS_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+                max_completion_tokens=2400,
             )
-            response = gemini_model.generate_content(
-                user_prompt,
-                generation_config=genai.types.GenerationConfig(
-                    response_mime_type="application/json",
-                    temperature=0.2,
-                    max_output_tokens=2400,
-                ),
-                request_options={"timeout": 60},
-            )
-            return json.loads(response.text)
+            return json.loads(response.choices[0].message.content)
             # ─────────────────────────────────────────────────────────────────
 
-            # ── Groq 호출 (주석 처리 — Groq Dev 전환 시 위 Gemini 블록 주석, 아래 활성화) ──
+            # ── Groq 호출 (주석 처리 — Groq Dev 복구 시 Cerebras 블록 주석, 아래 활성화) ──
             # response = groq_client.chat.completions.create(
             #     model="llama-3.3-70b-versatile",
             #     messages=[
@@ -478,6 +482,8 @@ In ai_summary:
             #     timeout=60,
             # )
             # return json.loads(response.choices[0].message.content)
+            # ── Gemini 호출 (주석 처리 — Free 티어 quota 0 이슈로 보류) ───────
+            # response = _gemini_client.models.generate_content(...)
             # ─────────────────────────────────────────────────────────────────
 
         except Exception as e:
@@ -662,9 +668,7 @@ def run(backfill: bool = False, limit: int = 200,
 
             logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-        # Gemini Free: 15 RPM → 4초 간격 (60s / 15 = 4s)
-        # Groq Dev 전환 시: 2.5초로 복원 (30 RPM 대응)
-        time.sleep(4.0)
+        time.sleep(2.5)  # Cerebras/Groq 30 RPM 대응 (Gemini 15RPM 때 4.0s였음)
 
     processed = len(res.data)
     logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")
