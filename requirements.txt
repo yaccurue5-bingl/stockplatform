@@ -3,6 +3,7 @@ pandas
 supabase
 urllib3
 groq
+google-generativeai
 opendartreader
 python-dotenv
 beautifulsoup4

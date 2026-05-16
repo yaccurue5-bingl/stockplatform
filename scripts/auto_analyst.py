@@ -4,7 +4,10 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from groq import Groq
+# ── Groq (주석 처리 — Groq Dev 플랜 전환 시 아래 블록 활성화) ─────────────────
+# from groq import Groq
+# ─────────────────────────────────────────────────────────────────────────────
+import google.generativeai as genai
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -33,10 +36,21 @@ else:
 
 SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
+# ── Groq 클라이언트 (주석 처리 — Groq Dev 전환 시 활성화) ────────────────────
+# GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# groq_client = Groq(api_key=GROQ_API_KEY)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Gemini 클라이언트 ─────────────────────────────────────────────────────────
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_API_KEY)
+# Free tier: gemini-2.0-flash — 1M tokens/day, 15 RPM, 1500 req/day
+# Groq Dev 전환 시: 아래 MODEL 변수만 바꾸고 Groq 블록 활성화
+_GEMINI_MODEL = "gemini-2.0-flash"
+# ─────────────────────────────────────────────────────────────────────────────
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-groq_client = Groq(api_key=GROQ_API_KEY)
 
 # ── Groq 분석 불필요 공시 유형 (100% no-signal, 비용 절감) ────────────────────
 # 4월 실증 분석 기준: 태그 발생률 0~0.5%, Groq 분석 시 signal 없음이 확정적
@@ -434,19 +448,37 @@ In ai_summary:
         try:
             system_prompt, user_prompt = self.build_prompt(corp_name, report_nm, content)
 
-            response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.2,
-                max_completion_tokens=2400,
-                timeout=60,  # 60초 초과 시 예외 → 무한 대기 방지
+            # ── Gemini 호출 ───────────────────────────────────────────────────
+            gemini_model = genai.GenerativeModel(
+                model_name=_GEMINI_MODEL,
+                system_instruction=system_prompt,
             )
+            response = gemini_model.generate_content(
+                user_prompt,
+                generation_config=genai.types.GenerationConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                    max_output_tokens=2400,
+                ),
+                request_options={"timeout": 60},
+            )
+            return json.loads(response.text)
+            # ─────────────────────────────────────────────────────────────────
 
-            return json.loads(response.choices[0].message.content)
+            # ── Groq 호출 (주석 처리 — Groq Dev 전환 시 위 Gemini 블록 주석, 아래 활성화) ──
+            # response = groq_client.chat.completions.create(
+            #     model="llama-3.3-70b-versatile",
+            #     messages=[
+            #         {"role": "system", "content": system_prompt},
+            #         {"role": "user", "content": user_prompt}
+            #     ],
+            #     response_format={"type": "json_object"},
+            #     temperature=0.2,
+            #     max_completion_tokens=2400,
+            #     timeout=60,
+            # )
+            # return json.loads(response.choices[0].message.content)
+            # ─────────────────────────────────────────────────────────────────
 
         except Exception as e:
             logger.error(f"❌ [{corp_name}] 분석 에러: {e}")
@@ -630,7 +662,9 @@ def run(backfill: bool = False, limit: int = 200,
 
             logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-        time.sleep(2.5)  # free tier RPM 30 대응 (30건 × 2.5s = 75s, 분당 24건)
+        # Gemini Free: 15 RPM → 4초 간격 (60s / 15 = 4s)
+        # Groq Dev 전환 시: 2.5초로 복원 (30 RPM 대응)
+        time.sleep(4.0)
 
     processed = len(res.data)
     logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")
