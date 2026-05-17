@@ -497,6 +497,9 @@ def _process_items(items: list[dict], date_label: str) -> tuple[int, set[str]]:
         if not stock_code_val:
             logger.info(f"skip unlisted: {corp_name_val}")
             continue
+        if not re.match(r"^\d{6}$", stock_code_val):
+            logger.info(f"skip invalid stock_code ({stock_code_val}): {corp_name_val}")
+            continue
         if not is_signal_disclosure(report_nm):
             logger.info(f"skip (not allowlisted): {report_nm}")
             continue
