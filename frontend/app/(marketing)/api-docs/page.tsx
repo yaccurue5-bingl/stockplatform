@@ -770,16 +770,10 @@ export default function ApiDocsPage() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <a
-              href="/checkout/starter"
+              href="/api-access"
               className="text-xs font-bold bg-[#00D4A6] text-[#0B0F14] rounded-lg px-3 py-1.5 hover:bg-[#00bfa0] transition"
             >
-              Starter $99/mo
-            </a>
-            <a
-              href="/checkout/pro"
-              className="text-xs font-semibold text-[#00D4A6] border border-[#00D4A6]/40 hover:border-[#00D4A6] rounded-lg px-3 py-1.5 transition"
-            >
-              Pro $299/mo
+              Request Access
             </a>
           </div>
         </div>
@@ -898,9 +892,9 @@ export default function ApiDocsPage() {
                   </thead>
                   <tbody>
                     {[
-                      { plan: 'Starter',    rpm: '60',     rpd: '5,000',   hist: '1 year' },
-                      { plan: 'Pro',        rpm: '300',    rpd: '50,000',  hist: '3 years' },
-                      { plan: 'Enterprise', rpm: 'Custom', rpd: 'Custom',  hist: 'Full history (since Nov 2025)' },
+                      { plan: 'Starter',    rpm: '60',     rpd: '5,000',   hist: 'Since Nov 2025' },
+                      { plan: 'Pro',        rpm: '300',    rpd: '50,000',  hist: 'Since Nov 2025' },
+                      { plan: 'Enterprise', rpm: 'Custom', rpd: 'Custom',  hist: 'Since Nov 2025' },
                     ].map((row, i) => (
                       <tr key={row.plan} className={`border-t border-gray-800 ${i % 2 !== 0 ? 'bg-[#121821]/40' : ''}`}>
                         <td className="px-4 py-3 text-sm font-medium text-white">{row.plan}</td>

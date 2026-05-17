@@ -209,7 +209,7 @@ export default function EventLandingPage({ cfg }: { cfg: EventLandingConfig }) {
             label="Get Your Free API Key →"
           />
           <p className="text-xs text-gray-600 mt-4">
-            Upgrade to Developer ($49/mo) or Pro ($199/mo) for higher limits.
+            <a href="/api-access" className="text-[#00D4A6] hover:underline">Contact us</a> for higher limits and full API access.
           </p>
         </div>
       </section>
