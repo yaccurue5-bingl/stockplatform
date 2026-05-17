@@ -30,8 +30,8 @@ export default function Pricing() {
         </h2>
 
         <p className="text-gray-400 text-base mb-10 leading-relaxed max-w-lg mx-auto">
-          We're building structured intelligence on Korean corporate disclosures.
-          Join early access — tell us how you'd use it and we'll be in touch.
+          We&apos;re building structured intelligence on Korean corporate disclosures.
+          Join early access — tell us how you&apos;d use it and we&apos;ll be in touch.
         </p>
 
         {/* Feature list */}

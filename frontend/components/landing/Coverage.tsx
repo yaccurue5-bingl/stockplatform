@@ -2,9 +2,9 @@ import Section from './ui/Section';
 
 const stats = [
   { value: '2,400+', label: 'Listed Companies', sub: 'KOSPI + KOSDAQ' },
-  { value: '4.2M',   label: 'Disclosures Processed', sub: 'Since 2010' },
-  { value: '18',     label: 'Sector Classifications', sub: 'KSIC-based' },
-  { value: '15+',    label: 'Years of History', sub: 'Full archive' },
+  { value: '50,000+', label: 'Disclosures Analyzed', sub: 'Since Nov 2025' },
+  { value: '18',      label: 'Sector Classifications', sub: 'KSIC-based' },
+  { value: '18,000+', label: 'Earnings Signals', sub: 'AI-scored' },
 ];
 
 export default function Coverage() {
