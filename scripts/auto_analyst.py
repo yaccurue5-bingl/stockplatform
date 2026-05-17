@@ -6,11 +6,11 @@ import time
 from datetime import datetime, timedelta
 # ── Groq (주석 처리 — Groq Dev 플랜 복구 시 활성화) ──────────────────────────
 # from groq import Groq
-# ── Gemini (주석 처리 — Free 티어 quota 0 이슈) ───────────────────────────────
-# from google import genai
-# from google.genai import types as genai_types
+# ── Cerebras (주석 처리 — 브릿지 완료) ───────────────────────────────────────
+# from cerebras.cloud.sdk import Cerebras
 # ─────────────────────────────────────────────────────────────────────────────
-from cerebras.cloud.sdk import Cerebras
+from google import genai
+from google.genai import types as genai_types
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -43,18 +43,16 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 # ── Groq 클라이언트 (주석 처리 — Groq Dev 복구 시 활성화) ───────────────────
 # GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 # groq_client = Groq(api_key=GROQ_API_KEY)
-# ── Gemini 클라이언트 (주석 처리 — Free 티어 quota 0 이슈) ───────────────────
-# GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-# _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-# _GEMINI_MODEL = "gemini-2.0-flash"
+# ── Cerebras 클라이언트 (주석 처리 — 브릿지 완료) ────────────────────────────
+# CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY")
+# _cerebras_client = Cerebras(api_key=CEREBRAS_API_KEY)
+# _CEREBRAS_MODEL = "qwen-3-235b-a22b-instruct-2507"
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Cerebras 클라이언트 (브릿지 — Groq Dev 복구 시 위 Groq 블록으로 교체) ────
-# 모델: qwen-3-235b-a22b-instruct-2507 (MoE 235B, llama-3.3-70b 동급 품질)
-# Free tier, OpenAI 호환 인터페이스
-CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY")
-_cerebras_client = Cerebras(api_key=CEREBRAS_API_KEY)
-_CEREBRAS_MODEL = "qwen-3-235b-a22b-instruct-2507"
+# ── Gemini 클라이언트 (google-genai SDK, 유료) ────────────────────────────────
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+_gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+_GEMINI_MODEL = "gemini-2.5-flash"
 # ─────────────────────────────────────────────────────────────────────────────
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -455,35 +453,31 @@ In ai_summary:
         try:
             system_prompt, user_prompt = self.build_prompt(corp_name, report_nm, content)
 
-            # ── Cerebras 호출 (브릿지) ────────────────────────────────────────
-            response = _cerebras_client.chat.completions.create(
-                model=_CEREBRAS_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.2,
-                max_completion_tokens=2400,
+            # ── Gemini 호출 (google-genai SDK, 유료) ─────────────────────────
+            response = _gemini_client.models.generate_content(
+                model=_GEMINI_MODEL,
+                contents=user_prompt,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                    max_output_tokens=2400,
+                ),
             )
-            return json.loads(response.choices[0].message.content)
+            return json.loads(response.text)
             # ─────────────────────────────────────────────────────────────────
 
-            # ── Groq 호출 (주석 처리 — Groq Dev 복구 시 Cerebras 블록 주석, 아래 활성화) ──
+            # ── Groq 호출 (주석 처리 — Groq Dev 복구 시 활성화) ──────────────
             # response = groq_client.chat.completions.create(
             #     model="llama-3.3-70b-versatile",
-            #     messages=[
-            #         {"role": "system", "content": system_prompt},
-            #         {"role": "user", "content": user_prompt}
-            #     ],
+            #     messages=[{"role":"system","content":system_prompt},
+            #               {"role":"user","content":user_prompt}],
             #     response_format={"type": "json_object"},
-            #     temperature=0.2,
-            #     max_completion_tokens=2400,
-            #     timeout=60,
+            #     temperature=0.2, max_completion_tokens=2400, timeout=60,
             # )
             # return json.loads(response.choices[0].message.content)
-            # ── Gemini 호출 (주석 처리 — Free 티어 quota 0 이슈로 보류) ───────
-            # response = _gemini_client.models.generate_content(...)
+            # ── Cerebras 호출 (주석 처리 — 브릿지 완료) ──────────────────────
+            # response = _cerebras_client.chat.completions.create(...)
             # ─────────────────────────────────────────────────────────────────
 
         except Exception as e:
@@ -668,7 +662,7 @@ def run(backfill: bool = False, limit: int = 200,
 
             logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-        time.sleep(2.5)  # Cerebras/Groq 30 RPM 대응 (Gemini 15RPM 때 4.0s였음)
+        time.sleep(4.0)  # Gemini 유료: 15 RPM → 4초 (Groq Dev 복구 시 2.5s로 복원)
 
     processed = len(res.data)
     logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")
