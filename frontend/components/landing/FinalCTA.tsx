@@ -16,7 +16,7 @@ export default function FinalCTA() {
           href="/signup"
           className="inline-block bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold px-10 py-4 rounded-xl transition text-base"
         >
-          Get Access Now
+          Request Early Access
         </Link>
       </div>
     </Section>

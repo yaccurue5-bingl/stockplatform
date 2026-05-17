@@ -6,8 +6,8 @@ import PricingModal from './PricingModal';
 
 const features = [
   { icon: Zap,        text: 'AI-interpreted Korean disclosures — structured & in English' },
-  { icon: Sparkles,   text: 'Signal scoring & filtering across 8 event types' },
-  { icon: Filter,     text: 'Fast structured summaries, scored before the market reacts' },
+  { icon: Sparkles,   text: 'Signal scoring & filtering across key disclosure events' },
+  { icon: Filter,     text: 'Fast structured summaries for faster disclosure review' },
   { icon: RefreshCw,  text: 'Rolling improvements as data coverage expands' },
 ];
 
