@@ -35,9 +35,9 @@ const cfg: EventLandingConfig = {
 
   stats: [
     { value: '2,400+', label: 'Listed Companies' },
-    { value: '15,000+', label: 'Earnings Disclosures' },
+    { value: '18,000+', label: 'Earnings Disclosures' },
     { value: '~15 min', label: 'Update Latency' },
-    { value: 'Since 2010', label: 'Historical Depth' },
+    { value: 'Since Nov 2025', label: 'Historical Depth' },
   ],
 
   whatTitle: 'What Are Korea Earnings Signals?',
@@ -58,7 +58,7 @@ const cfg: EventLandingConfig = {
     {
       icon: 'db',
       title: 'Historical Return Statistics',
-      body: 'Aggregate 1-day, 5-day, and 20-day return statistics per event type, derived from 15+ years of Korean market data. Use these baselines for backtest calibration.',
+      body: 'Aggregate 1-day, 5-day, and 20-day return statistics per event type, derived from Korean market data since Nov 2025. Use these baselines for backtest calibration.',
     },
   ],
 
@@ -100,7 +100,7 @@ const cfg: EventLandingConfig = {
     },
     {
       title: 'Research & Academia',
-      body: 'Access 15+ years of structured Korean earnings data for event studies, cross-sectional return analysis, and market microstructure research.',
+      body: 'Access structured Korean earnings data (since Nov 2025) for event studies, cross-sectional return analysis, and market microstructure research.',
     },
   ],
 };
