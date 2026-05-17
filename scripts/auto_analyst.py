@@ -675,7 +675,7 @@ def run(backfill: bool = False, limit: int = 200,
 
             logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-        time.sleep(4.0)  # Gemini 유료: 15 RPM → 4초 (Groq Dev 복구 시 2.5s로 복원)
+        time.sleep(4.0)  # Gemini 유료 Tier1: 정상 운영 throttle
 
     processed = len(res.data)
     logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")

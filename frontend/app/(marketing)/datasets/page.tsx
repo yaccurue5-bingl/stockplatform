@@ -43,11 +43,11 @@ const datasets = [
     accent: '#fb923c',
     id: 'company-intelligence',
     title: 'Company Intelligence Dataset',
-    desc: 'Structured event timeline and risk signals per company. Full history from 2010 with sentiment trends.',
+    desc: 'Structured event timeline and risk signals per company. Full AI-analyzed history from Nov 2025 with sentiment trends.',
     fields: ['ticker', 'event_history', 'risk_flags', 'sentiment_trend'],
     events: ['Event Timeline', 'Risk Flags', 'Sentiment Trend', 'Full History'],
     update: 'Real-time',
-    coverage: 'Since 2010',
+    coverage: 'Since Nov 2025',
   },
 ];
 
