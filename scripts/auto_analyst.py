@@ -4,10 +4,13 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-# ── Groq (주석 처리 — Groq Dev 플랜 전환 시 아래 블록 활성화) ─────────────────
+# ── Groq (주석 처리 — Groq Dev 플랜 복구 시 활성화) ──────────────────────────
 # from groq import Groq
+# ── Cerebras (주석 처리 — 브릿지 완료) ───────────────────────────────────────
+# from cerebras.cloud.sdk import Cerebras
 # ─────────────────────────────────────────────────────────────────────────────
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -37,17 +40,19 @@ else:
 SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
-# ── Groq 클라이언트 (주석 처리 — Groq Dev 전환 시 활성화) ────────────────────
+# ── Groq 클라이언트 (주석 처리 — Groq Dev 복구 시 활성화) ───────────────────
 # GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 # groq_client = Groq(api_key=GROQ_API_KEY)
+# ── Cerebras 클라이언트 (주석 처리 — 브릿지 완료) ────────────────────────────
+# CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY")
+# _cerebras_client = Cerebras(api_key=CEREBRAS_API_KEY)
+# _CEREBRAS_MODEL = "qwen-3-235b-a22b-instruct-2507"
 # ─────────────────────────────────────────────────────────────────────────────
 
-# ── Gemini 클라이언트 ─────────────────────────────────────────────────────────
+# ── Gemini 클라이언트 (google-genai SDK, 유료) ────────────────────────────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-genai.configure(api_key=GEMINI_API_KEY)
-# Free tier: gemini-2.0-flash — 1M tokens/day, 15 RPM, 1500 req/day
-# Groq Dev 전환 시: 아래 MODEL 변수만 바꾸고 Groq 블록 활성화
-_GEMINI_MODEL = "gemini-2.0-flash"
+_gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+_GEMINI_MODEL = "gemini-2.5-flash"
 # ─────────────────────────────────────────────────────────────────────────────
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -279,13 +284,14 @@ EVENT TYPE GUIDE (event_type) — pick exactly one:
 - DILUTION  : 유상증자, CB(전환사채), BW(신주인수권부사채) 발행
 - BUYBACK   : 자기주식 취득(매입) 또는 소각(소각·감자) 결정 — 주주 환원, 공급 감소 신호
 - DISPOSAL  : 자기주식 처분 결정 — 회사가 보유 자기주식을 시장에 매도, 주식 공급 증가 (BEARISH 신호)
-- DIVIDEND  : 현금배당, 주식배당, 중간배당, 결산배당 결정 (현금·현물배당결정 포함)
-- MNA       : 합병, 인수, 분할, 지분 취득
-- LEGAL              : 소송, 규제 조치, 과징금, 수사
-- CAPEX              : 설비투자, 공장 신증설, R&D 투자
-- EXECUTIVE_CHANGE   : 대표이사·CEO·C-Level(CFO/COO/CTO 등) 선임·취임·사임·해임
-                       (사외이사·감사만의 변동은 이 공시가 도달하지 않음)
-- OTHER              : 위 어느 항목에도 해당하지 않는 공시
+- DIVIDEND  : 현금배당, 주식배당, 중간배당, 결산배당 결정 (현금·현물배당결정, 부동산투자회사금전배당결정 포함)
+- MNA       : 합병, 인수, 분할, 지분 취득 (타법인주식취득 포함 — 경영권/지배력 여부와 무관하게 MNA로 분류)
+- LEGAL     : 소송, 규제 조치, 과징금, 수사
+- CAPEX     : 설비투자, 공장 신증설, R&D 투자, 유형자산취득(공장·설비·토지 등 물리적 자산 취득)
+              ▸ "유형자산취득결정" → always CAPEX (NOT MNA)
+- EXECUTIVE_CHANGE : 대표이사·CEO·C-Level(CFO/COO/CTO 등) 선임·취임·사임·해임
+                     (사외이사·감사만의 변동은 이 공시가 도달하지 않음)
+- OTHER     : 위 어느 항목에도 해당하지 않는 공시
 
 SENTIMENT SCORE GUIDE (sentiment_score):
 - A continuous float between -1.0 (strongly bearish) and +1.0 (strongly bullish).
@@ -339,6 +345,8 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             "MNA": """
 - Specify acquisition/merger amount and its ratio to equity.
 - Analyze changes in governance structure and potential financial burden.
+- For 타법인주식및출자증권취득결정: note ownership stake (%), strategic rationale, and whether this
+  establishes controlling interest (최대주주, >50%) or is a minority/strategic investment.
 """,
             "LEGAL": """
 - Specify litigation/penalty amounts and impact on capital.
@@ -347,6 +355,7 @@ SENTIMENT SCORE GUIDE (sentiment_score):
             "CAPEX": """
 - Specify total investment amount and timeline.
 - State whether this is capacity expansion (증설), new facility (공장 신설), or line addition (라인 증설).
+- For "유형자산취득결정" (physical asset acquisition): always CAPEX. Identify asset type (factory, equipment, land).
 - Positive signals (투자 확대, 증설, capacity increase): assess demand growth potential and return on investment.
 - Negative signals (투자 연기, 축소, 취소): flag as bearish — indicates demand weakness or cash constraint.
 - Calculate investment as % of recent annual revenue or total assets if available.
@@ -398,7 +407,11 @@ In ai_summary:
         if ("배당" in t or "dividend" in t or "기준일설정" in t
                 or "배당결정" in t or "현금·현물" in t):
             matched.append("DIVIDEND")
-        if "합병" in t or "인수" in t or "분할" in t or ("지분" in t and "취득" in t):
+        # 유형자산취득 → CAPEX (물리적 자산: 공장·설비·토지, 항상 CAPEX)
+        if "유형자산취득" in t:
+            matched.append("CAPEX")
+        # 타법인주식취득·합병·인수·분할·지분취득 → MNA
+        if "합병" in t or "인수" in t or "분할" in t or ("지분" in t and "취득" in t) or "타법인주식" in t:
             matched.append("MNA")
         if "소송" in t or "횡령" in t or "배임" in t or "과징금" in t or "수사" in t:
             matched.append("LEGAL")
@@ -448,36 +461,36 @@ In ai_summary:
         try:
             system_prompt, user_prompt = self.build_prompt(corp_name, report_nm, content)
 
-            # ── Gemini 호출 ───────────────────────────────────────────────────
-            gemini_model = genai.GenerativeModel(
-                model_name=_GEMINI_MODEL,
-                system_instruction=system_prompt,
-            )
-            response = gemini_model.generate_content(
-                user_prompt,
-                generation_config=genai.types.GenerationConfig(
+            # ── Gemini 호출 (google-genai SDK, 유료) ─────────────────────────
+            # thinking_budget=0: 2.5 Flash 기본 thinking 비활성화
+            #   → thinking 토큰이 output 예산 소진하는 문제 방지
+            #   → JSON 구조화 출력에는 thinking 불필요 (비용 절감 효과도 있음)
+            # max_output_tokens=8192: 장문 DART 본문 대응 (기존 2400 → truncation 발생)
+            response = _gemini_client.models.generate_content(
+                model=_GEMINI_MODEL,
+                contents=user_prompt,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=system_prompt,
                     response_mime_type="application/json",
                     temperature=0.2,
-                    max_output_tokens=2400,
+                    max_output_tokens=8192,
+                    thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
                 ),
-                request_options={"timeout": 60},
             )
             return json.loads(response.text)
             # ─────────────────────────────────────────────────────────────────
 
-            # ── Groq 호출 (주석 처리 — Groq Dev 전환 시 위 Gemini 블록 주석, 아래 활성화) ──
+            # ── Groq 호출 (주석 처리 — Groq Dev 복구 시 활성화) ──────────────
             # response = groq_client.chat.completions.create(
             #     model="llama-3.3-70b-versatile",
-            #     messages=[
-            #         {"role": "system", "content": system_prompt},
-            #         {"role": "user", "content": user_prompt}
-            #     ],
+            #     messages=[{"role":"system","content":system_prompt},
+            #               {"role":"user","content":user_prompt}],
             #     response_format={"type": "json_object"},
-            #     temperature=0.2,
-            #     max_completion_tokens=2400,
-            #     timeout=60,
+            #     temperature=0.2, max_completion_tokens=2400, timeout=60,
             # )
             # return json.loads(response.choices[0].message.content)
+            # ── Cerebras 호출 (주석 처리 — 브릿지 완료) ──────────────────────
+            # response = _cerebras_client.chat.completions.create(...)
             # ─────────────────────────────────────────────────────────────────
 
         except Exception as e:
@@ -662,9 +675,7 @@ def run(backfill: bool = False, limit: int = 200,
 
             logger.warning(f"⚠️ 실패: {item['corp_name']}")
 
-        # Gemini Free: 15 RPM → 4초 간격 (60s / 15 = 4s)
-        # Groq Dev 전환 시: 2.5초로 복원 (30 RPM 대응)
-        time.sleep(4.0)
+        time.sleep(4.0)  # Gemini 유료 Tier1: 정상 운영 throttle
 
     processed = len(res.data)
     logger.info(f"{'[BACKFILL] ' if backfill else ''}처리 완료: {processed}건")

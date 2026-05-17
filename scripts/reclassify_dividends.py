@@ -1,29 +1,24 @@
 """
 scripts/reclassify_dividends.py
 ================================
-disclosure_insights 에서 event_type='OTHER' 인데 실제로는 배당 공시인 레코드를
-DIVIDEND 로 일괄 재분류합니다.
+disclosure_insights 에서 배당 공시인데 잘못 분류된 레코드를 DIVIDEND로 재분류.
 
-대상 패턴 (report_nm 기준):
+대상:
+  • event_type='OTHER'  + 배당 패턴 report_nm  (Groq OTHER 오분류)
+  • event_type='EARNINGS' + 배당 패턴 report_nm (Groq EARNINGS 오분류)
+
+배당 패턴 (report_nm 기준):
   • 현금·현물배당결정  /  현금배당결정  /  주식배당결정
-  • 중간배당결정  /  특별배당결정
+  • 중간배당결정  /  특별배당결정  /  부동산투자회사금전배당결정
   • 공통: "배당결정" 포함
 
 2-pass 설계:
-  Pass 1: OTHER 전체 스캔 → 배당 ID 목록 수집  (DB 변경 없음)
+  Pass 1: 월별 청크 스캔 → 배당 ID 목록 수집  (DB 변경 없음)
   Pass 2: 100개씩 청크로 PATCH               (URL 길이 ≤ ~4 KB, 안전)
 
-  → 스캔 중 수정 없으므로 오프셋 밀림 없음
-  → UUID 100개 × 39 byte ≈ 3.9 KB, Supabase nginx 8 KB 한도 내
-
 사용법:
-  # dry-run (변경 없이 대상 건수만 확인)
-  python scripts/reclassify_dividends.py
-
-  # 실제 업데이트
-  python scripts/reclassify_dividends.py --apply
-
-  # 스캔 배치 크기 조정 (기본 1000)
+  python scripts/reclassify_dividends.py           # dry-run
+  python scripts/reclassify_dividends.py --apply   # 실제 업데이트
   python scripts/reclassify_dividends.py --apply --batch 2000
 """
 
@@ -70,8 +65,12 @@ DIVIDEND_PATTERNS: list[re.Pattern] = [
     re.compile(r"주식배당결정",               re.IGNORECASE),
     re.compile(r"중간배당결정",               re.IGNORECASE),
     re.compile(r"특별배당결정",               re.IGNORECASE),
+    re.compile(r"부동산투자회사금전배당결정",  re.IGNORECASE),
     re.compile(r"배당결정",                   re.IGNORECASE),
 ]
+
+# OTHER + EARNINGS 둘 다 스캔 (Groq 두 가지 오분류 패턴 모두 수정)
+SCAN_EVENT_TYPES = ("OTHER", "EARNINGS")
 
 UPDATE_CHUNK = 100  # PATCH URL 길이: UUID 100개 × 39 byte ≈ 3.9 KB
 
@@ -86,10 +85,10 @@ def run(apply: bool = False, scan_batch: int = 1000) -> None:
     logger.info(f"모드: {'APPLY (실제 업데이트)' if apply else 'DRY-RUN (조회만)'}")
     logger.info("=" * 60)
 
-    # ── Pass 1: 월별 date range 청크로 스캔 ─────────────────────────────────
+    # ── Pass 1: 월별 date range × event_type 청크로 스캔 ────────────────────
     # 큰 OFFSET/ilike 전체 스캔 → statement timeout 발생
-    # 해결: 1개월 단위 gte+lte 쿼리 (~1,600행/월) → 각 쿼리 <3초 내 완료
-    logger.info("▶ Pass 1: 월별 청크로 OTHER 레코드 스캔 중...")
+    # 해결: 1개월 단위 gte+lte 쿼리 → 각 쿼리 <3초 내 완료
+    logger.info(f"▶ Pass 1: 월별 청크로 {SCAN_EVENT_TYPES} 레코드 스캔 중...")
     all_dividend_ids: list[str] = []
 
     # 커버 범위: 2025-01 ~ 현재 월
@@ -102,34 +101,35 @@ def run(apply: bool = False, scan_batch: int = 1000) -> None:
         dt_to   = cur.strftime(f"%Y%m{last_day:02d}")
 
         month_ids: list[str] = []
-        offset = 0
 
-        while True:
-            resp = (
-                supabase.table("disclosure_insights")
-                .select("id, report_nm, rcept_dt")
-                .eq("event_type", "OTHER")
-                .gte("rcept_dt", dt_from)
-                .lte("rcept_dt", dt_to)
-                .order("rcept_dt", desc=True)
-                .range(offset, offset + scan_batch - 1)
-                .execute()
-            )
-            rows = resp.data or []
-            if not rows:
-                break
+        for ev_type in SCAN_EVENT_TYPES:
+            offset = 0
+            while True:
+                resp = (
+                    supabase.table("disclosure_insights")
+                    .select("id, report_nm, rcept_dt, event_type")
+                    .eq("event_type", ev_type)
+                    .gte("rcept_dt", dt_from)
+                    .lte("rcept_dt", dt_to)
+                    .order("rcept_dt", desc=True)
+                    .range(offset, offset + scan_batch - 1)
+                    .execute()
+                )
+                rows = resp.data or []
+                if not rows:
+                    break
 
-            for row in rows:
-                if is_dividend(row["report_nm"] or ""):
-                    month_ids.append(row["id"])
-                    logger.info(
-                        f"  [DIVIDEND] {row['rcept_dt']} | "
-                        f"{(row['report_nm'] or '')[:60]}"
-                    )
+                for row in rows:
+                    if is_dividend(row["report_nm"] or ""):
+                        month_ids.append(row["id"])
+                        logger.info(
+                            f"  [DIVIDEND←{ev_type}] {row['rcept_dt']} | "
+                            f"{(row['report_nm'] or '')[:60]}"
+                        )
 
-            offset += scan_batch
-            if len(rows) < scan_batch:
-                break
+                offset += scan_batch
+                if len(rows) < scan_batch:
+                    break
 
         all_dividend_ids.extend(month_ids)
         logger.info(

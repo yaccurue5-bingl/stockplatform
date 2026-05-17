@@ -7,5 +7,10 @@
     "recharts": "^3.8.0",
     "resend": "^6.9.1",
     "sweetalert2": "^11.26.18"
-  }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^25.7.0"
+  },
+  "scripts": {}
 }

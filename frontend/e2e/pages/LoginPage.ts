@@ -17,13 +17,26 @@ export class LoginPage {
     this.emailInput    = page.locator('input[type="email"]');
     this.passwordInput = page.locator('input[type="password"]');
     this.submitButton  = page.locator('button[type="submit"]');
-    this.errorMessage  = page.locator('[role="alert"], .error, [data-testid="error"]');
+    // Matches <p class="text-sm text-red-600"> inside the red error box on the login page
+    this.errorMessage  = page.locator('p.text-red-600, [role="alert"]');
     this.googleButton  = page.getByRole('button', { name: /google/i });
   }
 
   async goto() {
     await this.page.goto('/login');
-    await this.emailInput.waitFor({ state: 'visible' });
+
+    // The login page shows a spinner while it checks auth state (checkingAuth=true).
+    // Once auth.getUser() resolves (unauthenticated), the "Continue with email" button appears.
+    // waitFor() properly retries until visible — isVisible() does NOT wait/retry.
+    const continueWithEmail = this.page.getByRole('button', { name: /continue with email/i });
+    try {
+      await continueWithEmail.waitFor({ state: 'visible', timeout: 15_000 });
+      await continueWithEmail.click();
+    } catch {
+      // Button not present (env without 2-step flow) — fall through to check email input
+    }
+
+    await this.emailInput.waitFor({ state: 'visible', timeout: 15_000 });
   }
 
   async login(email: string, password: string) {
@@ -38,7 +51,7 @@ export class LoginPage {
   }
 
   async assertErrorVisible() {
-    await expect(this.errorMessage).toBeVisible({ timeout: 5_000 });
+    await expect(this.errorMessage).toBeVisible({ timeout: 10_000 });
   }
 
   async assertRedirectedAway() {

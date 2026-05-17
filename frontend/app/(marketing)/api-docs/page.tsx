@@ -900,7 +900,7 @@ export default function ApiDocsPage() {
                     {[
                       { plan: 'Starter',    rpm: '60',     rpd: '5,000',   hist: '1 year' },
                       { plan: 'Pro',        rpm: '300',    rpd: '50,000',  hist: '3 years' },
-                      { plan: 'Enterprise', rpm: 'Custom', rpd: 'Custom',  hist: 'Full history (since 2015)' },
+                      { plan: 'Enterprise', rpm: 'Custom', rpd: 'Custom',  hist: 'Full history (since Nov 2025)' },
                     ].map((row, i) => (
                       <tr key={row.plan} className={`border-t border-gray-800 ${i % 2 !== 0 ? 'bg-[#121821]/40' : ''}`}>
                         <td className="px-4 py-3 text-sm font-medium text-white">{row.plan}</td>

@@ -148,3 +148,10 @@ frontend/e2e/.auth/
 frontend/playwright-report/
 frontend/test-results/
 frontend/merged-playwright-report/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

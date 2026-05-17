@@ -7,8 +7,10 @@
 
 import { test as setup, expect } from '@playwright/test';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const AUTH_FILE = path.join(__dirname, '.auth/user.json');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const AUTH_FILE  = path.join(__dirname, '.auth/user.json');
 
 setup('authenticate', async ({ page }) => {
   const email    = process.env.TEST_USER_EMAIL    ?? '';
@@ -23,8 +25,18 @@ setup('authenticate', async ({ page }) => {
 
   await page.goto('/login');
 
-  // Wait for form to be ready
-  await page.waitForSelector('input[type="email"]', { state: 'visible' });
+  // The login page shows a spinner while auth.getUser() runs (checkingAuth=true).
+  // waitFor() retries until visible — isVisible() does NOT wait and returns current state immediately.
+  const continueWithEmail = page.getByRole('button', { name: /continue with email/i });
+  try {
+    await continueWithEmail.waitFor({ state: 'visible', timeout: 15_000 });
+    await continueWithEmail.click();
+  } catch {
+    // Button not present — fall through to email input
+  }
+
+  // Wait for email/password form to be ready
+  await page.waitForSelector('input[type="email"]', { state: 'visible', timeout: 15_000 });
 
   // Fill credentials
   await page.fill('input[type="email"]',    email);
