@@ -58,7 +58,7 @@ const cfg: EventLandingConfig = {
     {
       icon: 'db',
       title: 'Historical Pattern Statistics',
-      body: 'Average 1-day and 5-day returns for contract events by counterparty type and deal size — calibrate your model with 15+ years of Korean market data.',
+      body: 'Average 1-day and 5-day returns for contract events by counterparty type and deal size — calibrate your model with Korean market data since Nov 2025.',
     },
   ],
 
