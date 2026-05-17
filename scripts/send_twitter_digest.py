@@ -125,22 +125,26 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
         mark_cmd = mark_tweeted_cmd(sig_id).replace('"', "&quot;").replace("'", "&#39;")
 
         score_color = "#16a34a" if score >= 0.3 else ("#dc2626" if score <= -0.3 else "#ca8a04")
-        # Safely escape tweet_text for use as a JS template literal
-        tweet_js = (
-            tweet_text
-            .replace("\\", "\\\\")
-            .replace("`", "\\`")
-            .replace("$", "\\$")
+
+        # Visual display: strip the raw signal URL (redundant with "View Signal →" button)
+        import re as _re
+        tweet_display_text = _re.sub(
+            r'https://k-marketinsight\.com/signal/[a-f0-9-]+',
+            '',
+            tweet_text,
         )
+        # Collapse 3+ consecutive blank lines down to 2
+        tweet_display_text = _re.sub(r'\n{3,}', '\n\n', tweet_display_text).strip()
+
         tweet_display = (
-            tweet_text
+            tweet_display_text
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace("\n", "<br>")
         )
 
-        # plain tweet text for textarea (no HTML escaping)
+        # plain tweet text for textarea — keep full URL so it's ready to paste into X
         tweet_textarea = tweet_text.replace("</", "<\\/")
 
         cards_html += f"""
@@ -152,15 +156,7 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
             margin-bottom:20px;
             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
         ">
-            <!-- Header: company + event + score -->
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                <span style="font-size:15px;font-weight:700;color:#111827;">{corp}</span>
-                <span style="font-size:12px;font-weight:600;color:{score_color};background:#f3f4f6;padding:3px 8px;border-radius:6px;">
-                    {event} &nbsp;·&nbsp; {score:+.2f}
-                </span>
-            </div>
-
-            <!-- Tweet text box (formatted display) -->
+            <!-- Tweet text box: header + body all inside -->
             <div style="
                 background:#f8fafc;
                 border:1px solid #e2e8f0;
@@ -169,10 +165,27 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
                 font-size:14px;
                 line-height:1.65;
                 color:#111827;
-                white-space:pre-wrap;
                 font-family:'Courier New',Courier,monospace;
-            ">{tweet_display}
-                <!-- Signal link + char count INSIDE the box -->
+            ">
+                <!-- Header row inside the box -->
+                <div style="
+                    display:flex;justify-content:space-between;align-items:flex-start;
+                    padding-bottom:10px;margin-bottom:10px;
+                    border-bottom:1px solid #e2e8f0;
+                    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+                    gap:8px;
+                ">
+                    <div style="min-width:0;">
+                        <div style="font-size:14px;font-weight:700;color:#111827;word-break:break-word;">{corp}</div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:2px;">{event}</div>
+                    </div>
+                    <span style="font-size:12px;font-weight:700;color:{score_color};background:#f0fdf4;padding:3px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0;">
+                        AI {score:+.2f}
+                    </span>
+                </div>
+                <!-- Tweet body -->
+                <div style="white-space:pre-wrap;">{tweet_display}</div>
+                <!-- Signal link + char count at bottom -->
                 <div style="
                     margin-top:10px;
                     padding-top:8px;
@@ -180,12 +193,13 @@ def build_email_body(queue: list[dict]) -> tuple[str, str]:
                     display:flex;
                     justify-content:space-between;
                     align-items:center;
+                    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
                 ">
                     <a href="{signal_url}" style="
                         font-size:12px;color:#6366f1;text-decoration:none;
-                        font-weight:600;font-family:-apple-system,sans-serif;
+                        font-weight:600;
                     ">📊 View Signal →</a>
-                    <span style="font-size:11px;color:#9ca3af;font-family:-apple-system,sans-serif;">{tw_len}/280</span>
+                    <span style="font-size:11px;color:#9ca3af;">{tw_len}/280</span>
                 </div>
             </div>
 

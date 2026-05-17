@@ -1,10 +1,12 @@
 /**
  * mobile.spec.ts
  * Runs under the mobile-android and mobile-ios projects (Pixel 5 / iPhone 13).
- * Tests: viewport, touch-friendly tap targets, hamburger menu, responsive tables.
+ * Tests: viewport, touch-friendly tap targets, hamburger menu, responsive tables,
+ *        and [8] mobile-safari back-swipe bfcache after logout.
  */
 
 import { test, expect } from '../fixtures/test-fixtures';
+import { logout }        from '../helpers/auth';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -173,5 +175,49 @@ test.describe('Pricing / checkout page on mobile', () => {
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
     );
     expect(hasHScroll).toBe(false);
+  });
+});
+
+// ── [8]: Back swipe after logout (iOS bfcache) ────────────────────────────────
+
+test.describe('[8] Back swipe after logout', () => {
+  /**
+   * On mobile Safari (and Chrome), the Back-Forward Cache (bfcache) may restore
+   * a previously visited page without a network round-trip when the user swipes
+   * back. After logout the middleware must still block the protected page on any
+   * subsequent reload/navigation, even if bfcache briefly renders it.
+   *
+   * This test runs under both mobile-android and mobile-ios projects.
+   */
+  test('bfcache does not permanently expose dashboard after logout', async ({ page, context }) => {
+    // 1. We start authenticated (storageState). Land on a protected page.
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+
+    // 2. Open hamburger menu if present (mobile nav may hide the logout button)
+    const hamburger = page.locator(
+      '[data-testid="hamburger"], [aria-label*="menu" i], button.mobile-menu-btn',
+    ).first();
+    if (await hamburger.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await hamburger.tap();
+      await page.waitForTimeout(400); // wait for menu animation
+    }
+
+    // 3. Tap logout
+    const logoutBtn = page.getByRole('button', { name: /sign out|log out|logout/i });
+    await logoutBtn.waitFor({ state: 'visible', timeout: 5_000 });
+    await logoutBtn.tap();
+
+    await page.waitForURL(
+      (url) => url.pathname === '/' || url.pathname.startsWith('/login'),
+      { timeout: 10_000 },
+    );
+
+    // 4. Simulate back swipe — bfcache may restore /dashboard momentarily
+    await page.goBack();
+
+    // 5. Hard reload bypasses bfcache; middleware must redirect to /login
+    await page.reload();
+    await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
   });
 });

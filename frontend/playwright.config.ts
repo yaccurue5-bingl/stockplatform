@@ -16,6 +16,14 @@
 
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// .env.local 자동 로드 (프로젝트 루트 — frontend 상위 디렉터리)
+// CI에서는 시스템 환경변수가 우선되므로 override: false
+dotenv.config({ path: path.join(__dirname, '..', '.env.local'), override: false });
 
 export const AUTH_FILE = path.join(__dirname, 'e2e/.auth/user.json');
 
@@ -31,7 +39,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries:    process.env.CI ? 2 : 0,
-  workers:    process.env.CI ? 2 : undefined,
+  workers:    process.env.CI ? 2 : 2,  // limit local workers; dev-mode page compilation is serial
 
   /* Reporters */
   reporter: [
