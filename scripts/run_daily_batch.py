@@ -196,19 +196,6 @@ def run_prod(args):
          dry_flag,
          False),
 
-        # Step 7: 고품질 시그널 Telegram 채널 게시 (Bot API 무료)
-        # TELEGRAM_BOT_TOKEN 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
-        ("Telegram 게시",
-         "post_telegram.py",
-         ["--limit", "5"] + (["--dry-run"] if args.dry_run else []),
-         False),
-
-        # Step 8: Twitter 초안 이메일 발송 (yaccurue5@gmail.com → 수동 게시용)
-        # RESEND_API_KEY 미설정 시 자동으로 dry-run 전환 (배치 중단 없음)
-        ("Twitter 다이제스트 이메일",
-         "send_twitter_digest.py",
-         ["--limit", "10"] + (["--dry-run"] if args.dry_run else []),
-         False),
     ]
 
     return _execute_steps(steps)
@@ -269,16 +256,6 @@ def run_analyze(args):
         ("BaseScore 계산",
          "compute_base_score.py",
          dry_flag,
-         False),
-
-        ("Telegram 게시",
-         "post_telegram.py",
-         ["--limit", "5"] + (["--dry-run"] if args.dry_run else []),
-         False),
-
-        ("Twitter 다이제스트 이메일",
-         "send_twitter_digest.py",
-         ["--limit", "10"] + (["--dry-run"] if args.dry_run else []),
          False),
     ]
     return _execute_steps(steps)
