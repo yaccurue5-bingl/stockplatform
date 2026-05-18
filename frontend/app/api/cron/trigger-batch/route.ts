@@ -16,41 +16,7 @@ const WORKFLOW_DISPATCH_URL =
 
 export const runtime = 'edge';
 
-export async function GET(request: Request) {
-  // ── 인증 ──────────────────────────────────────────────────────────────────
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get('secret');
-
-  if (!secret || secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const pat = process.env.GH_PAT;
-  if (!pat) {
-    return NextResponse.json({ error: 'GH_PAT not configured' }, { status: 500 });
-  }
-
-  // ── GitHub workflow_dispatch 트리거 ────────────────────────────────────────
-  const res = await fetch(WORKFLOW_DISPATCH_URL, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${pat}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ ref: 'main', inputs: { mode: 'prod' } }),
-  });
-
-  // 204 = 성공 (GitHub는 body 없이 204 반환)
-  if (res.status === 204) {
-    return NextResponse.json({ ok: true, triggered: new Date().toISOString() });
-  }
-
-  const body = await res.text();
-  console.error(`[trigger-batch] GitHub API error ${res.status}: ${body}`);
-  return NextResponse.json(
-    { error: `GitHub API ${res.status}`, detail: body },
-    { status: 502 }
-  );
+export async function GET(_request: Request) {
+  // cron-job.org 파이프라인 비활성화 — GitHub Actions schedule만 사용
+  return NextResponse.json({ ok: false, message: 'cron-job disabled' }, { status: 503 });
 }
