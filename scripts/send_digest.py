@@ -23,6 +23,7 @@ Free/Starter 유저 대상 Daily Digest 이메일 발송 (Resend).
 
 import os
 import sys
+import time
 import argparse
 import logging
 import requests
@@ -363,6 +364,7 @@ def main() -> None:
         logger.info(f"  {status} {user['email']} ({user.get('plan')})")
         if ok:
             sent += 1
+        time.sleep(0.3)  # Resend 5 req/s 제한 대비
 
     if not args.dry_run:
         logger.info(f"\n{sent}/{len(recipients)}명 발송 완료")
