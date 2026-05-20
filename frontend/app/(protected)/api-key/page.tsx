@@ -73,7 +73,7 @@ export default async function ApiKeyPage() {
           </p>
           {plan === 'free' && (
             <Link
-              href="/pricing"
+              href="/checkout/starter"
               className="inline-block px-5 py-2 rounded-full bg-[#00D4A6] text-[#0B0F14] text-xs font-bold hover:bg-[#00bfa0] transition"
             >
               Upgrade Plan →

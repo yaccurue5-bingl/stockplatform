@@ -151,7 +151,7 @@ export default async function UsagePage() {
                 : 'Upgrade to Pro for 100,000 req/month + bulk endpoints'}
             </p>
             <Link
-              href="/pricing"
+              href="/checkout/starter"
               className="text-xs px-3 py-1 rounded-full bg-[#00D4A6]/10 text-[#00D4A6] hover:bg-[#00D4A6]/20 transition font-medium"
             >
               Upgrade →
