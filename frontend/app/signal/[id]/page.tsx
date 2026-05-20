@@ -130,7 +130,6 @@ async function fetchSignal(id: string): Promise<SignalRow | null> {
     )
     .eq('id', id)
     .eq('analysis_status', 'completed')
-    .eq('is_visible', true)
     .single();
 
   if (error || !data) return null;
