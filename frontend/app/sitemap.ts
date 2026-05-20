@@ -5,14 +5,14 @@
  * 단일 export default 방식으로 구현.
  *
  * 현재 49,000+ 시그널 — Google 한도(50,000) 근접.
- * .limit(50000)으로 한 번에 fetch → 24h ISR 캐시로 DB 부하 최소화.
+ * .limit(50000)으로 한 번에 fetch → 1h ISR 캐시로 DB 부하 최소화.
  * 50,000 초과 시 generateSitemaps() 분할 필요.
  */
 
 import { MetadataRoute } from 'next';
 import { createServiceClient } from '@/lib/supabase/server';
 
-export const revalidate = 86400; // 24h
+export const revalidate = 3600; // 1h
 
 const SITE_URL = 'https://k-marketinsight.com';
 
