@@ -7,7 +7,6 @@ import DataProducts from '@/components/landing/DataProducts';
 import HowItWorks from '@/components/landing/HowItWorks';
 import UseCases from '@/components/landing/UseCases';
 import Pricing from '@/components/landing/Pricing';
-import FinalCTA from '@/components/landing/FinalCTA';
 import Footer from '@/components/landing/Footer';
 
 export const revalidate = 300; // 5분마다 재검증 — LiveEvents 데이터 최신화
@@ -24,7 +23,6 @@ export default function LandingPage() {
       <HowItWorks />
       <UseCases />
       <Pricing />
-      <FinalCTA />
       <Footer />
     </div>
   );

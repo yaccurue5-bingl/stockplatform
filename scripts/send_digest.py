@@ -231,20 +231,20 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
   <!-- Signal cards -->
   {cards_html}
 
-  <!-- Pro upgrade CTA -->
-  <div style="background:linear-gradient(135deg,#1a3fa8,#6d28d9);
+  <!-- Dashboard CTA -->
+  <div style="background:#121821;border:1px solid #1f2937;
               border-radius:14px;padding:28px;text-align:center;margin-top:8px;">
     <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;color:#ffffff;">
-      💎 Upgrade to Pro
+      Unlock More Market Signals
     </h2>
-    <p style="margin:0 0 20px;font-size:14px;color:#c4b5fd;line-height:1.5;">
-      Get full financial metrics, AI analysis reports, and real-time signal alerts — unlimited.
+    <p style="margin:0 0 20px;font-size:14px;color:#9ca3af;line-height:1.5;">
+      Get deeper disclosure insights, AI summaries, and signal tracking updates.
     </p>
-    <a href="{UPGRADE_URL}"
-       style="display:inline-block;padding:13px 32px;background:#f0b429;
-              color:#1a1a1a;border-radius:8px;text-decoration:none;
+    <a href="{SITE_URL}/disclosures"
+       style="display:inline-block;padding:13px 32px;background:#00D4A6;
+              color:#0B0F14;border-radius:8px;text-decoration:none;
               font-size:14px;font-weight:700;letter-spacing:0.2px;">
-      Start Pro →
+      View Signal Dashboard →
     </a>
   </div>
 
@@ -288,7 +288,7 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
 
     lines += [
         "=" * 55,
-        f"Upgrade to Pro: {UPGRADE_URL}",
+        f"View Signal Dashboard: {SITE_URL}/disclosures",
         f"Unsubscribe: {unsub_url}",
     ]
     plain = "\n".join(lines)
