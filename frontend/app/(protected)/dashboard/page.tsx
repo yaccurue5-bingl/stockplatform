@@ -128,7 +128,7 @@ export default async function DashboardPage() {
               <div className="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between">
                 <p className="text-xs text-gray-600">Upgrade for higher limits</p>
                 <Link
-                  href="/pricing"
+                  href="/checkout/starter"
                   className="text-xs px-3 py-1 rounded-full bg-[#00D4A6]/10 text-[#00D4A6] hover:bg-[#00D4A6]/20 transition font-medium"
                 >
                   Upgrade →

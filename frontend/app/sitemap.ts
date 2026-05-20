@@ -4,8 +4,9 @@
  * generateSitemaps()를 쓰면 Next.js 15+에서 /sitemap.xml이 404가 되는 이슈가 있어
  * 단일 export default 방식으로 구현.
  *
- * 현재 17,700+ 시그널 — Google 한도(50,000)에 여유 있음.
- * .limit(25000)으로 한 번에 fetch → 24h ISR 캐시로 DB 부하 최소화.
+ * 현재 49,000+ 시그널 — Google 한도(50,000) 근접.
+ * .limit(50000)으로 한 번에 fetch → 24h ISR 캐시로 DB 부하 최소화.
+ * 50,000 초과 시 generateSitemaps() 분할 필요.
  */
 
 import { MetadataRoute } from 'next';
@@ -24,7 +25,7 @@ async function fetchAllSignalIds(): Promise<{ id: string; updated_at: string | n
       .eq('is_visible', true)
       .eq('analysis_status', 'completed')
       .order('rcept_dt', { ascending: false })
-      .limit(25000); // 현재 ~17,703개 — 여유분 포함
+      .limit(50000); // Google 사이트맵 한도 50,000 — 현재 ~49,132개
     return data ?? [];
   } catch {
     return [];
