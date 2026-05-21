@@ -8,21 +8,19 @@ on:
     - cron: "*/15 23 * * 0-4"
     # ── 장 중 (KST 09:00-15:45        =  UTC 00:00-06:45) ─────────────────────
     - cron: "*/15 0-6 * * 1-5"
-    # ── EOD 장 마감 후 1회 (KST 16:35  =  UTC 07:35) ──────────────────────────
-    - cron: "35 7 * * 1-5"
     # ── 매월 15일 sector_macro 갱신 알림 (KST 10:00 = UTC 01:00) ──────────────
     - cron: "0 1 15 * *"
 
   workflow_dispatch:
     inputs:
       mode:
-        description: "실행 모드 선택"
+        description: "실행 모드 (eod: 장 마감 배치 수동 보완)"
         required: false
         default: "prod"
         type: choice
         options:
-          - prod   # 장 중 배치 (DART 수집 → AI 분석 → 스코어)
-          - eod    # 장 마감 후 배치 (시세·대차 확정 → LPS → 스코어 갱신)
+          - prod
+          - eod
 
 # ── 공통 환경변수 ─────────────────────────────────────────────────────────────
 env:
@@ -79,8 +77,8 @@ jobs:
   prod-collect:
     name: "Intraday Collect (DART + Market)"
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
-      (github.event_name == 'schedule' && github.event.schedule != '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
     concurrency:
       group: prod-collect
@@ -116,8 +114,8 @@ jobs:
   prod-analyze:
     name: "Intraday Analyze (AI + Score + Notify)"
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
-      (github.event_name == 'schedule' && github.event.schedule != '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
     concurrency:
       group: prod-analyze
@@ -143,19 +141,16 @@ jobs:
         run: python scripts/run_daily_batch.py --analyze
 
   # ════════════════════════════════════════════════════════════════════════════
-  # EOD — 장 마감 후 1일 1회 (KST 16:35)
-  #   트리거: EOD cron('35 7 * * 1-5')  또는  workflow_dispatch(mode=eod)
+  # EOD (수동 보완용) — workflow_dispatch mode=eod 전용
+  #   스케줄 EOD는 eod-batch.yml 에서 독립 실행 (35 7 * * 1-5)
   # ════════════════════════════════════════════════════════════════════════════
   eod-batch:
     name: "EOD End-of-Day Batch"
-    if: >-
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'eod') ||
-      (github.event_name == 'schedule' && github.event.schedule == '35 7 * * 1-5' && github.event.schedule != '0 1 15 * *')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'eod'
     runs-on: ubuntu-latest
-    # EOD는 1일 1회 — 중복 방지 + 120분 제한
     concurrency:
       group: eod-batch
-      cancel-in-progress: false  # EOD는 중간에 취소하지 않음 (데이터 무결성)
+      cancel-in-progress: false
     timeout-minutes: 120
 
     steps:
@@ -173,18 +168,13 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 종가·대차 확정 수집 → LPS 재계산 → AI 백필 → FinalScore 갱신
-      # → 섹터 시그널 → event_stats 재집계
       - name: "EOD 장 마감 배치 (--eod)"
         run: python scripts/run_daily_batch.py --eod
 
-      # 처리 지연 메트릭 — 당일 파이프라인 품질 점검
-      # P90 > 30분 또는 당일 수집률 < 80% 시 Actions 경고 (비블로킹)
       - name: "처리 지연 메트릭 점검"
         run: python scripts/check_processing_lag.py --today --alert
-        continue-on-error: true  # P90>30분 시 step 실패(노란 경고)로 표시, job은 계속
+        continue-on-error: true
 
-      # sector_macro 스테일니스 점검 (매월 15일 이후 실행 시 유효)
       - name: "sector_macro 데이터 현황 점검"
         run: python scripts/backfill_sector_macro.py --status
         continue-on-error: true
