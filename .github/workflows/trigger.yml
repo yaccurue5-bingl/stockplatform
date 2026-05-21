@@ -11,7 +11,16 @@ on:
     # ── 매월 15일 sector_macro 갱신 알림 (KST 10:00 = UTC 01:00) ──────────────
     - cron: "0 1 15 * *"
 
-  workflow_dispatch:   # 수동 실행 (장 중 배치 보완용)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "실행 모드 (eod: 장 마감 배치 수동 보완)"
+        required: false
+        default: "prod"
+        type: choice
+        options:
+          - prod
+          - eod
 
 # ── 공통 환경변수 ─────────────────────────────────────────────────────────────
 env:
@@ -131,3 +140,41 @@ jobs:
       - name: "③ 분석 배치 (AI + Score + Telegram + Twitter)"
         run: python scripts/run_daily_batch.py --analyze
 
+  # ════════════════════════════════════════════════════════════════════════════
+  # EOD (수동 보완용) — workflow_dispatch mode=eod 전용
+  #   스케줄 EOD는 eod-batch.yml 에서 독립 실행 (35 7 * * 1-5)
+  # ════════════════════════════════════════════════════════════════════════════
+  eod-batch:
+    name: "EOD End-of-Day Batch"
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'eod'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: eod-batch
+      cancel-in-progress: false
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: "EOD 장 마감 배치 (--eod)"
+        run: python scripts/run_daily_batch.py --eod
+
+      - name: "처리 지연 메트릭 점검"
+        run: python scripts/check_processing_lag.py --today --alert
+        continue-on-error: true
+
+      - name: "sector_macro 데이터 현황 점검"
+        run: python scripts/backfill_sector_macro.py --status
+        continue-on-error: true
