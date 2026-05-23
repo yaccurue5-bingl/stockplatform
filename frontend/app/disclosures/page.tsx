@@ -57,8 +57,13 @@ function DisclosuresContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
-  const [eventFilter, setEventFilter] = useState('');   // e.g. 'BUYBACK'
-  const [scoreFilter, setScoreFilter] = useState('');   // e.g. '70'
+  // URL에서 즉시 초기화 (effect 지연 없이) — stockCodeParam effect의 race condition 방지
+  const [eventFilter, setEventFilter] = useState(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('event') || '' : ''
+  );
+  const [scoreFilter, setScoreFilter] = useState(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('minScore') || '' : ''
+  );
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -147,8 +152,7 @@ function DisclosuresContent() {
     setStockCodeParam(p.get('stock'));
     setDisclosureParam(p.get('disclosure'));
     setSearchQueryParam(p.get('search'));
-    setEventFilter(p.get('event') || '');
-    setScoreFilter(p.get('minScore') || '');
+    // eventFilter / scoreFilter는 useState lazy init에서 이미 설정 — 여기선 생략
   }, []);
 
   // 서버 사이드 검색 함수
