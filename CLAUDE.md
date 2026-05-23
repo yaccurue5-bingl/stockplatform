@@ -26,6 +26,62 @@
 
 ---
 
+## 성능 수정 시 필수 검증 절차 (필수)
+
+**"현재 문제만" 고치는 방식은 금지. 반드시 전체 파이프라인과 연관 로직을 먼저 파악한 후 수정한다.**
+
+### 실패 패턴 (반복 금지)
+
+```
+[문제] 특정 쿼리가 느림
+[잘못된 접근] "이것만 빠르게 바꾸면 된다" → 바로 수정 → push
+[결과] 연관 로직(인증 시간, 타임아웃, 캐시, 인덱스)과 충돌 → 새 에러 발생
+```
+
+실제 사례: `select('*').limit(2000)` 느림 → RPC DISTINCT ON으로 교체 →
+RPC 실행 5,681ms + 인증 700ms = Vercel 10초 타임아웃 초과 → 빈 결과 반환
+
+### 수정 전 반드시 확인할 것
+
+1. **기존 코드가 "왜" 동작했는지 먼저 파악**
+   - 느리더라도 동작 중이라면 → 무엇이 그걸 가능하게 했는지 이해 후 대안 설계
+   - 기존 인덱스, 쿼리 순서, LIMIT 조건이 성능에 어떤 역할을 하는지 확인
+
+2. **전체 파이프라인 시간 합산**
+   - API route 수정 시: `인증(getUser) + plan 체크 + 신규 쿼리 + enrich` 각각 측정
+   - 합계가 Vercel 함수 타임아웃(10초) 이내인지 반드시 확인
+   - 개별 쿼리가 빠르더라도 순차 합산이 타임아웃을 넘으면 빈 결과 반환
+
+3. **새 쿼리/RPC는 EXPLAIN ANALYZE 먼저**
+   ```sql
+   -- 수정 전: Supabase MCP execute_sql로 반드시 실행
+   EXPLAIN (ANALYZE, BUFFERS) SELECT ...새 쿼리...;
+   -- 실행 시간이 기존 대비 개선됐는지 확인 후 배포
+   ```
+
+4. **영향 범위 명시 후 각각 확인**
+   - "이 수정이 영향을 주는 다른 로직" 목록화
+   - CDN 캐시: 인증 필요한 엔드포인트에 `s-maxage` 추가 금지 (빈 응답 캐싱 위험)
+   - 기존 인덱스: 새 쿼리 패턴이 기존 인덱스를 활용하는지 확인
+
+5. **push 전 실측 확인**
+   - DB 쿼리 변경 → `EXPLAIN ANALYZE` 실행 시간 확인 → OK면 push
+   - API route 변경 → `curl` 또는 브라우저에서 실제 응답 확인 → OK면 push
+   - 타입 체크(`npx tsc --noEmit`) → 에러 없음 확인 → OK면 push
+
+### 체크리스트 (코드 수정 후 push 전)
+
+```
+□ 기존 동작 방식을 이해했는가?
+□ 새 쿼리의 EXPLAIN ANALYZE 실행 시간을 확인했는가?
+□ 전체 API 파이프라인 합산 시간이 타임아웃 이내인가?
+□ 연관된 다른 로직(캐시, 인덱스, 인증)에 부작용이 없는가?
+□ 실제 응답(curl/브라우저)으로 결과를 확인했는가?
+□ TypeScript 타입 체크를 통과했는가?
+```
+
+---
+
 ## Supabase RLS 정책 규칙 (필수)
 
 **DB 테이블을 신규 생성하거나 수정할 때마다, 그 자리에서 즉시 RLS 상태를 확인하고 정책을 설정한다.**
@@ -225,6 +281,15 @@ mcp__supabase__get_advisors(project_id: "ojzxvaojuglgqmvxhlzh", type: "security"
 | `/api/market-radar-widget` TTFB | 3,267ms (5개 쿼리 순차) | ~600ms (예상) | 5→4 쿼리 + Promise.all 1단계 병렬화 | 2026-05-13 |
 | 원인 분석 | `/api/market-radar-widget` 순차 쿼리 5개 | — | Performance Resource Timing API로 측정 | 2026-05-13 |
 | sector_signals 2-step 제거 | 날짜 조회 → 데이터 조회 (2 serial) | 단일 쿼리 + client-side filter | `.limit(10)` + `filter(date === maxDate).slice(0,3)` | 2026-05-13 |
+
+### /disclosures 필터 성능 최적화 (2026-05-23)
+
+| 항목 | Before | After | 방법 | 날짜 |
+|---|---|---|---|---|
+| EARNINGS 필터 API 응답 | ~10,000ms (Vercel 타임아웃 → 빈 결과) | ~1,100ms | RPC DISTINCT ON + 커버링 인덱스 | 2026-05-23 |
+| get_disclosure_companies_filtered RPC 실행 | 5,681ms (Heap Fetches: 9,459) | 97ms (Heap Fetches: 0) | idx_di_event_stock_covering 추가 + VACUUM ANALYZE | 2026-05-23 |
+| Supabase 직접호출 (랜딩 진입 시) | 6개 | 4개 | Navbar getUser() 제거, useTrack getSession() 교체 | 2026-05-23 |
+| Back 버튼 비로그인 리다이렉트 | ❌ /login?redirectTo=%2Fdisclosures | ✅ router.back() | BackButton.tsx 신규 생성 | 2026-05-23 |
 
 ### /disclosures 신규 기능 (2026-05-13)
 

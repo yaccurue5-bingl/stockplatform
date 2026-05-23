@@ -79,16 +79,9 @@ export default function Navbar() {
   useEffect(() => {
     const supabase = getSupabase();
 
-    // 초기 세션 확인
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        setIsLoggedIn(true);
-        setUserEmail(data.user.email ?? '');
-        fetchUserPlan(data.user.id);
-      }
-    });
-
-    // 로그인/아웃 변화 감지
+    // getUser() 제거 → onAuthStateChange(INITIAL_SESSION)이 즉시 발화하므로 중복 불필요.
+    // getUser()는 JWT 서버 검증(네트워크 왕복 ~400ms)을 유발하고,
+    // INITIAL_SESSION 이벤트도 fetchUserPlan을 호출해 총 2번 DB 쿼리가 발생했음.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session?.user);
       if (session?.user) {
