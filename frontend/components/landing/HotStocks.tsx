@@ -96,7 +96,7 @@ function hotTier(score: number): HotTier {
 // ── 타입 ──────────────────────────────────────────────────────────────────────
 
 interface HotStockItem {
-  id: string; corp_name: string; stock_code: string
+  id: string; corp_name: string; corp_name_en: string | null; stock_code: string
   event_type: string; event_label: string; label_type: LabelType; hot_tier: HotTier
   e_score: number; e_adj: number; signal_grade: string | null
   median_return: number | null; headline: string | null
@@ -139,7 +139,7 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
     const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
     const { data: discRows } = await sb
       .from('disclosure_insights')
-      .select('id, corp_name, stock_code, event_type, headline, final_score, sentiment_score, rcept_dt')
+      .select('id, corp_name, corp_name_en, stock_code, event_type, headline, final_score, sentiment_score, rcept_dt')
       .eq('analysis_status', 'completed')
       .eq('is_visible', true)
       .gte('created_at', since)
@@ -150,7 +150,7 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
     if (!discRows?.length) return []
 
     type DiscRow = {
-      id: string; corp_name: string; stock_code: string; event_type: string
+      id: string; corp_name: string; corp_name_en: string | null; stock_code: string; event_type: string
       headline: string | null; final_score: number | null
       sentiment_score: number | null; rcept_dt: string
     }
@@ -268,7 +268,7 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
 
       const label_type = computeLabel(e_adj, m_score, f_score_val)
       results.push({
-        id: row.id, corp_name: row.corp_name, stock_code: row.stock_code,
+        id: row.id, corp_name: row.corp_name, corp_name_en: row.corp_name_en ?? null, stock_code: row.stock_code,
         event_type: et, event_label: EVENT_LABELS[et] ?? EVENT_LABELS.OTHER,
         label_type, hot_tier: hotTier(hot_score),
         e_score: meta.e_score, e_adj: Math.round(e_adj * 10) / 10,
@@ -323,7 +323,7 @@ export default async function HotStocks() {
             High-Signal Events
           </h2>
           <p className="mt-2 text-gray-400 text-sm max-w-lg">
-            이유(E) + 돈(M) + 체력(F)이 동시에 확인된 종목.
+            Stocks where Event (E), Money (M), and Momentum (F) all align simultaneously.
           </p>
         </div>
         <Link href="/disclosures" className="hidden md:inline-flex items-center gap-1.5 text-sm text-[#00D4A6] hover:text-white transition font-medium">
@@ -353,7 +353,7 @@ export default async function HotStocks() {
               {/* 회사명 + 배지 행 */}
               <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-semibold text-sm truncate leading-tight">{item.corp_name}</p>
+                  <p className="text-white font-semibold text-sm truncate leading-tight">{item.corp_name_en || item.corp_name}</p>
                   <p className="text-[10px] text-gray-500 font-mono">{item.stock_code}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -411,7 +411,7 @@ export default async function HotStocks() {
                     <span className="text-gray-700 text-xs">·</span>
                   )}
                   {item.volume_ratio !== null && (
-                    <span className="text-xs text-gray-400">거래량 {item.volume_ratio.toFixed(1)}x</span>
+                    <span className="text-xs text-gray-400">Vol {item.volume_ratio.toFixed(1)}x</span>
                   )}
                 </div>
               )}
