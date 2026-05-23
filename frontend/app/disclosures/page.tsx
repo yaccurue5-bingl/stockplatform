@@ -57,6 +57,8 @@ function DisclosuresContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [eventFilter, setEventFilter] = useState('');   // e.g. 'BUYBACK'
+  const [scoreFilter, setScoreFilter] = useState('');   // e.g. '70'
   // 페이지네이션 상태
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -145,6 +147,8 @@ function DisclosuresContent() {
     setStockCodeParam(p.get('stock'));
     setDisclosureParam(p.get('disclosure'));
     setSearchQueryParam(p.get('search'));
+    setEventFilter(p.get('event') || '');
+    setScoreFilter(p.get('minScore') || '');
   }, []);
 
   // 서버 사이드 검색 함수
@@ -257,7 +261,7 @@ function DisclosuresContent() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage]);
+  }, [currentPage, eventFilter, scoreFilter]);
 
   // stock 파라미터에 따라 데이터 로드
   // groupedStocksRef 사용으로 stale closure 완전 차단
@@ -337,6 +341,23 @@ function DisclosuresContent() {
     });
   }, [router, startTransition]);
 
+  // 필터 변경 핸들러 — page 리셋 + URL 동기화
+  const handleFilterChange = useCallback((newEvent: string, newScore: string) => {
+    setEventFilter(newEvent);
+    setScoreFilter(newScore);
+    setCurrentPage(1);
+    setGroupedStocks([]);
+    setFilteredStocks([]);
+    const p = new URLSearchParams(window.location.search);
+    if (newEvent) p.set('event', newEvent); else p.delete('event');
+    if (newScore) p.set('minScore', newScore); else p.delete('minScore');
+    p.delete('stock');
+    p.delete('disclosure');
+    startTransition(() => {
+      router.push(`/disclosures?${p.toString()}`, { scroll: false });
+    });
+  }, [router, startTransition]);
+
   // 브라우저 뒤로가기 처리 — URL에서 param 상태 동기화 (useEffect가 나머지 처리)
   useEffect(() => {
     const handlePopState = () => {
@@ -346,6 +367,8 @@ function DisclosuresContent() {
 
       setStockCodeParam(stockCode);
       setDisclosureParam(disclosureId);
+      setEventFilter(params.get('event') || '');
+      setScoreFilter(params.get('minScore') || '');
 
       // stock이 없으면 목록 뷰로 즉시 전환 (useEffect는 null 판별하므로 여기서도 처리)
       if (!stockCode) {
@@ -420,7 +443,12 @@ function DisclosuresContent() {
       }
 
       // ── 전체 목록 조회 (페이지네이션) ──
-      const url = `/api/disclosures/latest?page=${page}&pageSize=${PAGE_SIZE}`;
+      const filterParams = new URLSearchParams();
+      filterParams.set('page', String(page));
+      filterParams.set('pageSize', String(PAGE_SIZE));
+      if (eventFilter) filterParams.set('event', eventFilter);
+      if (scoreFilter) filterParams.set('minScore', scoreFilter);
+      const url = `/api/disclosures/latest?${filterParams.toString()}`;
       console.log(`🔍 [Disclosures] Fetching page ${page}: ${url}`);
       const response = await fetch(url);
       if (!response.ok) return;
@@ -821,8 +849,8 @@ function DisclosuresContent() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-8 min-h-[60px]">
-          <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
+        <div className="mb-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
             <h1 className="text-3xl font-bold">All Disclosures</h1>
             <Link
               href="/disclosures/signals"
@@ -831,7 +859,57 @@ function DisclosuresContent() {
               📊 Signal Statistics
             </Link>
           </div>
-          <p className="text-gray-400 h-6">
+
+          {/* ── 필터 바 ── */}
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            {/* Event 필터 */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-500 font-medium">Event</label>
+              <select
+                value={eventFilter}
+                onChange={(e) => handleFilterChange(e.target.value, scoreFilter)}
+                className="bg-gray-800 border border-gray-700 text-sm text-gray-200 rounded-lg px-3 py-1.5
+                           focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value="">All</option>
+                <option value="EARNINGS">📊 Earnings</option>
+                <option value="CONTRACT">🤝 Contract</option>
+                <option value="BUYBACK">📈 Buyback</option>
+                <option value="DIVIDEND">💰 Dividend</option>
+                <option value="MNA">🔄 M&amp;A</option>
+                <option value="DILUTION">⚠️ Dilution</option>
+                <option value="LEGAL">⚖️ Legal</option>
+                <option value="CAPEX">🏭 Capex</option>
+              </select>
+            </div>
+
+            {/* Score 필터 */}
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-500 font-medium">Score</label>
+              <select
+                value={scoreFilter}
+                onChange={(e) => handleFilterChange(eventFilter, e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-sm text-gray-200 rounded-lg px-3 py-1.5
+                           focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              >
+                <option value="">All</option>
+                <option value="70">🔥 High (≥70)</option>
+                <option value="40">⚡ Medium+ (≥40)</option>
+              </select>
+            </div>
+
+            {/* 필터 초기화 버튼 */}
+            {(eventFilter || scoreFilter) && (
+              <button
+                onClick={() => handleFilterChange('', '')}
+                className="text-xs text-gray-500 hover:text-gray-300 underline transition"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+
+          <p className="text-gray-400 h-6 text-sm">
             {isSearching ? (
               'Searching...'
             ) : searchQuery ? (
