@@ -77,21 +77,22 @@ function DisclosuresContent() {
   const groupedStocksRef   = useRef<GroupedStock[]>([]);
   // router.push/back을 transition으로 감싸 Suspense fallback 깜빡임 방지
   const [, startTransition] = useTransition();
-  // 접근 제어: null = 아직 확인 중, false = 접근 불가, true = 접근 허용
-  const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
+  // 인증 상태 (목록은 공개 — 비로그인도 접근 가능, 상세는 유료만 허용)
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   // 북마크 상태 (disclosure_id Set)
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
 
-  // ── 접근 제어: super admin 또는 유료 plan 유저만 허용 ──
-  // getSession() 대신 onAuthStateChange(INITIAL_SESSION) 사용
-  // → 뒤로가기 후 재마운트 시 getSession()이 순간적으로 null 반환해 로그아웃되는 버그 방지
+  // ── 인증 상태 확인 (목록은 공개, 상세 뷰 진입 시만 유료 체크) ──
   useEffect(() => {
     const supabase = getSupabase();
-    const redirectTo = encodeURIComponent('/disclosures');
 
     const checkPlan = async (userId: string, email: string) => {
+      setIsLoggedIn(true);
       if (isSuperAdmin(email)) {
-        setAccessAllowed(true);
+        setIsPaid(true);
+        setAuthChecked(true);
         return;
       }
       const { data } = await supabase
@@ -100,37 +101,41 @@ function DisclosuresContent() {
         .eq('id', userId)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
-      const isPaid =
-        data?.plan && data.plan !== 'free' && data?.subscription_status === 'active';
-
-      if (!isPaid) {
-        router.replace('/pricing');
-        return;
-      }
-      setAccessAllowed(true);
+      const paid =
+        !!(data?.plan && data.plan !== 'free' && data?.subscription_status === 'active');
+      setIsPaid(paid);
+      setAuthChecked(true);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'INITIAL_SESSION') {
-        // 세션이 스토리지에서 완전히 로드된 후 한 번만 실행
         if (!session?.user) {
-          router.replace(`/login?redirectTo=${redirectTo}`);
+          // 비로그인: 목록은 공개이므로 리다이렉트 없음
+          setIsLoggedIn(false);
+          setIsPaid(false);
+          setAuthChecked(true);
           return;
         }
         void checkPlan(session.user.id, session.user.email ?? '');
       }
       if (event === 'SIGNED_OUT') {
-        setAccessAllowed(false);
-        router.replace(`/login?redirectTo=${redirectTo}`);
+        setIsLoggedIn(false);
+        setIsPaid(false);
+        // 상세 뷰에서 로그아웃 시 → 목록으로
+        if (selectedStockRef.current) {
+          setSelectedStock(null);
+          setSelectedDisclosure(null);
+          router.replace('/disclosures');
+        }
       }
     });
 
     return () => subscription.unsubscribe();
   }, [router]);
 
-  // 접근 허용 시 북마크 ID 목록 로드 (ids_only=true → JOIN 없이 빠름)
+  // 로그인 + 유료 시 북마크 ID 목록 로드 (ids_only=true → JOIN 없이 빠름)
   useEffect(() => {
-    if (!accessAllowed) return;
+    if (!isLoggedIn || !isPaid) return;
     fetch('/api/bookmarks?ids_only=true')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -139,7 +144,7 @@ function DisclosuresContent() {
         }
       })
       .catch(() => {});
-  }, [accessAllowed]);
+  }, [isLoggedIn, isPaid]);
 
   // URL 파라미터를 수동으로 관리 (useSearchParams 제거 → Suspense fallback 깜빡임 완전 차단)
   const [stockCodeParam, setStockCodeParam]     = useState<string | null>(null);
@@ -258,9 +263,9 @@ function DisclosuresContent() {
     }
   }, [selectedStock, loading, savedScrollPosition]);
 
-  // 페이지 변경 시 새 데이터 로드 (목록 뷰에서만)
+  // 페이지/필터 변경 시 새 데이터 로드 (목록 뷰 — 공개)
   useEffect(() => {
-    if (stockCodeParam === null && !searchQuery && accessAllowed) {
+    if (stockCodeParam === null && !searchQuery) {
       fetchDisclosures(undefined, currentPage);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -269,11 +274,22 @@ function DisclosuresContent() {
 
   // stock 파라미터에 따라 데이터 로드
   // groupedStocksRef 사용으로 stale closure 완전 차단
-  // stockCodeParam === null  → ?stock 파라미터 없음 (목록 뷰)
+  // stockCodeParam === null  → ?stock 파라미터 없음 (목록 뷰 — 공개)
   // stockCodeParam === ''    → 빈 stock_code (무시)
-  // stockCodeParam === 'XXX' → 해당 종목 로드
+  // stockCodeParam === 'XXX' → 상세 뷰 (로그인 + 유료 필요)
   useEffect(() => {
     if (stockCodeParam) {
+      // 상세 뷰 진입: 인증 확인 후 처리
+      if (!authChecked) return; // auth 로딩 중 → 대기
+      if (!isLoggedIn) {
+        router.replace(`/login?redirectTo=${encodeURIComponent(`/disclosures?stock=${stockCodeParam}`)}`);
+        return;
+      }
+      if (!isPaid) {
+        router.replace('/pricing');
+        return;
+      }
+
       const existing = groupedStocksRef.current.find(s => s.stock_code === stockCodeParam);
       if (existing) {
         const targetDisclosure = disclosureParam
@@ -286,7 +302,7 @@ function DisclosuresContent() {
       }
       fetchDisclosures(stockCodeParam);
     } else if (stockCodeParam === null) {
-      // null = ?stock 파라미터 자체가 없음 → 목록 뷰
+      // null = ?stock 파라미터 없음 → 목록 뷰 (공개, auth 불필요)
       if (groupedStocksRef.current.length === 0) {
         fetchDisclosures(undefined, currentPage);
       } else {
@@ -297,7 +313,7 @@ function DisclosuresContent() {
     }
     // stockCodeParam === '' → 빈 stock_code, 무시 (상태 유지)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockCodeParam]);
+  }, [stockCodeParam, authChecked, isLoggedIn, isPaid]);
 
   // search 파라미터가 있으면 검색 실행
   useEffect(() => {
@@ -311,6 +327,17 @@ function DisclosuresContent() {
   // URL 기반 네비게이션
   const navigateToStock = useCallback((stock: GroupedStock) => {
     if (!stock.stock_code) return; // 빈 stock_code는 무시
+
+    // 상세 뷰 진입: 비로그인 → 로그인, 무료 → 업그레이드 유도
+    if (!isLoggedIn) {
+      router.push(`/login?redirectTo=${encodeURIComponent(`/disclosures?stock=${stock.stock_code}`)}`);
+      return;
+    }
+    if (!isPaid) {
+      router.push('/pricing');
+      return;
+    }
+
     setSavedScrollPosition(window.scrollY);
     // 상태 즉시 업데이트 → 깜빡임 없이 화면 전환
     setSelectedStock(stock);
@@ -320,7 +347,7 @@ function DisclosuresContent() {
     startTransition(() => {
       router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
     });
-  }, [router, startTransition]);
+  }, [router, startTransition, isLoggedIn, isPaid]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
     setSelectedDisclosure(disclosure);
@@ -1007,7 +1034,7 @@ function DisclosuresContent() {
                         <BookmarkButton
                           disclosureId={latestDisclosure.id}
                           initialBookmarked={bookmarkedIds.has(latestDisclosure.id)}
-                          isLoggedIn={true}
+                          isLoggedIn={isLoggedIn && isPaid}
                           size="sm"
                         />
                       </div>
