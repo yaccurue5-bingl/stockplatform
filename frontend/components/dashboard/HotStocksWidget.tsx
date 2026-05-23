@@ -63,7 +63,7 @@ function computeLabel(e_adj: number, m_score: number, f_score: number | null): L
 }
 
 interface WidgetItem {
-  id: string; corp_name: string; stock_code: string; event_type: string
+  id: string; corp_name: string; corp_name_en: string | null; stock_code: string; event_type: string
   e_score: number; e_adj: number; signal_grade: string | null
   headline: string | null; median_return: number | null
   price_1d: number | null; volume_ratio: number | null
@@ -97,14 +97,14 @@ async function fetchItems(): Promise<WidgetItem[]> {
 
     const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
     const { data: discRows } = await sb.from('disclosure_insights')
-      .select('id, corp_name, stock_code, event_type, headline, final_score, rcept_dt')
+      .select('id, corp_name, corp_name_en, stock_code, event_type, headline, final_score, rcept_dt')
       .eq('analysis_status', 'completed').eq('is_visible', true)
       .gte('created_at', since).not('event_type', 'is', null)
       .order('final_score', { ascending: false }).limit(200)
 
     if (!discRows?.length) return []
 
-    type DiscRow = { id: string; corp_name: string; stock_code: string; event_type: string; headline: string | null; final_score: number | null; rcept_dt: string }
+    type DiscRow = { id: string; corp_name: string; corp_name_en: string | null; stock_code: string; event_type: string; headline: string | null; final_score: number | null; rcept_dt: string }
 
     const qualify = (rows: DiscRow[], ms: number, me: number): DiscRow[] =>
       rows.filter(r => { const et = (r.event_type ?? '').toUpperCase(); const m = eventMap.get(et); return m && m.sample_size >= ms && m.e_score >= me })
@@ -191,7 +191,7 @@ async function fetchItems(): Promise<WidgetItem[]> {
       if (hot_score < 15) continue
 
       results.push({
-        id: row.id, corp_name: row.corp_name, stock_code: row.stock_code, event_type: et,
+        id: row.id, corp_name: row.corp_name, corp_name_en: row.corp_name_en ?? null, stock_code: row.stock_code, event_type: et,
         e_score: meta.e_score, e_adj: Math.round(e_adj * 10) / 10,
         signal_grade: meta.grade, headline: row.headline ?? null, median_return: meta.median_return,
         price_1d: price_1d !== null ? Math.round(price_1d * 10000) / 100 : null,
@@ -247,7 +247,7 @@ export default async function HotStocksWidget() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="text-sm text-white font-medium truncate leading-tight">{item.corp_name}</span>
+                    <span className="text-sm text-white font-medium truncate leading-tight">{item.corp_name_en || item.corp_name}</span>
                     <span className={`shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wider ${ec}`}>
                       {EVENT_LABELS[item.event_type] ?? 'Event'}
                     </span>

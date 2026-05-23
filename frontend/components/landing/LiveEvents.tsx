@@ -115,7 +115,7 @@ export default async function LiveEvents() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">{e.company}</p>
-                <p className="text-xs text-gray-500">{e.company_kr || e.ticker}</p>
+                <p className="text-xs text-gray-500">{e.ticker}</p>
               </div>
             </div>
             <div className="hidden sm:flex items-center gap-3">
