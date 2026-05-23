@@ -833,6 +833,8 @@ function DisclosuresContent() {
                   if (stock) {
                     navigateToStock(stock);
                   } else {
+                    // 현재 페이지에 없는 종목 → stockCodeParam state 업데이트해야 effect 발화
+                    setStockCodeParam(stockCode);
                     startTransition(() => {
                       router.push(`/disclosures?stock=${stockCode}`);
                     });
