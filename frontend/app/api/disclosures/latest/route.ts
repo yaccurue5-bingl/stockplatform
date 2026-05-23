@@ -189,52 +189,70 @@ export async function GET(request: Request) {
 
     const SPAC_KEYWORDS = ['스팩', '기업인수목적', '인수목적', 'SPAC'];
 
-    // ── 필터 모드: event / minScore 파라미터 있을 때 직접 쿼리 ──────────────────
-    // RPC(get_disclosure_companies)는 필터 미지원 → 직접 필터 쿼리로 분기
+    // ── 필터 모드: event / minScore 파라미터 있을 때 RPC 기반 쿼리 ──────────────────
+    // get_disclosure_companies_filtered RPC: DB 레벨 DISTINCT ON + 필터 적용
     if (eventParam || minScoreParam) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let query: any = supabase
-        .from('disclosure_insights')
-        .select('*')
-        .eq('analysis_status', 'completed')
-        .eq('is_visible', true)
-        .order('updated_at', { ascending: false });
+      const rpcParams: Record<string, string | number | null> = {
+        p_event_type: eventParam || null,
+        p_min_score:  minScoreParam ? parseInt(minScoreParam, 10) : null,
+      };
 
-      if (eventParam)    query = query.eq('event_type', eventParam);
-      if (minScoreParam) query = query.gte('final_score', parseInt(minScoreParam, 10));
+      const { data: rpcRows, error: rpcError } = await supabase
+        .rpc('get_disclosure_companies_filtered', rpcParams);
 
-      const { data: filteredRows, error: filterError } = await query.limit(2000);
-      if (filterError) return NextResponse.json({ disclosures: [], total: 0, page, pageSize, totalPages: 0 });
+      if (rpcError) return NextResponse.json({ disclosures: [], total: 0, page, pageSize, totalPages: 0 });
 
-      // 회사별 최신 updated_at 집계 (SPAC 제외)
-      const companyLatest = new Map<string, string>();
-      for (const row of filteredRows || []) {
-        if (!row.stock_code) continue;
-        if (SPAC_KEYWORDS.some(kw => (row.corp_name || '').includes(kw))) continue;
-        if (!companyLatest.has(row.stock_code) || row.updated_at > companyLatest.get(row.stock_code)!) {
-          companyLatest.set(row.stock_code, row.updated_at);
-        }
-      }
+      // SPAC 제외 + 최신순 정렬
+      const orderedCodes: string[] = (rpcRows || [])
+        .filter((row: any) => row.stock_code && !SPAC_KEYWORDS.some(kw => (row.corp_name || '').includes(kw)))
+        .sort((a: any, b: any) => new Date(b.max_updated_at).getTime() - new Date(a.max_updated_at).getTime())
+        .map((row: any) => row.stock_code as string);
 
-      const sortedCodes = [...companyLatest.entries()]
-        .sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime())
-        .map(([code]) => code);
-
-      const total = sortedCodes.length;
+      const total = orderedCodes.length;
       const totalPages = Math.ceil(total / pageSize);
-      const pageStockCodes = sortedCodes.slice((page - 1) * pageSize, page * pageSize);
+      const pageStockCodes = orderedCodes.slice((page - 1) * pageSize, page * pageSize);
 
       if (pageStockCodes.length === 0) {
+        return NextResponse.json(
+          { disclosures: [], total, page, pageSize, totalPages },
+          { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } },
+        );
+      }
+
+      // 페이지에 해당하는 공시 데이터 + 메타 데이터 병렬 조회
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let discQuery: any = supabase
+        .from('disclosure_insights')
+        .select('id, rcept_no, corp_name, stock_code, market, report_nm, report_nm_en, ai_summary, sentiment_score, short_term_impact_score, updated_at, financial_impact, risk_factors, key_numbers, event_type, final_score')
+        .eq('analysis_status', 'completed')
+        .eq('is_visible', true)
+        .in('stock_code', pageStockCodes)
+        .order('updated_at', { ascending: false })
+        .limit(pageSize * 20);
+
+      if (eventParam)    discQuery = discQuery.eq('event_type', eventParam);
+      if (minScoreParam) discQuery = discQuery.gte('final_score', parseInt(minScoreParam, 10));
+
+      const [discResult, enrichResult] = await Promise.all([
+        discQuery,
+        enrichStockCodes(supabase, pageStockCodes),
+      ]);
+
+      if (discResult.error) {
         return NextResponse.json({ disclosures: [], total, page, pageSize, totalPages });
       }
 
-      const pageRows = (filteredRows || []).filter((r: any) => pageStockCodes.includes(r.stock_code));
-      const { corpNameEnMap, sectorMap, sectorEnMap } = await enrichStockCodes(supabase, pageStockCodes);
-      const transformed = pageRows.map((item: any) =>
+      const { corpNameEnMap, sectorMap, sectorEnMap } = enrichResult;
+      const transformed = (discResult.data || []).map((item: any) =>
         transformDisclosure(item, corpNameEnMap, sectorMap, sectorEnMap)
       );
 
-      return NextResponse.json({ disclosures: transformed, total, page, pageSize, totalPages });
+      console.log(`✅ [API-filter] Page ${page}/${totalPages} — ${pageStockCodes.length} companies, ${transformed.length} disclosures (event=${eventParam || 'all'}, minScore=${minScoreParam || 'any'})`);
+
+      return NextResponse.json(
+        { disclosures: transformed, total, page, pageSize, totalPages },
+        { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } },
+      );
     }
 
     // ── 기본 모드: RPC 기반 페이지네이션 (필터 없음) ─────────────────────────────
