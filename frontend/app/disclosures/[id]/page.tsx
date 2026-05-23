@@ -11,7 +11,8 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
-import { ArrowLeft, Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import BackButton from '@/components/BackButton';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
 import SignalStrength from '@/components/disclosures/SignalStrength';
 import ShortPressure from '@/components/disclosures/ShortPressure';
@@ -253,13 +254,7 @@ export default async function DisclosureDetailPage({
       {/* 상단 네비 */}
       <div className="border-b border-gray-800 px-4 py-3">
         <div className="max-w-5xl mx-auto">
-          <Link
-            href="/disclosures"
-            className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition"
-          >
-            <ArrowLeft size={15} />
-            Back
-          </Link>
+          <BackButton />
         </div>
       </div>
 
