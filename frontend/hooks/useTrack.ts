@@ -35,7 +35,10 @@ export function useTrack() {
 
       try {
         const supabase = getSupabase();
-        const { data: { user } } = await supabase.auth.getUser();
+        // getSession(): 쿠키/localStorage에서 읽음 (네트워크 없음)
+        // getUser()는 JWT를 서버 검증해 ~400ms 추가 소모 → 트래킹 용도에 불필요
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
 
         await supabase.from('user_events').insert({
           user_id:    user?.id ?? null,
