@@ -226,6 +226,15 @@ mcp__supabase__get_advisors(project_id: "ojzxvaojuglgqmvxhlzh", type: "security"
 | 원인 분석 | `/api/market-radar-widget` 순차 쿼리 5개 | — | Performance Resource Timing API로 측정 | 2026-05-13 |
 | sector_signals 2-step 제거 | 날짜 조회 → 데이터 조회 (2 serial) | 단일 쿼리 + client-side filter | `.limit(10)` + `filter(date === maxDate).slice(0,3)` | 2026-05-13 |
 
+### /disclosures 필터 성능 최적화 (2026-05-23)
+
+| 항목 | Before | After | 방법 | 날짜 |
+|---|---|---|---|---|
+| EARNINGS 필터 API 응답 | ~10,000ms (Vercel 타임아웃 → 빈 결과) | ~1,100ms | RPC DISTINCT ON + 커버링 인덱스 | 2026-05-23 |
+| get_disclosure_companies_filtered RPC 실행 | 5,681ms (Heap Fetches: 9,459) | 97ms (Heap Fetches: 0) | idx_di_event_stock_covering 추가 + VACUUM ANALYZE | 2026-05-23 |
+| Supabase 직접호출 (랜딩 진입 시) | 6개 | 4개 | Navbar getUser() 제거, useTrack getSession() 교체 | 2026-05-23 |
+| Back 버튼 비로그인 리다이렉트 | ❌ /login?redirectTo=%2Fdisclosures | ✅ router.back() | BackButton.tsx 신규 생성 | 2026-05-23 |
+
 ### /disclosures 신규 기능 (2026-05-13)
 
 | 기능 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |
