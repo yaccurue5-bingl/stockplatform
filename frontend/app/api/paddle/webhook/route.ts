@@ -1,6 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { Resend } from 'resend';
+
+const FROM_EMAIL = 'K-MarketInsight <support@k-marketinsight.com>';
+
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return null;
+  return new Resend(key);
+}
+
+function buildApiKeyReadyHtml(plan: string, apiKeyPageUrl: string): string {
+  const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Your API Key is Ready</title></head>
+<body style="margin:0;padding:0;background:#f5f7fa;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fa;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.05);">
+        <tr>
+          <td style="background:#0b1f3a;padding:24px;text-align:center;color:#fff;">
+            <h1 style="margin:0;font-size:22px;">K-MarketInsight</h1>
+            <p style="margin:8px 0 0;font-size:14px;opacity:.8;">AI-powered Korean Market Intelligence</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;color:#333;">
+            <h2 style="margin-top:0;">🔑 Your API Key is Ready</h2>
+            <p style="line-height:1.6;">Your <strong>${planLabel}</strong> subscription is now active.</p>
+            <p style="line-height:1.6;">Your API key has been generated and is waiting for you. Visit your API Key page to view it and get started:</p>
+            <div style="text-align:center;margin:32px 0;">
+              <a href="${apiKeyPageUrl}" style="background:#2563eb;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;display:inline-block;font-weight:bold;">
+                View My API Key →
+              </a>
+            </div>
+            <p style="line-height:1.6;font-size:13px;color:#666;">
+              Keep your API key secure — treat it like a password. Do not share it publicly.<br>
+              If you need to rotate your key, contact us at support@k-marketinsight.com.
+            </p>
+            <p style="line-height:1.6;">— K-MarketInsight Team</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f1f5f9;padding:20px;text-align:center;font-size:12px;color:#666;">
+            <p style="margin:0;">© 2026 K-MarketInsight. All rights reserved.</p>
+            <p style="margin:8px 0 0;"><a href="https://k-marketinsight.com" style="color:#2563eb;text-decoration:none;">Visit Website</a></p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
 
 // Supabase 클라이언트를 런타임에 생성 (빌드 시점에는 환경변수 없을 수 있음)
 function getSupabaseClient() {
@@ -231,8 +285,40 @@ async function handleSubscriptionCreated(event: any) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId);
-  if (userError) console.error('❌ users 업데이트 실패:', userError);
-  else console.log(`🔑 API Key 생성 완료: user=${userId}`);
+  if (userError) {
+    console.error('❌ users 업데이트 실패:', userError);
+    return;
+  }
+  console.log(`🔑 API Key 생성 완료: user=${userId}`);
+
+  // 3. 사용자에게 API Key 발급 이메일 발송
+  const email = data.customer?.email || data.email || null;
+  if (email) {
+    const resend = getResend();
+    if (resend) {
+      try {
+        const apiKeyPageUrl = 'https://k-marketinsight.com/api-key';
+        const { error: mailError } = await resend.emails.send({
+          from:    FROM_EMAIL,
+          to:      [email],
+          replyTo: 'support@k-marketinsight.com',
+          subject: '🔑 Your API Key is Ready — K-MarketInsight',
+          html:    buildApiKeyReadyHtml(plan, apiKeyPageUrl),
+        });
+        if (mailError) {
+          console.error('❌ API key 이메일 발송 실패:', mailError);
+        } else {
+          console.log(`📧 API Key 이메일 발송 완료: ${email}`);
+        }
+      } catch (mailErr) {
+        console.error('❌ API key 이메일 예외:', mailErr);
+      }
+    } else {
+      console.warn('⚠️ RESEND_API_KEY 없음 — 이메일 발송 스킵');
+    }
+  } else {
+    console.warn(`⚠️ [subscription.created] 이메일 추출 실패 — user=${userId}`);
+  }
 }
 
 // 구독 업데이트 처리
@@ -381,5 +467,23 @@ async function handlePaymentFailed(event: any) {
 
   if (subscriptionError) {
     console.error('❌ Failed to update subscription status:', subscriptionError);
+  }
+
+  // 결제 실패 시 api_key 무효화 (past_due 사용자 API 접근 차단)
+  if (userId) {
+    const { error: keyError } = await supabase
+      .from('users')
+      .update({
+        api_key: null,
+        api_key_created_at: null,
+        subscription_status: 'past_due',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+    if (keyError) {
+      console.error('❌ api_key 무효화 실패:', keyError);
+    } else {
+      console.log(`🔒 api_key 무효화 완료: user=${userId} (payment failed)`);
+    }
   }
 }
