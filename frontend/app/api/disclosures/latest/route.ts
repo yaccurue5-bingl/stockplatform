@@ -184,9 +184,60 @@ export async function GET(request: Request) {
     // ── 전체 목록 조회: 서버사이드 페이지네이션 ──
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const pageSize = Math.min(50, Math.max(5, parseInt(searchParams.get('pageSize') || '15', 10)));
+    const eventParam   = searchParams.get('event') || '';    // e.g. 'BUYBACK'
+    const minScoreParam = searchParams.get('minScore') || ''; // e.g. '70'
 
     const SPAC_KEYWORDS = ['스팩', '기업인수목적', '인수목적', 'SPAC'];
 
+    // ── 필터 모드: event / minScore 파라미터 있을 때 직접 쿼리 ──────────────────
+    // RPC(get_disclosure_companies)는 필터 미지원 → 직접 필터 쿼리로 분기
+    if (eventParam || minScoreParam) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let query: any = supabase
+        .from('disclosure_insights')
+        .select('*')
+        .eq('analysis_status', 'completed')
+        .eq('is_visible', true)
+        .order('updated_at', { ascending: false });
+
+      if (eventParam)    query = query.eq('event_type', eventParam);
+      if (minScoreParam) query = query.gte('final_score', parseInt(minScoreParam, 10));
+
+      const { data: filteredRows, error: filterError } = await query.limit(2000);
+      if (filterError) return NextResponse.json({ disclosures: [], total: 0, page, pageSize, totalPages: 0 });
+
+      // 회사별 최신 updated_at 집계 (SPAC 제외)
+      const companyLatest = new Map<string, string>();
+      for (const row of filteredRows || []) {
+        if (!row.stock_code) continue;
+        if (SPAC_KEYWORDS.some(kw => (row.corp_name || '').includes(kw))) continue;
+        if (!companyLatest.has(row.stock_code) || row.updated_at > companyLatest.get(row.stock_code)!) {
+          companyLatest.set(row.stock_code, row.updated_at);
+        }
+      }
+
+      const sortedCodes = [...companyLatest.entries()]
+        .sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime())
+        .map(([code]) => code);
+
+      const total = sortedCodes.length;
+      const totalPages = Math.ceil(total / pageSize);
+      const pageStockCodes = sortedCodes.slice((page - 1) * pageSize, page * pageSize);
+
+      if (pageStockCodes.length === 0) {
+        return NextResponse.json({ disclosures: [], total, page, pageSize, totalPages });
+      }
+
+      const pageRows = (filteredRows || []).filter((r: any) => pageStockCodes.includes(r.stock_code));
+      const { corpNameEnMap, sectorMap, sectorEnMap } = await enrichStockCodes(supabase, pageStockCodes);
+      const transformed = pageRows.map((item: any) =>
+        transformDisclosure(item, corpNameEnMap, sectorMap, sectorEnMap)
+      );
+
+      return NextResponse.json({ disclosures: transformed, total, page, pageSize, totalPages });
+    }
+
+    // ── 기본 모드: RPC 기반 페이지네이션 (필터 없음) ─────────────────────────────
     // Step 1: DB DISTINCT ON RPC로 고유 회사 목록 취득 (구: 5000행 풀로드 → JS 중복제거)
     const { data: allRows, error: allRowsError } = await supabase
       .rpc('get_disclosure_companies');
