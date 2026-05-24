@@ -77,6 +77,8 @@ function transformDisclosure(item: any, corpNameEnMap: Record<string, string>, s
     detailed_analysis: safeString(item.financial_impact || item.ai_summary),
     risk_factors: item.risk_factors ? [item.risk_factors] : [],
     key_numbers: keyNumbers,
+    event_type: item.event_type ? safeString(item.event_type) : null,
+    final_score: typeof item.final_score === 'number' ? item.final_score : null,
   };
 }
 

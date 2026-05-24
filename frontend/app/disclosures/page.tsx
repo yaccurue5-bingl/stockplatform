@@ -34,6 +34,8 @@ interface Disclosure {
   risk_factors?: string[];
   key_metrics?: string[];
   key_numbers?: Record<string, string> | null;
+  event_type?: string | null;
+  final_score?: number | null;
 }
 
 interface GroupedStock {
@@ -597,6 +599,105 @@ function DisclosuresContent() {
   if (selectedDisclosure && selectedStock) {
     const currentIndex = selectedStock.disclosures.findIndex(d => d.id === selectedDisclosure.id);
 
+    // ── Signal 레벨 분류 ──
+    const HIGH_SIGNAL_EVENTS = ['CONTRACT', 'BUYBACK', 'DIVIDEND', 'MNA', 'DILUTION', 'EARNINGS', 'LEGAL', 'CAPEX'];
+    const SHORT_PRESSURE_EVENTS = ['DILUTION', 'LEGAL', 'MNA'];
+    const eventType = selectedDisclosure.event_type ?? '';
+    const isHighSignalEvent = HIGH_SIGNAL_EVENTS.includes(eventType);
+    // HIGH importance이거나 고시그널 이벤트 타입이면 Full layout
+    const isHighSignal = selectedDisclosure.importance === 'HIGH' || isHighSignalEvent;
+    const showShortPressure = SHORT_PRESSURE_EVENTS.includes(eventType);
+
+    // ── Low Signal Compact 레이아웃 ──
+    if (!isHighSignal) {
+      return (
+        <div className="bg-gray-950 text-white font-sans min-h-screen">
+          <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
+            <div className="max-w-full mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button onClick={navigateBack} className="text-gray-400 hover:text-white transition">← Back</button>
+                <span className="text-lg font-semibold">Disclosure Detail</span>
+              </div>
+            </div>
+          </header>
+
+          <div className="max-w-2xl mx-auto px-4 py-10">
+            {/* 회사 헤더 */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center text-sm font-bold">
+                {generateTicker(selectedStock.corp_name_en)}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{selectedStock.corp_name_en || selectedStock.corp_name}</h2>
+                <p className="text-sm text-gray-500">{selectedStock.stock_code} · {selectedStock.market}</p>
+              </div>
+            </div>
+
+            {/* Routine Notice */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-500 font-medium uppercase tracking-wide">
+                  Routine Filing
+                </span>
+                <span className="text-xs text-gray-600">{formatDateTime(selectedDisclosure.updated_at)}</span>
+              </div>
+              <h3 className="text-base font-semibold text-gray-200 mb-2">
+                {selectedDisclosure.report_name}
+              </h3>
+              {selectedDisclosure.report_name_ko && selectedDisclosure.report_name !== selectedDisclosure.report_name_ko && (
+                <p className="text-xs text-gray-600 mb-3">{selectedDisclosure.report_name_ko}</p>
+              )}
+              <p className="text-sm text-gray-500 italic">
+                No material market-moving signal detected for this filing.
+              </p>
+            </div>
+
+            {/* Summary (있으면 간략 표시) */}
+            {selectedDisclosure.summary && (
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
+                <h4 className="text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wide">Filing Summary</h4>
+                <p className="text-sm text-gray-400 leading-relaxed">{selectedDisclosure.summary}</p>
+              </div>
+            )}
+
+            {/* DART 원문 링크 */}
+            {selectedDisclosure.rcept_no && (
+              <a
+                href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium py-3 rounded-xl transition"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                View Original Filing on DART
+              </a>
+            )}
+
+            {/* Related Disclosures */}
+            {selectedStock.disclosures.length > 1 && (
+              <div className="mt-8">
+                <h4 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">Other Disclosures</h4>
+                <div className="space-y-2">
+                  {selectedStock.disclosures.filter(d => d.id !== selectedDisclosure.id).slice(0, 3).map(d => (
+                    <button
+                      key={d.id}
+                      onClick={() => navigateToDisclosure(d)}
+                      className="w-full text-left px-4 py-3 bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-600 transition text-sm text-gray-400"
+                    >
+                      <span className="text-gray-600 text-xs mr-2">{formatDate(d.updated_at)}</span>
+                      {d.report_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="bg-gray-950 text-white font-sans min-h-screen">
         {/* Header */}
@@ -746,40 +847,27 @@ function DisclosuresContent() {
                     </div>
                   </div>
 
-                  {/* Key Numbers */}
-                  {selectedDisclosure.key_numbers && Object.keys(selectedDisclosure.key_numbers).length > 0 && (
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                      <h3 className="text-lg font-bold mb-4">Key Numbers</h3>
-                      <dl className="grid grid-cols-2 gap-3">
-                        {Object.entries(selectedDisclosure.key_numbers).map(([k, v]) => (
-                          <div key={k} className="bg-gray-800/60 rounded-lg px-4 py-3">
-                            <dt className="text-xs text-gray-500 mb-1">{k}</dt>
-                            <dd className="text-sm font-semibold text-white">{String(v)}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  )}
-
-                  {/* AI Summary */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold">AI Summary</h3>
-                      <span className={selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400'}>
-                        {selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→'}
-                      </span>
-                    </div>
-                    <div className="text-gray-300">
-                      {selectedDisclosure.detailed_analysis ? (
-                        <p className="whitespace-pre-wrap">{selectedDisclosure.detailed_analysis}</p>
-                      ) : selectedDisclosure.summary ? (
-                        <p className="whitespace-pre-wrap text-gray-400">{selectedDisclosure.summary}</p>
-                      ) : (
-                        <p className="text-gray-500 italic">분석 정보가 없습니다.</p>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-600 mt-3">For informational purposes only. Not investment advice.</p>
-                  </div>
+                  {/* Key Numbers — 숫자 인덱스 제외, 최대 4개 */}
+                  {(() => {
+                    if (!selectedDisclosure.key_numbers) return null;
+                    const validEntries = Object.entries(selectedDisclosure.key_numbers)
+                      .filter(([k]) => !/^\d+$/.test(k) && k.trim().length > 0)
+                      .slice(0, 4);
+                    if (validEntries.length === 0) return null;
+                    return (
+                      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                        <h3 className="text-lg font-bold mb-4">Key Numbers</h3>
+                        <dl className="grid grid-cols-2 gap-3">
+                          {validEntries.map(([k, v]) => (
+                            <div key={k} className="bg-gray-800/60 rounded-lg px-4 py-3">
+                              <dt className="text-xs text-gray-500 mb-1">{k}</dt>
+                              <dd className="text-sm font-semibold text-white">{String(v)}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                    );
+                  })()}
 
                   {/* Data Source Attribution */}
                   <DataSourceNote
@@ -822,8 +910,10 @@ function DisclosuresContent() {
                     importance={selectedDisclosure.importance ?? 'MEDIUM'}
                   />
 
-                  {/* 2. Short Pressure */}
-                  <ShortPressure stockCode={selectedStock.stock_code} />
+                  {/* 2. Short Pressure — DILUTION / LEGAL / MNA 에만 표시 */}
+                  {showShortPressure && (
+                    <ShortPressure stockCode={selectedStock.stock_code} />
+                  )}
 
                   {/* 3. Financial YoY */}
                   <FinancialRatios
