@@ -1,5 +1,17 @@
 # Claude Code 작업 지침
 
+## 데이터 소스 규칙 (절대 금지)
+
+**KRX API / pykrx / FinanceDataReader 언급 금지**
+- 이 프로젝트에서 KRX 직접 수집은 사용하지 않는다.
+- 주가 데이터는 이미 `price_history` 테이블에 925,831건 존재 (stock_code, date, open, close, volume)
+- 이벤트별 수익률 통계는 `event_stats` 테이블에 존재 (hit_ratio, avg_5d_return 등)
+- 공시별 실제 수익률은 `scores_log` 테이블에 존재 (future_return_3d/5d/20d)
+- **새 데이터가 필요하다고 판단하기 전에 반드시 Supabase DB 테이블 목록을 먼저 확인한다.**
+
+---
+
+
 ## /disclosures 세션 버그 영구 금지 패턴 (절대 금지)
 
 ### `router.back()` 사용 절대 금지 — /disclosures navigateBack()

@@ -11,6 +11,10 @@ import { isSuperAdmin } from '@/lib/constants';
 import SignalStrength from '@/components/disclosures/SignalStrength';
 import ShortPressure from '@/components/disclosures/ShortPressure';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
+import PriceReactionChart from '@/components/disclosures/PriceReactionChart';
+import WinRateCard from '@/components/disclosures/WinRateCard';
+import SimilarEvents from '@/components/disclosures/SimilarEvents';
+import SectorContext from '@/components/disclosures/SectorContext';
 import DataSourceNote from '@/components/DataSourceNote';
 import { generateTicker } from '@/lib/generateTicker';
 
@@ -879,6 +883,19 @@ function DisclosuresContent() {
                 );
               })()}
 
+              {/* Price Reaction Chart */}
+              <PriceReactionChart
+                stockCode={selectedStock.stock_code}
+                disclosureDate={selectedDisclosure.updated_at}
+              />
+
+              {/* Similar Past Events */}
+              <SimilarEvents
+                stockCode={selectedStock.stock_code}
+                eventType={eventType || null}
+              />
+
+
               <DataSourceNote
                 source="DART"
                 reportName={selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
@@ -914,6 +931,13 @@ function DisclosuresContent() {
                 sentimentScore={selectedDisclosure.sentiment_score ?? 0}
                 importance={selectedDisclosure.importance ?? 'MEDIUM'}
               />
+
+              {/* Win Rate (event_type 있을 때만) */}
+              {eventType && <WinRateCard eventType={eventType} />}
+
+              {/* Sector Context */}
+              <SectorContext stockCode={selectedStock.stock_code} />
+
 
               {/* Short Pressure — DILUTION / LEGAL / MNA 에만 */}
               {showShortPressure && (
