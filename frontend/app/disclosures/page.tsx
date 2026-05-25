@@ -369,8 +369,13 @@ function DisclosuresContent() {
     setStockCodeParam(null);
     setDisclosureParam(null);
     // currentPage 리셋 안 함 → 이전에 보던 페이지 유지
+    //
+    // ⚠️ router.back() 사용 금지:
+    // auth redirect(/login?redirectTo=...)가 history에 쌓여 있어서
+    // back() 하면 /login으로 돌아가 세션 초기화처럼 보이는 버그 발생.
+    // router.replace()로 명시적 이동 — history 오염 없음.
     startTransition(() => {
-      router.back();
+      router.replace('/disclosures', { scroll: false });
     });
   }, [router, startTransition]);
 

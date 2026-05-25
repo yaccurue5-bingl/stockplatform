@@ -1,5 +1,33 @@
 # Claude Code 작업 지침
 
+## /disclosures 세션 버그 영구 금지 패턴 (절대 금지)
+
+### `router.back()` 사용 절대 금지 — /disclosures navigateBack()
+
+**문제**: auth redirect(`/login?redirectTo=...`)가 브라우저 history에 쌓인 상태에서 `router.back()` 호출 시
+→ 상세 뷰 뒤로가기가 /login으로 이동 → 세션 초기화처럼 보이는 버그
+
+**재현 경로**:
+```
+랜딩 → 공시 클릭 → isLoggedIn=false → router.push('/login?redirectTo=/disclosures?stock=XXX')
+  → 로그인 → /disclosures?stock=XXX 진입 → ← Back 클릭
+  → router.back() → history 상 이전 = /login?redirectTo=...  ← 버그 발생
+```
+
+**영구 룰**:
+```tsx
+// ❌ 절대 금지
+router.back();
+
+// ✅ 올바른 방식 — auth redirect history 우회
+router.replace('/disclosures', { scroll: false });
+```
+
+이 패턴은 auth 관련 코드를 어떻게 수정하더라도 **절대 바꾸지 않는다**.
+`navigateBack()`에서 `router.back()` 재도입은 반드시 이 버그를 다시 유발한다.
+
+---
+
 ## 기존 로직 수정 시 규칙 (필수)
 
 **기존 로직을 크게 바꾸는 경우 실행 전 반드시 사용자에게 확인한다.**
