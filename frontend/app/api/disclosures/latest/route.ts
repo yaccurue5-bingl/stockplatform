@@ -244,19 +244,22 @@ export async function GET(request: Request) {
     }
 
     // ── 기본 모드: RPC 기반 페이지네이션 (필터 없음) ─────────────────────────────
-    // Step 1: DB DISTINCT ON RPC로 고유 회사 목록 취득 (구: 5000행 풀로드 → JS 중복제거)
-    // limit(5000): PostgREST 기본 max_rows=1,000 cap 우회 — 실제 종목 수 ~3,000개
-    const { data: allRows, error: allRowsError } = await supabase
-      .rpc('get_disclosure_companies')
-      .limit(5000);
+    // Step 1: DB DISTINCT ON RPC로 고유 회사 목록 취득
+    // RETURNS json: PostgREST max_rows=1,000 하드 리밋 우회 (json_agg → 단일 값 반환)
+    const { data: rpcJson, error: allRowsError } = await supabase
+      .rpc('get_disclosure_companies');
 
     if (allRowsError) return NextResponse.json({ disclosures: [], total: 0, page, pageSize, totalPages: 0 });
 
-    // SPAC 필터 + 최신순 정렬 (RPC 결과는 stock_code 순 → updated_at 기준 재정렬)
-    const orderedCompanies: string[] = (allRows || [])
-      .filter((row: any) => row.stock_code && !SPAC_KEYWORDS.some(kw => (row.corp_name || '').includes(kw)))
-      .sort((a: any, b: any) => new Date(b.max_updated_at).getTime() - new Date(a.max_updated_at).getTime())
-      .map((row: any) => row.stock_code as string);
+    // RPC가 json을 반환하므로 parse 필요할 수 있음 (supabase-js가 자동 파싱)
+    const allRows: Array<{ stock_code: string; max_updated_at: string; corp_name: string }> =
+      Array.isArray(rpcJson) ? rpcJson : (typeof rpcJson === 'string' ? JSON.parse(rpcJson) : []);
+
+    // SPAC 필터 + 최신순 정렬
+    const orderedCompanies: string[] = allRows
+      .filter((row) => row.stock_code && !SPAC_KEYWORDS.some(kw => (row.corp_name || '').includes(kw)))
+      .sort((a, b) => new Date(b.max_updated_at).getTime() - new Date(a.max_updated_at).getTime())
+      .map((row) => row.stock_code);
 
     const total = orderedCompanies.length;
     const totalPages = Math.ceil(total / pageSize);
