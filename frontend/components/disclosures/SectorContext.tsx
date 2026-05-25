@@ -60,7 +60,17 @@ export default function SectorContext({ stockCode }: Props) {
     </div>
   );
 
-  if (!data?.sector || !data.peers.length) return null;
+  if (!data?.sector) return null;
+
+  if (!data.peers.length) return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className="text-base font-bold">Sector Activity</h3>
+        <span className="text-xs px-2 py-0.5 bg-gray-800 text-gray-400 rounded-full">{data.sector}</span>
+      </div>
+      <p className="text-xs text-gray-600">No high-signal events in this sector in the last 30 days.</p>
+    </div>
+  );
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">

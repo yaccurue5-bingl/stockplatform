@@ -239,14 +239,16 @@ export async function GET(request: Request) {
 
       return NextResponse.json(
         { disclosures: transformed, total, page, pageSize, totalPages },
-        { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } },
+        { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' } },
       );
     }
 
     // ── 기본 모드: RPC 기반 페이지네이션 (필터 없음) ─────────────────────────────
     // Step 1: DB DISTINCT ON RPC로 고유 회사 목록 취득 (구: 5000행 풀로드 → JS 중복제거)
+    // limit(5000): PostgREST 기본 max_rows=1,000 cap 우회 — 실제 종목 수 ~3,000개
     const { data: allRows, error: allRowsError } = await supabase
-      .rpc('get_disclosure_companies');
+      .rpc('get_disclosure_companies')
+      .limit(5000);
 
     if (allRowsError) return NextResponse.json({ disclosures: [], total: 0, page, pageSize, totalPages: 0 });
 
@@ -291,7 +293,9 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { disclosures: transformed, total, page, pageSize, totalPages },
       // 1분 CDN 캐시 — 공시 목록은 실시간성 낮음
-      { headers: { 'Cache-Control': 's-maxage=60, stale-while-revalidate=300' } },
+      // s-maxage=300: CDN 5분 캐시 (구 60초 → 콜드 미스 빈도 1/5 감소)
+      // stale-while-revalidate=600: 만료 후 10분간 stale 서빙하며 백그라운드 갱신
+      { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' } },
     );
 
   } catch (error) {
