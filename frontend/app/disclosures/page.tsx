@@ -34,6 +34,8 @@ interface Disclosure {
   risk_factors?: string[];
   key_metrics?: string[];
   key_numbers?: Record<string, string> | null;
+  event_type?: string | null;
+  final_score?: number | null;
 }
 
 interface GroupedStock {
@@ -77,21 +79,24 @@ function DisclosuresContent() {
   const groupedStocksRef   = useRef<GroupedStock[]>([]);
   // router.push/back을 transition으로 감싸 Suspense fallback 깜빡임 방지
   const [, startTransition] = useTransition();
-  // 접근 제어: null = 아직 확인 중, false = 접근 불가, true = 접근 허용
-  const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
+  // 인증 상태 (목록은 공개 — 비로그인도 접근 가능, 상세는 유료만 허용)
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   // 북마크 상태 (disclosure_id Set)
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  // Takeaways 펼치기/접기
+  const [takeawaysExpanded, setTakeawaysExpanded] = useState(false);
 
-  // ── 접근 제어: super admin 또는 유료 plan 유저만 허용 ──
-  // getSession() 대신 onAuthStateChange(INITIAL_SESSION) 사용
-  // → 뒤로가기 후 재마운트 시 getSession()이 순간적으로 null 반환해 로그아웃되는 버그 방지
+  // ── 인증 상태 확인 (목록은 공개, 상세 뷰 진입 시만 유료 체크) ──
   useEffect(() => {
     const supabase = getSupabase();
-    const redirectTo = encodeURIComponent('/disclosures');
 
     const checkPlan = async (userId: string, email: string) => {
+      setIsLoggedIn(true);
       if (isSuperAdmin(email)) {
-        setAccessAllowed(true);
+        setIsPaid(true);
+        setAuthChecked(true);
         return;
       }
       const { data } = await supabase
@@ -100,37 +105,41 @@ function DisclosuresContent() {
         .eq('id', userId)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
-      const isPaid =
-        data?.plan && data.plan !== 'free' && data?.subscription_status === 'active';
-
-      if (!isPaid) {
-        router.replace('/pricing');
-        return;
-      }
-      setAccessAllowed(true);
+      const paid =
+        !!(data?.plan && data.plan !== 'free' && data?.subscription_status === 'active');
+      setIsPaid(paid);
+      setAuthChecked(true);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'INITIAL_SESSION') {
-        // 세션이 스토리지에서 완전히 로드된 후 한 번만 실행
         if (!session?.user) {
-          router.replace(`/login?redirectTo=${redirectTo}`);
+          // 비로그인: 목록은 공개이므로 리다이렉트 없음
+          setIsLoggedIn(false);
+          setIsPaid(false);
+          setAuthChecked(true);
           return;
         }
         void checkPlan(session.user.id, session.user.email ?? '');
       }
       if (event === 'SIGNED_OUT') {
-        setAccessAllowed(false);
-        router.replace(`/login?redirectTo=${redirectTo}`);
+        setIsLoggedIn(false);
+        setIsPaid(false);
+        // 상세 뷰에서 로그아웃 시 → 목록으로
+        if (selectedStockRef.current) {
+          setSelectedStock(null);
+          setSelectedDisclosure(null);
+          router.replace('/disclosures');
+        }
       }
     });
 
     return () => subscription.unsubscribe();
   }, [router]);
 
-  // 접근 허용 시 북마크 ID 목록 로드 (ids_only=true → JOIN 없이 빠름)
+  // 로그인 + 유료 시 북마크 ID 목록 로드 (ids_only=true → JOIN 없이 빠름)
   useEffect(() => {
-    if (!accessAllowed) return;
+    if (!isLoggedIn || !isPaid) return;
     fetch('/api/bookmarks?ids_only=true')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -139,7 +148,7 @@ function DisclosuresContent() {
         }
       })
       .catch(() => {});
-  }, [accessAllowed]);
+  }, [isLoggedIn, isPaid]);
 
   // URL 파라미터를 수동으로 관리 (useSearchParams 제거 → Suspense fallback 깜빡임 완전 차단)
   const [stockCodeParam, setStockCodeParam]     = useState<string | null>(null);
@@ -246,6 +255,8 @@ function DisclosuresContent() {
   // ref 동기화 — stale closure 방지
   useEffect(() => { selectedStockRef.current = selectedStock; }, [selectedStock]);
   useEffect(() => { groupedStocksRef.current = groupedStocks; }, [groupedStocks]);
+  // 공시 전환 시 Takeaways 접기 초기화
+  useEffect(() => { setTakeawaysExpanded(false); }, [selectedDisclosure?.id]);
 
   // Back 버튼 후 목록 뷰로 돌아왔을 때 스크롤 위치 복원
   useEffect(() => {
@@ -258,9 +269,9 @@ function DisclosuresContent() {
     }
   }, [selectedStock, loading, savedScrollPosition]);
 
-  // 페이지 변경 시 새 데이터 로드 (목록 뷰에서만)
+  // 페이지/필터 변경 시 새 데이터 로드 (목록 뷰 — 공개)
   useEffect(() => {
-    if (stockCodeParam === null && !searchQuery && accessAllowed) {
+    if (stockCodeParam === null && !searchQuery) {
       fetchDisclosures(undefined, currentPage);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -269,11 +280,22 @@ function DisclosuresContent() {
 
   // stock 파라미터에 따라 데이터 로드
   // groupedStocksRef 사용으로 stale closure 완전 차단
-  // stockCodeParam === null  → ?stock 파라미터 없음 (목록 뷰)
+  // stockCodeParam === null  → ?stock 파라미터 없음 (목록 뷰 — 공개)
   // stockCodeParam === ''    → 빈 stock_code (무시)
-  // stockCodeParam === 'XXX' → 해당 종목 로드
+  // stockCodeParam === 'XXX' → 상세 뷰 (로그인 + 유료 필요)
   useEffect(() => {
     if (stockCodeParam) {
+      // 상세 뷰 진입: 인증 확인 후 처리
+      if (!authChecked) return; // auth 로딩 중 → 대기
+      if (!isLoggedIn) {
+        router.replace(`/login?redirectTo=${encodeURIComponent(`/disclosures?stock=${stockCodeParam}`)}`);
+        return;
+      }
+      if (!isPaid) {
+        router.replace('/pricing');
+        return;
+      }
+
       const existing = groupedStocksRef.current.find(s => s.stock_code === stockCodeParam);
       if (existing) {
         const targetDisclosure = disclosureParam
@@ -286,7 +308,7 @@ function DisclosuresContent() {
       }
       fetchDisclosures(stockCodeParam);
     } else if (stockCodeParam === null) {
-      // null = ?stock 파라미터 자체가 없음 → 목록 뷰
+      // null = ?stock 파라미터 없음 → 목록 뷰 (공개, auth 불필요)
       if (groupedStocksRef.current.length === 0) {
         fetchDisclosures(undefined, currentPage);
       } else {
@@ -297,7 +319,7 @@ function DisclosuresContent() {
     }
     // stockCodeParam === '' → 빈 stock_code, 무시 (상태 유지)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockCodeParam]);
+  }, [stockCodeParam, authChecked, isLoggedIn, isPaid]);
 
   // search 파라미터가 있으면 검색 실행
   useEffect(() => {
@@ -311,6 +333,17 @@ function DisclosuresContent() {
   // URL 기반 네비게이션
   const navigateToStock = useCallback((stock: GroupedStock) => {
     if (!stock.stock_code) return; // 빈 stock_code는 무시
+
+    // 상세 뷰 진입: 비로그인 → 로그인, 무료 → 업그레이드 유도
+    if (!isLoggedIn) {
+      router.push(`/login?redirectTo=${encodeURIComponent(`/disclosures?stock=${stock.stock_code}`)}`);
+      return;
+    }
+    if (!isPaid) {
+      router.push('/pricing');
+      return;
+    }
+
     setSavedScrollPosition(window.scrollY);
     // 상태 즉시 업데이트 → 깜빡임 없이 화면 전환
     setSelectedStock(stock);
@@ -320,7 +353,7 @@ function DisclosuresContent() {
     startTransition(() => {
       router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
     });
-  }, [router, startTransition]);
+  }, [router, startTransition, isLoggedIn, isPaid]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
     setSelectedDisclosure(disclosure);
@@ -340,8 +373,13 @@ function DisclosuresContent() {
     setStockCodeParam(null);
     setDisclosureParam(null);
     // currentPage 리셋 안 함 → 이전에 보던 페이지 유지
+    //
+    // ⚠️ router.back() 사용 금지:
+    // auth redirect(/login?redirectTo=...)가 history에 쌓여 있어서
+    // back() 하면 /login으로 돌아가 세션 초기화처럼 보이는 버그 발생.
+    // router.replace()로 명시적 이동 — history 오염 없음.
     startTransition(() => {
-      router.back();
+      router.replace('/disclosures', { scroll: false });
     });
   }, [router, startTransition]);
 
@@ -570,244 +608,360 @@ function DisclosuresContent() {
   if (selectedDisclosure && selectedStock) {
     const currentIndex = selectedStock.disclosures.findIndex(d => d.id === selectedDisclosure.id);
 
+    // ── Signal 레벨 분류 ──
+    const HIGH_SIGNAL_EVENTS = ['CONTRACT', 'BUYBACK', 'DIVIDEND', 'MNA', 'DILUTION', 'EARNINGS', 'LEGAL', 'CAPEX'];
+    const SHORT_PRESSURE_EVENTS = ['DILUTION', 'LEGAL', 'MNA'];
+    const eventType = selectedDisclosure.event_type ?? '';
+    const isHighSignalEvent = HIGH_SIGNAL_EVENTS.includes(eventType);
+    // HIGH importance이거나 고시그널 이벤트 타입이면 Full layout
+    const isHighSignal = selectedDisclosure.importance === 'HIGH' || isHighSignalEvent;
+    const showShortPressure = SHORT_PRESSURE_EVENTS.includes(eventType);
+
+    // ── Low Signal Compact 레이아웃 ──
+    if (!isHighSignal) {
+      return (
+        <div className="bg-gray-950 text-white font-sans min-h-screen">
+          <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
+            <div className="max-w-full mx-auto px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <button onClick={navigateBack} className="text-gray-400 hover:text-white transition">← Back</button>
+                <span className="text-lg font-semibold">Disclosure Detail</span>
+              </div>
+            </div>
+          </header>
+
+          <div className="max-w-2xl mx-auto px-4 py-10">
+            {/* 회사 헤더 */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center text-sm font-bold">
+                {generateTicker(selectedStock.corp_name_en)}
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{selectedStock.corp_name_en || selectedStock.corp_name}</h2>
+                <p className="text-sm text-gray-500">{selectedStock.stock_code} · {selectedStock.market}</p>
+              </div>
+            </div>
+
+            {/* Routine Notice */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-500 font-medium uppercase tracking-wide">
+                  Routine Filing
+                </span>
+                <span className="text-xs text-gray-600">{formatDateTime(selectedDisclosure.updated_at)}</span>
+              </div>
+              <h3 className="text-base font-semibold text-gray-200 mb-2">
+                {selectedDisclosure.report_name}
+              </h3>
+              {selectedDisclosure.report_name_ko && selectedDisclosure.report_name !== selectedDisclosure.report_name_ko && (
+                <p className="text-xs text-gray-600 mb-3">{selectedDisclosure.report_name_ko}</p>
+              )}
+              <p className="text-sm text-gray-500 italic">
+                No material market-moving signal detected for this filing.
+              </p>
+            </div>
+
+            {/* Summary (있으면 간략 표시) */}
+            {selectedDisclosure.summary && (
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
+                <h4 className="text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wide">Filing Summary</h4>
+                <p className="text-sm text-gray-400 leading-relaxed">{selectedDisclosure.summary}</p>
+              </div>
+            )}
+
+            {/* DART 원문 링크 */}
+            {selectedDisclosure.rcept_no && (
+              <a
+                href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium py-3 rounded-xl transition"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                View Original Filing on DART
+              </a>
+            )}
+
+            {/* Related Disclosures */}
+            {selectedStock.disclosures.length > 1 && (
+              <div className="mt-8">
+                <h4 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">Other Disclosures</h4>
+                <div className="space-y-2">
+                  {selectedStock.disclosures.filter(d => d.id !== selectedDisclosure.id).slice(0, 3).map(d => (
+                    <button
+                      key={d.id}
+                      onClick={() => navigateToDisclosure(d)}
+                      className="w-full text-left px-4 py-3 bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-600 transition text-sm text-gray-400"
+                    >
+                      <span className="text-gray-600 text-xs mr-2">{formatDate(d.updated_at)}</span>
+                      {d.report_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Event type 표시 레이블 ──
+    const EVENT_LABEL: Record<string, string> = {
+      CONTRACT: '🤝 Contract', BUYBACK: '📈 Buyback', DIVIDEND: '💰 Dividend',
+      MNA: '🔄 M&A', DILUTION: '⚠️ Dilution', EARNINGS: '📊 Earnings',
+      LEGAL: '⚖️ Legal', CAPEX: '🏭 Capex',
+    };
+    const eventLabel = eventType ? (EVENT_LABEL[eventType] ?? eventType) : null;
+    const sentimentArrow = selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑'
+      : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→';
+    const sentimentColor = selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400'
+      : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400';
+
     return (
       <div className="bg-gray-950 text-white font-sans min-h-screen">
-        {/* Header */}
-        <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
-          <div className="max-w-full mx-auto px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={navigateBack}
-                className="text-gray-400 hover:text-white transition"
-              >
-                ← Back
-              </button>
-              <span className="text-lg font-semibold">AI Disclosure Detail</span>
-            </div>
-            <div className="text-sm text-gray-400">
-              {new Date().toLocaleString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                timeZoneName: 'short'
-              })}
-            </div>
+        {/* ── Sticky Header ── */}
+        <header className="bg-black/95 border-b border-gray-800 sticky top-0 z-40 backdrop-blur">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
+            <button onClick={navigateBack} className="text-gray-400 hover:text-white transition shrink-0">
+              ← Back
+            </button>
+            <span className="text-sm text-gray-500 truncate hidden sm:block">
+              {selectedStock.corp_name_en || selectedStock.corp_name} · {selectedDisclosure.report_name}
+            </span>
           </div>
         </header>
 
-        <div className="flex min-h-[calc(100vh-60px)]">
-          {/* Left Sidebar - Disclosure History */}
-          <aside className="w-64 bg-gray-900 border-r border-gray-800 flex-shrink-0">
-            <div className="p-4 border-b border-gray-800">
-              <h2 className="font-bold text-lg">Disclosure History</h2>
-            </div>
-            <div className="overflow-y-auto max-h-[calc(100vh-120px)]">
-              {selectedStock.disclosures.map((disclosure, index) => {
-                const isSelected = disclosure.id === selectedDisclosure.id;
-                const isCurrent = index === 0;
+        <div className="max-w-6xl mx-auto px-4 py-6">
 
-                return (
-                  <div
-                    key={disclosure.id}
-                    onClick={() => navigateToDisclosure(disclosure)}
-                    className={`p-3 cursor-pointer border-b border-gray-800 transition-all ${
-                      isSelected
-                        ? 'bg-green-600 text-white'
-                        : 'hover:bg-gray-800'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      {!isSelected && (
-                        <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                          disclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'bg-green-500' :
-                          disclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'bg-red-500' :
-                          'bg-gray-500'
-                        }`} />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium truncate ${isSelected ? 'text-white' : 'text-gray-300'}`}>
-                          {formatDate(disclosure.updated_at)}: {(disclosure.report_name || disclosure.report_name_ko || '')?.substring(0, 25)}
-                        </div>
-                        {isCurrent && isSelected && (
-                          <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded mt-1 inline-block">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </aside>
-
-          {/* Main Content */}
-          <main className="flex-1 overflow-y-auto">
-            <div className="p-6">
-              {/* Company Header */}
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center text-sm font-bold tracking-tight flex-shrink-0">
+          {/* ── Signal-first Hero ── */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
+            <div className="flex items-start justify-between gap-4">
+              {/* 좌: 회사 + 이벤트 */}
+              <div className="flex items-start gap-4 min-w-0">
+                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-sm font-bold tracking-tight shrink-0">
                   {generateTicker(selectedStock.corp_name_en)}
                 </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold mb-2">
-                    {selectedStock.corp_name_en || selectedStock.corp_name} ({selectedStock.stock_code}): {selectedDisclosure.report_name}
-                  </h2>
-
-                  {/* Badges */}
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                    {eventLabel && (
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 uppercase tracking-wide">
+                        {eventLabel}
+                      </span>
+                    )}
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                       selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE'
-                        ? 'bg-green-500/20 text-green-400 border border-green-500'
+                        ? 'bg-green-500/15 text-green-400 border border-green-500/40'
                         : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE'
-                        ? 'bg-red-500/20 text-red-400 border border-red-500'
-                        : 'bg-gray-500/20 text-gray-400 border border-gray-500'
+                        ? 'bg-red-500/15 text-red-400 border border-red-500/40'
+                        : 'bg-gray-700 text-gray-400'
                     }`}>
-                      {selectedDisclosure.sentiment || 'NEUTRAL'}
+                      {sentimentArrow} {selectedDisclosure.sentiment || 'NEUTRAL'}
                     </span>
-                    <span className={`text-xs px-3 py-1 rounded-full font-medium ${
-                      selectedDisclosure.importance === 'HIGH'
-                        ? 'bg-orange-500/20 text-orange-400 border border-orange-500'
-                        : 'bg-blue-500/20 text-blue-400 border border-blue-500'
-                    }`}>
-                      {selectedDisclosure.importance || 'MEDIUM'} Importance
-                    </span>
-                    <span className="text-xs px-3 py-1 rounded-full font-medium bg-gray-800 text-gray-400">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-gray-800 text-gray-500">
                       {selectedStock.market}
                     </span>
                   </div>
-
-                  {/* Company Info */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-400">
-                    <span>{selectedStock.corp_name_en || selectedStock.corp_name}</span>
-                    <span className="text-gray-700">·</span>
-                    <span>{selectedDisclosure.sector_en || selectedDisclosure.sector || 'Others'}</span>
-                    <span className="text-gray-700">·</span>
-                    <span>{formatDateTime(selectedDisclosure.updated_at)}</span>
-                  </div>
+                  <h2 className="text-xl font-bold leading-snug mb-1">
+                    {selectedStock.corp_name_en || selectedStock.corp_name}
+                    <span className="text-gray-500 font-normal text-base ml-2">{selectedStock.stock_code}</span>
+                  </h2>
+                  <p className="text-sm text-gray-400 leading-snug">{selectedDisclosure.report_name}</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {selectedDisclosure.sector_en || selectedDisclosure.sector || 'Others'} · {formatDateTime(selectedDisclosure.updated_at)}
+                  </p>
                 </div>
               </div>
 
-              {/* Content Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Analysis */}
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Section Label */}
-                  <div className="flex gap-2">
-                    <span className="bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-                      AI Analysis
-                    </span>
+              {/* 우: Signal Score */}
+              {selectedDisclosure.final_score != null && (
+                <div className="text-right shrink-0">
+                  <div className={`text-4xl font-black tabular-nums ${
+                    selectedDisclosure.final_score >= 70 ? 'text-green-400'
+                    : selectedDisclosure.final_score >= 40 ? 'text-yellow-400'
+                    : 'text-gray-500'
+                  }`}>
+                    {selectedDisclosure.final_score}
                   </div>
-
-                  {/* Key Takeaways */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold">Key Takeaways</h3>
-                      <span className={selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400'}>
-                        {selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→'}
-                      </span>
-                    </div>
-                    <div className="text-gray-300">
-                      {selectedDisclosure.summary ? (
-                        <p className="whitespace-pre-wrap">{selectedDisclosure.summary}</p>
-                      ) : (
-                        <p className="text-gray-500 italic">AI 분석 요약이 없습니다.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Key Numbers */}
-                  {selectedDisclosure.key_numbers && Object.keys(selectedDisclosure.key_numbers).length > 0 && (
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                      <h3 className="text-lg font-bold mb-4">Key Numbers</h3>
-                      <dl className="grid grid-cols-2 gap-3">
-                        {Object.entries(selectedDisclosure.key_numbers).map(([k, v]) => (
-                          <div key={k} className="bg-gray-800/60 rounded-lg px-4 py-3">
-                            <dt className="text-xs text-gray-500 mb-1">{k}</dt>
-                            <dd className="text-sm font-semibold text-white">{String(v)}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  )}
-
-                  {/* AI Summary */}
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold">AI Summary</h3>
-                      <span className={selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? 'text-green-400' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? 'text-red-400' : 'text-gray-400'}>
-                        {selectedDisclosure.sentiment?.toUpperCase() === 'POSITIVE' ? '↑' : selectedDisclosure.sentiment?.toUpperCase() === 'NEGATIVE' ? '↓' : '→'}
-                      </span>
-                    </div>
-                    <div className="text-gray-300">
-                      {selectedDisclosure.detailed_analysis ? (
-                        <p className="whitespace-pre-wrap">{selectedDisclosure.detailed_analysis}</p>
-                      ) : selectedDisclosure.summary ? (
-                        <p className="whitespace-pre-wrap text-gray-400">{selectedDisclosure.summary}</p>
-                      ) : (
-                        <p className="text-gray-500 italic">분석 정보가 없습니다.</p>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-600 mt-3">For informational purposes only. Not investment advice.</p>
-                  </div>
-
-                  {/* Data Source Attribution */}
-                  <DataSourceNote
-                    source="DART"
-                    reportName={selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
-                  />
+                  <div className="text-xs text-gray-500 mt-0.5">Signal Score</div>
                 </div>
+              )}
+            </div>
+          </div>
 
-                {/* Right Column */}
-                <div className="space-y-6">
-                  {/* 0. DART 원문 */}
-                  {selectedDisclosure.rcept_no && (
-                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
-                        Source Document
-                      </p>
-                      <p className="text-sm text-gray-200 font-medium leading-snug mb-1 line-clamp-2">
-                        {selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
-                      </p>
-                      <p className="text-xs text-gray-600 font-mono mb-4">
-                        접수번호 {selectedDisclosure.rcept_no}
-                      </p>
-                      <a
-                        href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-lg transition"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        DART 원문 보기
-                      </a>
-                    </div>
-                  )}
-
-                  {/* 1. Signal Strength */}
-                  <SignalStrength
-                    sentimentScore={selectedDisclosure.sentiment_score ?? 0}
-                    importance={selectedDisclosure.importance ?? 'MEDIUM'}
-                  />
-
-                  {/* 2. Short Pressure */}
-                  <ShortPressure stockCode={selectedStock.stock_code} />
-
-                  {/* 3. Financial YoY */}
-                  <FinancialRatios
-                    stockCode={selectedStock.stock_code}
-                    eventType={null}
-                    alwaysShow={true}
-                  />
-                </div>
+          {/* ── Disclosure History 탭 (사이드바 대체) ── */}
+          {selectedStock.disclosures.length > 1 && (
+            <div className="mb-6 overflow-x-auto">
+              <div className="flex gap-2 pb-1 min-w-max">
+                {selectedStock.disclosures.map((d, idx) => {
+                  const isActive = d.id === selectedDisclosure.id;
+                  const dot = d.sentiment?.toUpperCase() === 'POSITIVE' ? 'bg-green-500'
+                    : d.sentiment?.toUpperCase() === 'NEGATIVE' ? 'bg-red-500' : 'bg-gray-500';
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => navigateToDisclosure(d)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap border transition shrink-0 ${
+                        isActive
+                          ? 'bg-blue-600 border-blue-500 text-white font-medium'
+                          : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-600 hover:text-gray-200'
+                      }`}
+                    >
+                      {!isActive && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />}
+                      <span className="text-xs text-gray-500">{formatDate(d.updated_at)}</span>
+                      <span className="max-w-[140px] truncate">
+                        {(d.report_name || d.report_name_ko || '').substring(0, 30)}
+                      </span>
+                      {idx === 0 && !isActive && (
+                        <span className="text-[10px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">Latest</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          </main>
+          )}
+
+          {/* ── Main Grid ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 좌: AI Analysis */}
+            <div className="lg:col-span-2 space-y-5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-widest text-gray-500">AI Analysis</span>
+              </div>
+
+              {/* Key Takeaways — 길이 제한 + Show more */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-base font-bold">Key Takeaways</h3>
+                  <span className={`text-lg font-bold ${sentimentColor}`}>{sentimentArrow}</span>
+                </div>
+                {selectedDisclosure.summary ? (
+                  <>
+                    <p className={`text-sm text-gray-300 leading-relaxed whitespace-pre-wrap ${!takeawaysExpanded ? 'line-clamp-5' : ''}`}>
+                      {selectedDisclosure.summary}
+                    </p>
+                    {selectedDisclosure.summary.length > 250 && (
+                      <button
+                        onClick={() => setTakeawaysExpanded(e => !e)}
+                        className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition"
+                      >
+                        {takeawaysExpanded ? '↑ Show less' : '↓ Show more'}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-500 italic">No AI analysis available.</p>
+                )}
+                <p className="text-xs text-gray-700 mt-3">For informational purposes only. Not investment advice.</p>
+              </div>
+
+              {/* Key Numbers — 숫자 인덱스 제외, 최대 4개 */}
+              {(() => {
+                if (!selectedDisclosure.key_numbers) return null;
+                const validEntries = Object.entries(selectedDisclosure.key_numbers)
+                  .filter(([k]) => !/^\d+$/.test(k) && k.trim().length > 0)
+                  .slice(0, 4);
+                if (validEntries.length === 0) return null;
+                return (
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                    <h3 className="text-base font-bold mb-3">Key Numbers</h3>
+                    <dl className="grid grid-cols-2 gap-3">
+                      {validEntries.map(([k, v]) => (
+                        <div key={k} className="bg-gray-800/60 rounded-lg px-4 py-3">
+                          <dt className="text-xs text-gray-500 mb-1">{k}</dt>
+                          <dd className="text-sm font-semibold text-white">{String(v)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                );
+              })()}
+
+              <DataSourceNote
+                source="DART"
+                reportName={selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
+              />
+            </div>
+
+            {/* 우: 사이드 패널 */}
+            <div className="space-y-5">
+              {/* DART 원문 */}
+              {selectedDisclosure.rcept_no && (
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Source Document</p>
+                  <p className="text-sm text-gray-300 font-medium leading-snug mb-1 line-clamp-2">
+                    {selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
+                  </p>
+                  <p className="text-xs text-gray-600 font-mono mb-3">접수번호 {selectedDisclosure.rcept_no}</p>
+                  <a
+                    href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold py-2.5 rounded-lg transition"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    DART 원문 보기
+                  </a>
+                </div>
+              )}
+
+              {/* Signal Strength */}
+              <SignalStrength
+                sentimentScore={selectedDisclosure.sentiment_score ?? 0}
+                importance={selectedDisclosure.importance ?? 'MEDIUM'}
+              />
+
+              {/* Short Pressure — DILUTION / LEGAL / MNA 에만 */}
+              {showShortPressure && (
+                <ShortPressure stockCode={selectedStock.stock_code} />
+              )}
+
+              {/* Financial YoY */}
+              <FinancialRatios
+                stockCode={selectedStock.stock_code}
+                eventType={null}
+                alwaysShow={true}
+              />
+
+              {/* Related Disclosures (Full layout 하단 우측) */}
+              {selectedStock.disclosures.length > 1 && (
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+                    Other Disclosures ({selectedStock.disclosures.length - 1})
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedStock.disclosures
+                      .filter(d => d.id !== selectedDisclosure.id)
+                      .slice(0, 4)
+                      .map(d => (
+                        <button
+                          key={d.id}
+                          onClick={() => navigateToDisclosure(d)}
+                          className="w-full text-left px-3 py-2.5 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition group"
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
+                              d.sentiment?.toUpperCase() === 'POSITIVE' ? 'bg-green-500'
+                              : d.sentiment?.toUpperCase() === 'NEGATIVE' ? 'bg-red-500' : 'bg-gray-500'
+                            }`} />
+                            <div className="min-w-0">
+                              <p className="text-xs text-gray-500 mb-0.5">{formatDate(d.updated_at)}</p>
+                              <p className="text-xs text-gray-400 group-hover:text-gray-200 transition leading-snug line-clamp-2">
+                                {d.report_name}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1007,7 +1161,7 @@ function DisclosuresContent() {
                         <BookmarkButton
                           disclosureId={latestDisclosure.id}
                           initialBookmarked={bookmarkedIds.has(latestDisclosure.id)}
-                          isLoggedIn={true}
+                          isLoggedIn={isLoggedIn && isPaid}
                           size="sm"
                         />
                       </div>

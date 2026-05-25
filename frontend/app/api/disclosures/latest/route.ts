@@ -77,6 +77,8 @@ function transformDisclosure(item: any, corpNameEnMap: Record<string, string>, s
     detailed_analysis: safeString(item.financial_impact || item.ai_summary),
     risk_factors: item.risk_factors ? [item.risk_factors] : [],
     key_numbers: keyNumbers,
+    event_type: item.event_type ? safeString(item.event_type) : null,
+    final_score: typeof item.final_score === 'number' ? item.final_score : null,
   };
 }
 
@@ -121,45 +123,31 @@ async function enrichStockCodes(supabase: any, stockCodes: string[]) {
 
 export async function GET(request: Request) {
   try {
-    // ── 세션 검증 ──
-    const cookieStore = await cookies();
-    const authClient = createServerClient(
-      supabaseUrl,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: () => {},
-        },
-      }
-    );
-
-    // getUser() validates JWT against Supabase server — getSession() only reads cookie
-    const { data: { user } } = await authClient.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const email = user.email ?? '';
-    if (!isSuperAdmin(email)) {
-      const { data: userData } = await authClient
-        .from('users')
-        .select('plan, subscription_status')
-        .eq('id', user.id)
-        .single() as { data: { plan: string | null; subscription_status: string | null } | null };
-
-      const isPaid = userData?.plan && userData.plan !== 'free' && userData?.subscription_status === 'active';
-      if (!isPaid) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    }
-
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(request.url);
     const stockParam = searchParams.get('stock');
 
-    // ── 특정 종목 조회 (기존 동작 유지) ──
+    // ── 특정 종목 조회: 인증 필요 (AI 분석 상세 데이터) ──
     if (stockParam) {
+      const cookieStore = await cookies();
+      const authClient = createServerClient(
+        supabaseUrl,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+      );
+      const { data: { user } } = await authClient.auth.getUser();
+      if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+      const email = user.email ?? '';
+      if (!isSuperAdmin(email)) {
+        const { data: userData } = await authClient
+          .from('users')
+          .select('plan, subscription_status')
+          .eq('id', user.id)
+          .single() as { data: { plan: string | null; subscription_status: string | null } | null };
+        const isPaid = userData?.plan && userData.plan !== 'free' && userData?.subscription_status === 'active';
+        if (!isPaid) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       const { data: rawDisclosures, error } = await supabase
         .from('disclosure_insights')
         .select('*')
