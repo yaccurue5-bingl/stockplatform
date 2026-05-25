@@ -139,7 +139,7 @@ function LoginForm() {
               Continue with email
             </button>
           ) : (
-            <form onSubmit={handleEmailLogin} className="space-y-3">
+            <form onSubmit={handleEmailLogin} noValidate className="space-y-3">
               <input
                 type="email"
                 required

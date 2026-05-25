@@ -62,11 +62,11 @@ export async function GET(request: Request) {
 
   const discMap = new Map((disclosures ?? []).map(d => [d.id, d]));
 
-  // 3. 매핑 + event_type 필터
-  const merged = scores
-    .map(s => ({ ...s, ...(discMap.get(s.disclosure_id) ?? {}) }))
-    .filter(s => !eventType || (s as any).event_type === eventType)
-    .slice(0, 6);
+  // 3. 매핑 + event_type 필터 (매칭 없으면 전체 fallback)
+  const all = scores.map(s => ({ ...s, ...(discMap.get(s.disclosure_id) ?? {}) }));
+  const filtered = eventType ? all.filter(s => (s as any).event_type === eventType) : all;
+  const useFallback = eventType ? filtered.length === 0 : false;
+  const merged = (useFallback ? all : filtered).slice(0, 6);
 
-  return NextResponse.json(merged);
+  return NextResponse.json({ events: merged, fallback: useFallback });
 }

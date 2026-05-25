@@ -204,7 +204,7 @@ export default function SignupPage() {
               Continue with email
             </button>
           ) : (
-            <form onSubmit={handleEmailSignup} className="space-y-3">
+            <form onSubmit={handleEmailSignup} noValidate className="space-y-3">
               <input
                 type="email"
                 required

@@ -34,6 +34,7 @@ function ReturnBadge({ value, label }: { value: number | null; label: string }) 
 
 export default function SimilarEvents({ stockCode, eventType }: Props) {
   const [events, setEvents] = useState<SimilarEvent[]>([]);
+  const [isFallback, setIsFallback] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,8 +43,16 @@ export default function SimilarEvents({ stockCode, eventType }: Props) {
       ? `/api/similar-events?stock=${stockCode}&event_type=${eventType}`
       : `/api/similar-events?stock=${stockCode}`;
     fetch(url)
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setEvents(Array.isArray(d) ? d : []))
+      .then(r => r.ok ? r.json() : { events: [], fallback: false })
+      .then(d => {
+        // 신규 형식 { events, fallback } 또는 구형 array 모두 처리
+        if (Array.isArray(d)) {
+          setEvents(d);
+        } else {
+          setEvents(Array.isArray(d.events) ? d.events : []);
+          setIsFallback(!!d.fallback);
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [stockCode, eventType]);
@@ -66,12 +75,20 @@ export default function SimilarEvents({ stockCode, eventType }: Props) {
     : null;
   const hitCount = validReturns.filter(e => (e.future_return_5d ?? 0) > 0).length;
 
+  // 제목: fallback이면 "Past Signals" (All), 아니면 "Past DILUTION Signals"
+  const title = isFallback
+    ? 'Past Signals (All Events)'
+    : `Past ${eventType ? `${eventType} ` : ''}Signals`;
+
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-base font-bold">
-          Past {eventType ? `${eventType} ` : ''}Signals
-        </h3>
+        <div>
+          <h3 className="text-base font-bold">{title}</h3>
+          {isFallback && eventType && (
+            <p className="text-[10px] text-gray-600 mt-0.5">No past {eventType} data — showing all signals</p>
+          )}
+        </div>
         {avgReturn5d != null && (
           <span className={`text-xs font-bold ${avgReturn5d >= 0 ? 'text-green-400' : 'text-red-400'}`}>
             avg {avgReturn5d >= 0 ? '+' : ''}{avgReturn5d.toFixed(1)}% (5d)
