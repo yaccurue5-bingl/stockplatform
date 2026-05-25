@@ -895,6 +895,7 @@ function DisclosuresContent() {
                 eventType={eventType || null}
               />
 
+
               <DataSourceNote
                 source="DART"
                 reportName={selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
@@ -936,6 +937,7 @@ function DisclosuresContent() {
 
               {/* Sector Context */}
               <SectorContext stockCode={selectedStock.stock_code} />
+
 
               {/* Short Pressure — DILUTION / LEGAL / MNA 에만 */}
               {showShortPressure && (

@@ -11,6 +11,7 @@
 
 ---
 
+
 ## /disclosures 세션 버그 영구 금지 패턴 (절대 금지)
 
 ### `router.back()` 사용 절대 금지 — /disclosures navigateBack()
