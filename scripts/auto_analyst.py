@@ -778,18 +778,29 @@ def run(backfill: bool = False, limit: int = 200,
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--backfill", action="store_true",
                         help="sentiment_score 없는 completed 항목 재분석 (백테스트용)")
     parser.add_argument("--limit", type=int, default=200,
                         help="배치당 처리 건수 (기본 200)")
+    parser.add_argument("--max-total", dest="max_total", type=int, default=300,
+                        help="전체 처리 건수 상한 (기본 300, 0=무제한). 토큰 비용 초과 방지")
     parser.add_argument("--single-pass", dest="single_pass", action="store_true",
                         help="1회 배치만 실행 후 종료 (15분 prod 배치용 — 루프 방지)")
     parser.add_argument("--from", dest="date_from", type=str, default=None,
-                        help="시작 날짜 YYYYMMDD (예: 20260401)")
+                        help="시작 날짜 YYYYMMDD (미지정 시 오늘 기준 5일 이전 자동 적용 — 구 backlog 차단)")
     parser.add_argument("--to",   dest="date_to",   type=str, default=None,
                         help="종료 날짜 YYYYMMDD (예: 20260428)")
     args = parser.parse_args()
+
+    # --from 미지정이면 오늘 기준 5일 이전 rolling window 적용
+    # → 최근 에러/누락 건만 재처리, 구 backlog는 명시적 --from 지정 시에만 접근 가능
+    if args.date_from:
+        effective_date_from = args.date_from
+    else:
+        effective_date_from = (datetime.now() - timedelta(days=5)).strftime("%Y%m%d")
+        logger.info(f"⚠️  --from 미지정 → rolling 5일 적용: {effective_date_from} 이후만 처리")
 
     total = 0
     batch  = 1
@@ -798,11 +809,14 @@ if __name__ == "__main__":
         processed = run(
             backfill=args.backfill,
             limit=args.limit,
-            date_from=args.date_from,
+            date_from=effective_date_from,
             date_to=args.date_to,
         )
         total += processed
         if processed == 0 or args.single_pass:
+            break
+        if args.max_total > 0 and total >= args.max_total:
+            logger.info(f"⛔ max-total {args.max_total}건 도달 → 종료 (누적 {total}건)")
             break
         logger.info(f"[Batch #{batch}] 완료 {processed}건  /  누적 {total}건")
         batch += 1
