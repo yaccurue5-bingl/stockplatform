@@ -2,8 +2,8 @@
  * /signal/[id]  — SEO 공시 시그널 페이지
  *
  * - 로그인 불필요, 구글 인덱싱 대상
- * - 공개: headline, event_type, date, company, sentiment, financial_impact, key_numbers 일부
- * - 잠금(CTA): full ai_summary, risk_factors
+ * - 공개: headline, event_type, date, company, sentiment, financial_impact, key_numbers 일부, ai_summary
+ * - 잠금(CTA): risk_factors (Pro), 추가 key_numbers (Starter+)
  * - generateMetadata: 신호별 동적 title/description
  * - JSON-LD: NewsArticle 스키마 (per-signal)
  */
@@ -12,7 +12,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
-import { TrendingUp, TrendingDown, Minus, Lock, ArrowLeft, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Lock, ArrowLeft } from 'lucide-react';
 import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
@@ -335,7 +335,7 @@ function LockedSection({ title }: { title: string }) {
       </div>
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-950/60 backdrop-blur-[2px]">
         <Lock size={16} className="text-gray-400" />
-        <p className="text-xs text-gray-400 font-medium">Developer & Pro plans</p>
+        <p className="text-xs text-gray-400 font-medium">Pro plan</p>
       </div>
     </div>
   );
@@ -528,16 +528,23 @@ export default async function SignalPage({
             {hasMore && (
               <p className="text-xs text-gray-600 mt-3 flex items-center gap-1">
                 <Lock size={11} />
-                {keyNums.length - 2} more figures — unlock with API access
+                {keyNums.length - 2} more figures — Starter & Pro plans
               </p>
             )}
           </div>
         )}
 
-        {/* ── AI Summary (잠금) ── */}
-        <LockedSection title="AI Analysis Summary" />
+        {/* ── AI Summary (공개) ── */}
+        {signal.ai_summary && (
+          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+            <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">
+              AI Analysis Summary
+            </p>
+            <p className="text-sm text-gray-300 leading-relaxed">{signal.ai_summary}</p>
+          </div>
+        )}
 
-        {/* ── Risk Factors (잠금) ── */}
+        {/* ── Risk Factors (잠금 — Pro) ── */}
         <LockedSection title="Risk Factors" />
 
         {/* ── CTA ── */}
@@ -546,20 +553,14 @@ export default async function SignalPage({
           <div className="text-sm text-gray-400 space-y-1">
             <p>✔ AI-parsed DART filing classification &amp; scoring</p>
             <p>✔ Real-time event impact indicators</p>
-            <p>✔ Historical pattern data via REST API</p>
+            <p>✔ Price reaction &amp; historical pattern data</p>
           </div>
           <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
             <Link
               href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
               className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
             >
-              Get API Key →
-            </Link>
-            <Link
-              href="/api-docs"
-              className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full border border-gray-700 text-sm font-medium hover:border-gray-500 transition"
-            >
-              View Docs <ExternalLink size={13} />
+              Get Pro Access →
             </Link>
           </div>
         </div>
