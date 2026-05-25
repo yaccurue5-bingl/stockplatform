@@ -85,7 +85,7 @@ def fetch_signals(limit: int, lookback_days: int) -> list[dict]:
         supabase.table("disclosure_insights")
         .select(
             "id, corp_name, corp_name_en, stock_code, "
-            "headline, event_type, sentiment_score, final_score, rcept_dt"
+            "headline, event_type, sentiment_score, final_score, rcept_dt, ai_summary"
         )
         .eq("analysis_status", "completed")
         .eq("is_visible", True)
@@ -155,6 +155,13 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
 
         code_badge = f" <span style='font-size:11px;color:#6b7280;'>[{code}]</span>" if code else ""
 
+        raw_summary = (row.get("ai_summary") or "").strip()
+        summary_html = (
+            f'<p style="margin:0 0 12px;font-size:13px;color:#374151;line-height:1.6;'
+            f'background:#f9fafb;border-radius:8px;padding:10px 12px;">'
+            f'{raw_summary[:300]}{"…" if len(raw_summary) > 300 else ""}</p>'
+        ) if raw_summary else ""
+
         cards_html += f"""
         <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;
                     padding:20px 22px;margin-bottom:16px;">
@@ -173,26 +180,18 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
           <p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.5;">
             {emoji} <strong>{event}</strong> — {headline}
           </p>
-          <!-- Score + lock notice + CTA — all inside one box -->
-          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;
-                      padding:12px 14px;">
-            <div style="font-size:13px;color:#6b7280;margin-bottom:6px;">
-              Signal Strength: <span style="color:#1a3fa8;font-weight:700;">{stars}</span>
-            </div>
-            <div style="font-size:13px;color:#9ca3af;margin-bottom:10px;">
-              🔒 Full metrics &amp; AI analysis available in <strong style="color:#7c3aed;">Pro</strong>
-            </div>
-            <!-- View Signal link + copyable URL -->
-            <a href="{signal_url}"
-               style="display:inline-block;font-size:13px;color:#1a3fa8;
-                      text-decoration:none;font-weight:600;">
-              View Signal →
-            </a>
-            <div style="margin-top:6px;font-size:11px;color:#9ca3af;
-                        word-break:break-all;font-family:monospace;">
-              {signal_url}
-            </div>
+          <!-- Signal strength -->
+          <div style="font-size:13px;color:#6b7280;margin-bottom:10px;">
+            Signal Strength: <span style="color:#1a3fa8;font-weight:700;">{stars}</span>
           </div>
+          <!-- AI Summary -->
+          {summary_html}
+          <!-- View Signal link -->
+          <a href="{signal_url}"
+             style="display:inline-block;font-size:13px;color:#1a3fa8;
+                    text-decoration:none;font-weight:600;">
+            View Full Analysis →
+          </a>
         </div>
         """
 
@@ -224,8 +223,7 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
   <!-- Sub-header -->
   <div style="background:#ede9fe;border-left:4px solid #7c3aed;
               padding:14px 20px;margin-bottom:20px;font-size:13px;color:#4c1d95;">
-    <strong>{total} notable filing signal{'s' if total != 1 else ''}</strong> found today.
-    Unlock full metrics and AI analysis with a Pro plan.
+    <strong>{total} notable filing signal{'s' if total != 1 else ''}</strong> found today — AI analysis included.
   </div>
 
   <!-- Signal cards -->
@@ -235,7 +233,7 @@ def build_email(user: dict, signals: list[dict]) -> tuple[str, str, str]:
   <div style="background:#121821;border:1px solid #1f2937;
               border-radius:14px;padding:28px;text-align:center;margin-top:8px;">
     <h2 style="margin:0 0 8px;font-size:18px;font-weight:700;color:#ffffff;">
-      Unlock More Market Signals
+      View Price Reaction &amp; Historical Patterns
     </h2>
     <p style="margin:0 0 20px;font-size:14px;color:#9ca3af;line-height:1.5;">
       Get deeper disclosure insights, AI summaries, and signal tracking updates.
