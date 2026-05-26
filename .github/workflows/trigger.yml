@@ -8,8 +8,6 @@ on:
     - cron: "*/15 23 * * 0-4"
     # ── 장 중 (KST 09:00-15:45        =  UTC 00:00-06:45) ─────────────────────
     - cron: "*/15 0-6 * * 1-5"
-    # ── EOD 장 마감 후 (KST 16:35 = UTC 07:35) ───────────────────────────────
-    - cron: "35 7 * * 1-5"
     # ── 매월 15일 sector_macro 갱신 알림 (KST 10:00 = UTC 01:00) ──────────────
     - cron: "0 1 15 * *"
 
@@ -79,8 +77,8 @@ jobs:
   prod-collect:
     name: "Intraday Collect (DART + Market)"
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
-      (github.event_name == 'schedule' && github.event.schedule != '0 1 15 * *' && github.event.schedule != '35 7 * * 1-5')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
     concurrency:
       group: prod-collect
@@ -116,8 +114,8 @@ jobs:
   prod-analyze:
     name: "Intraday Analyze (AI + Score + Notify)"
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'eod') ||
-      (github.event_name == 'schedule' && github.event.schedule != '0 1 15 * *' && github.event.schedule != '35 7 * * 1-5')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.event.schedule != '0 1 15 * *')
     runs-on: ubuntu-latest
     concurrency:
       group: prod-analyze
@@ -143,13 +141,12 @@ jobs:
         run: python scripts/run_daily_batch.py --analyze
 
   # ════════════════════════════════════════════════════════════════════════════
-  # EOD — KST 16:35 스케줄 (35 7 * * 1-5) + workflow_dispatch mode=eod
+  # EOD (수동 보완용) — workflow_dispatch mode=eod 전용
+  #   스케줄 EOD는 eod-batch.yml 에서 독립 실행 (35 7 * * 1-5)
   # ════════════════════════════════════════════════════════════════════════════
   eod-batch:
     name: "EOD End-of-Day Batch"
-    if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '35 7 * * 1-5') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'eod')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'eod'
     runs-on: ubuntu-latest
     concurrency:
       group: eod-batch
