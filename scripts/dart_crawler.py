@@ -287,17 +287,21 @@ def _fetch_from_viewer(rcept_no):
         )
 
         if not dcm_match:
-            global _viewer_fail_count
-            _viewer_fail_count += 1
             # 진단용: 페이지 크기 + 앞 200자 로그 (DART 차단/세션만료/CAPTCHA 판별)
             snippet = resp.text[:200].replace("\n", " ").strip()
             logger.warning(
                 f"{rcept_no} dcmNo 추출 실패 "
                 f"(page_len={len(resp.text)}, snippet={snippet!r})"
             )
+            # dcmNo 없어도 HTML 본문에서 텍스트 추출 가능한 경우 (구조적 차이, 서버 장애 아님)
+            # → 부분 성공으로 처리하고 _viewer_fail_count 미증가
             text = _clean_html_text(resp.text)
             if len(text) > 100:
+                logger.info(f"{rcept_no} dcmNo 없음 → 메인 HTML 텍스트 폴백 ({len(text)}자)")
                 return extract_key_sections(text)
+            # 텍스트도 없으면 실질적 실패 (CAPTCHA·차단·세션만료 등)
+            global _viewer_fail_count
+            _viewer_fail_count += 1
             return None
 
         dcm_no = dcm_match.group(1)
