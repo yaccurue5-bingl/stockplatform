@@ -60,6 +60,7 @@ function DisclosuresContent() {
   const [filteredStocks, setFilteredStocks] = useState<GroupedStock[]>([]);
   const [selectedStock, setSelectedStock] = useState<GroupedStock | null>(null);
   const [selectedDisclosure, setSelectedDisclosure] = useState<Disclosure | null>(null);
+  const [previousDisclosure, setPreviousDisclosure] = useState<Disclosure | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
@@ -353,6 +354,7 @@ function DisclosuresContent() {
     // 상태 즉시 업데이트 → 깜빡임 없이 화면 전환
     setSelectedStock(stock);
     setSelectedDisclosure(stock.disclosures[0] ?? null);
+    setPreviousDisclosure(null); // 새 종목 진입 시 이전 공시 초기화
     setStockCodeParam(stock.stock_code);
     setDisclosureParam(null);
     startTransition(() => {
@@ -361,32 +363,50 @@ function DisclosuresContent() {
   }, [router, startTransition, isLoggedIn, isPaid]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
-    setSelectedDisclosure(disclosure);
+    // 현재 보던 공시를 이전으로 저장 → Back 시 복귀용
+    setPreviousDisclosure(prev => prev ?? null);
+    setSelectedDisclosure(cur => { setPreviousDisclosure(cur); return disclosure; });
     setDisclosureParam(disclosure.id);
+    // 클릭 후 상단으로 스크롤 — 내용 변경 즉시 인지
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     const stock = selectedStockRef.current?.stock_code;
     if (stock) {
       startTransition(() => {
-        router.push(`/disclosures?stock=${stock}&disclosure=${disclosure.id}`, { scroll: false });
+        router.replace(`/disclosures?stock=${stock}&disclosure=${disclosure.id}`, { scroll: false });
       });
     }
   }, [router, startTransition]);
 
   const navigateBack = useCallback(() => {
-    isBackNavRef.current = true; // 스크롤 복원 트리거
+    // Other Disclosures로 이동했다가 Back → 이전 공시로 복귀
+    if (previousDisclosure) {
+      const prev = previousDisclosure;
+      setPreviousDisclosure(null);
+      setSelectedDisclosure(prev);
+      setDisclosureParam(prev.id);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const stock = selectedStockRef.current?.stock_code;
+      if (stock) {
+        startTransition(() => {
+          router.replace(`/disclosures?stock=${stock}&disclosure=${prev.id}`, { scroll: false });
+        });
+      }
+      return;
+    }
+    // 전체 목록으로 복귀
+    isBackNavRef.current = true;
     setSelectedStock(null);
     setSelectedDisclosure(null);
     setStockCodeParam(null);
     setDisclosureParam(null);
-    // currentPage 리셋 안 함 → 이전에 보던 페이지 유지
-    //
+    setPreviousDisclosure(null);
     // ⚠️ router.back() 사용 금지:
     // auth redirect(/login?redirectTo=...)가 history에 쌓여 있어서
     // back() 하면 /login으로 돌아가 세션 초기화처럼 보이는 버그 발생.
-    // router.replace()로 명시적 이동 — history 오염 없음.
     startTransition(() => {
       router.replace('/disclosures', { scroll: false });
     });
-  }, [router, startTransition]);
+  }, [router, startTransition, previousDisclosure]);
 
   // 필터 변경 핸들러 — page 리셋 + URL 동기화
   const handleFilterChange = useCallback((newEvent: string, newScore: string) => {
@@ -738,7 +758,47 @@ function DisclosuresContent() {
           </div>
         </header>
 
-        <div className="max-w-6xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
+
+          {/* ── 왼쪽: 공시 목록 사이드바 ── */}
+          {selectedStock.disclosures.length > 1 && (
+            <div className="w-52 shrink-0 hidden lg:block">
+              <div className="sticky top-16">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3 px-1">
+                  Filings ({selectedStock.disclosures.length})
+                </p>
+                <div className="space-y-1">
+                  {selectedStock.disclosures.map(d => {
+                    const isActive = d.id === selectedDisclosure.id;
+                    const dot = d.sentiment?.toUpperCase() === 'POSITIVE' ? 'bg-green-500'
+                      : d.sentiment?.toUpperCase() === 'NEGATIVE' ? 'bg-red-500' : 'bg-gray-500';
+                    return (
+                      <button
+                        key={d.id}
+                        onClick={() => navigateToDisclosure(d)}
+                        className={`w-full text-left px-3 py-2.5 rounded-lg transition ${
+                          isActive
+                            ? 'bg-blue-600/20 border border-blue-500/30 text-white'
+                            : 'hover:bg-gray-900 text-gray-500 hover:text-gray-300 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${dot}`} />
+                          <div className="min-w-0">
+                            <p className="text-xs text-gray-500 mb-0.5">{formatDate(d.updated_at)}</p>
+                            <p className="text-xs leading-snug line-clamp-2">{d.report_name}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── 오른쪽: 메인 콘텐츠 ── */}
+          <div className="flex-1 min-w-0">
 
           {/* ── Signal-first Hero ── */}
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
@@ -794,39 +854,6 @@ function DisclosuresContent() {
               )}
             </div>
           </div>
-
-          {/* ── Disclosure History 탭 (사이드바 대체) ── */}
-          {selectedStock.disclosures.length > 1 && (
-            <div className="mb-6 overflow-x-auto">
-              <div className="flex gap-2 pb-1 min-w-max">
-                {selectedStock.disclosures.map((d, idx) => {
-                  const isActive = d.id === selectedDisclosure.id;
-                  const dot = d.sentiment?.toUpperCase() === 'POSITIVE' ? 'bg-green-500'
-                    : d.sentiment?.toUpperCase() === 'NEGATIVE' ? 'bg-red-500' : 'bg-gray-500';
-                  return (
-                    <button
-                      key={d.id}
-                      onClick={() => navigateToDisclosure(d)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap border transition shrink-0 ${
-                        isActive
-                          ? 'bg-blue-600 border-blue-500 text-white font-medium'
-                          : 'bg-gray-900 border-gray-800 text-gray-400 hover:border-gray-600 hover:text-gray-200'
-                      }`}
-                    >
-                      {!isActive && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />}
-                      <span className="text-xs text-gray-500">{formatDate(d.updated_at)}</span>
-                      <span className="max-w-[140px] truncate">
-                        {(d.report_name || d.report_name_ko || '').substring(0, 30)}
-                      </span>
-                      {idx === 0 && !isActive && (
-                        <span className="text-[10px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">Latest</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* ── Main Grid ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -952,42 +979,10 @@ function DisclosuresContent() {
                 alwaysShow={true}
               />
 
-              {/* Related Disclosures (Full layout 하단 우측) */}
-              {selectedStock.disclosures.length > 1 && (
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
-                    Other Disclosures ({selectedStock.disclosures.length - 1})
-                  </h4>
-                  <div className="space-y-2">
-                    {selectedStock.disclosures
-                      .filter(d => d.id !== selectedDisclosure.id)
-                      .slice(0, 4)
-                      .map(d => (
-                        <button
-                          key={d.id}
-                          onClick={() => navigateToDisclosure(d)}
-                          className="w-full text-left px-3 py-2.5 bg-gray-800/50 rounded-lg hover:bg-gray-800 transition group"
-                        >
-                          <div className="flex items-start gap-2">
-                            <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${
-                              d.sentiment?.toUpperCase() === 'POSITIVE' ? 'bg-green-500'
-                              : d.sentiment?.toUpperCase() === 'NEGATIVE' ? 'bg-red-500' : 'bg-gray-500'
-                            }`} />
-                            <div className="min-w-0">
-                              <p className="text-xs text-gray-500 mb-0.5">{formatDate(d.updated_at)}</p>
-                              <p className="text-xs text-gray-400 group-hover:text-gray-200 transition leading-snug line-clamp-2">
-                                {d.report_name}
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
-        </div>
+          </div>{/* 메인 콘텐츠 end */}
+        </div>{/* flex gap-6 end */}
       </div>
     );
   }
