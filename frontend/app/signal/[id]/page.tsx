@@ -179,9 +179,14 @@ export async function generateMetadata({
   }
 
   const rawTitle = signal.headline ?? signal.report_nm ?? 'Corporate Disclosure';
-  // 타이틀 태그 최대 60자 권장 — 헤드라인 앞부분 자르기
-  const titleBase = rawTitle.length > 42 ? rawTitle.slice(0, 42) + '…' : rawTitle;
-  const title = `${titleBase} — ${signal.corp_name ?? ''} | K-MarketInsight`;
+  // 타이틀 태그 최대 59자 — 동적 계산으로 corp_name 길이에 따라 헤드라인 자르기
+  const SUFFIX = ' | K-MarketInsight';           // 18자
+  const MID = ` — ${signal.corp_name ?? ''}`;    // 4 + corp_name 길이
+  const available = 59 - SUFFIX.length - MID.length;
+  const titleBase = rawTitle.length > available
+    ? rawTitle.slice(0, Math.max(available - 1, 10)) + '…'
+    : rawTitle;
+  const title = `${titleBase}${MID}${SUFFIX}`;
 
   const description = signal.financial_impact
     ? signal.financial_impact.slice(0, 160)

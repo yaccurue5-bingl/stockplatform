@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
 import Hero from '@/components/landing/Hero';
 import Problem from '@/components/landing/Problem';
@@ -8,6 +9,10 @@ import HowItWorks from '@/components/landing/HowItWorks';
 import UseCases from '@/components/landing/UseCases';
 import Pricing from '@/components/landing/Pricing';
 import Footer from '@/components/landing/Footer';
+
+export const metadata: Metadata = {
+  alternates: { canonical: 'https://k-marketinsight.com' },
+};
 
 export const revalidate = 300; // 5분마다 재검증 — LiveEvents 데이터 최신화
 

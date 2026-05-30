@@ -1,8 +1,18 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import Card from '@/components/landing/ui/Card';
 import { FileText, TrendingUp, Globe, Building2, ArrowRight, ExternalLink } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Korean Market Datasets | K-MarketInsight',
+  description:
+    'Structured Korean equity datasets from DART filings — corporate events, sector signals, price history, and foreign investor flows for 2,400+ KOSPI & KOSDAQ companies.',
+  alternates: {
+    canonical: 'https://k-marketinsight.com/datasets',
+  },
+};
 
 const datasets = [
   {

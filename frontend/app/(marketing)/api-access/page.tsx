@@ -5,6 +5,9 @@ import RequestAccessModal from './RequestAccessModal';
 export const metadata = {
   title: 'API Access | K-Market Insight',
   description: 'Enterprise & institutional access to structured Korean market data — AI-derived disclosure signals, price data, and event analytics.',
+  alternates: {
+    canonical: 'https://k-marketinsight.com/api-access',
+  },
 };
 
 const useCases = [

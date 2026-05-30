@@ -22,6 +22,9 @@ export const metadata: Metadata = {
     siteName: 'K-Market Insight',
     type: 'website',
   },
+  alternates: {
+    canonical: 'https://k-marketinsight.com/korea-contract-signals',
+  },
 };
 
 const cfg: EventLandingConfig = {
