@@ -82,7 +82,7 @@ export async function checkRateLimit(
           used,
           limit,
           reset: resetLabel,
-          upgrade_url: 'https://k-marketinsight.com/pricing',
+          upgrade_url: 'https://k-marketinsight.com/login',
         },
         {
           status: 429,
