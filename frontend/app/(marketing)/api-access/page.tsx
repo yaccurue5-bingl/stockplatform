@@ -5,6 +5,9 @@ import RequestAccessModal from './RequestAccessModal';
 export const metadata = {
   title: 'API Access | K-Market Insight',
   description: 'Enterprise & institutional access to structured Korean market data — AI-derived disclosure signals, price data, and event analytics.',
+  alternates: {
+    canonical: 'https://k-marketinsight.com/api-access',
+  },
 };
 
 const useCases = [
@@ -76,7 +79,7 @@ export default function ApiAccessPage() {
         <div className="max-w-[1100px] mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
             { val: '2,800+', label: 'Listed companies covered' },
-            { val: '6mo+', label: 'Historical depth' },
+            { val: 'Since 2026', label: 'Historical depth' },
             { val: '8', label: 'Signal event types' },
             { val: 'Daily', label: 'Data refresh' },
           ].map(({ val, label }) => (

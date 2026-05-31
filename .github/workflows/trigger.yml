@@ -2,12 +2,9 @@ name: Market Data & AI Disclosure Automation
 
 on:
   schedule:
-    # ── 장 전 예열 (KST 07:30, 07:45  =  UTC 전날 22:30, 22:45) ───────────────
-    - cron: "30,45 22 * * 0-4"
-    # ── 장 전 예열 (KST 08:00-08:45   =  UTC 전날 23:00-23:45) ───────────────
-    - cron: "*/15 23 * * 0-4"
-    # ── 장 중 (KST 09:00-15:45        =  UTC 00:00-06:45) ─────────────────────
-    - cron: "*/15 0-6 * * 1-5"
+    # ── 인트라데이 스케줄 제거됨 ─────────────────────────────────────────────
+    # cron-job.org → GET /api/cron/trigger-batch?secret=<CRON_SECRET>
+    # → workflow_dispatch(mode=prod) 로 트리거 (이중 실행 방지)
     # ── 매월 15일 sector_macro 갱신 알림 (KST 10:00 = UTC 01:00) ──────────────
     - cron: "0 1 15 * *"
 

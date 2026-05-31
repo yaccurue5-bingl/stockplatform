@@ -22,6 +22,9 @@ export const metadata: Metadata = {
     siteName: 'K-Market Insight',
     type: 'website',
   },
+  alternates: {
+    canonical: 'https://k-marketinsight.com/korea-contract-signals',
+  },
 };
 
 const cfg: EventLandingConfig = {
@@ -58,7 +61,7 @@ const cfg: EventLandingConfig = {
     {
       icon: 'db',
       title: 'Historical Pattern Statistics',
-      body: 'Average 1-day and 5-day returns for contract events by counterparty type and deal size — calibrate your model with Korean market data since Nov 2025.',
+      body: 'Average 1-day and 5-day returns for contract events by counterparty type and deal size — calibrate your model with Korean market data since 2026.',
     },
   ],
 

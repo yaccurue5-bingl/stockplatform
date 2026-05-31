@@ -22,6 +22,9 @@ export const metadata: Metadata = {
     siteName: 'K-Market Insight',
     type: 'website',
   },
+  alternates: {
+    canonical: 'https://k-marketinsight.com/korea-earnings-signals',
+  },
 };
 
 const cfg: EventLandingConfig = {
@@ -37,7 +40,7 @@ const cfg: EventLandingConfig = {
     { value: '2,400+', label: 'Listed Companies' },
     { value: '18,000+', label: 'Earnings Disclosures' },
     { value: '~15 min', label: 'Update Latency' },
-    { value: 'Since Nov 2025', label: 'Historical Depth' },
+    { value: 'Since 2026', label: 'Historical Depth' },
   ],
 
   whatTitle: 'What Are Korea Earnings Signals?',
@@ -58,7 +61,7 @@ const cfg: EventLandingConfig = {
     {
       icon: 'db',
       title: 'Historical Return Statistics',
-      body: 'Aggregate 1-day, 5-day, and 20-day return statistics per event type, derived from Korean market data since Nov 2025. Use these baselines for backtest calibration.',
+      body: 'Aggregate 1-day, 5-day, and 20-day return statistics per event type, derived from Korean market data since 2026. Use these baselines for backtest calibration.',
     },
   ],
 
@@ -100,7 +103,7 @@ const cfg: EventLandingConfig = {
     },
     {
       title: 'Research & Academia',
-      body: 'Access structured Korean earnings data (since Nov 2025) for event studies, cross-sectional return analysis, and market microstructure research.',
+      body: 'Access structured Korean earnings data (since 2026) for event studies, cross-sectional return analysis, and market microstructure research.',
     },
   ],
 };
