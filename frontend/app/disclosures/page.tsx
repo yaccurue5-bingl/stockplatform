@@ -111,8 +111,8 @@ function DisclosuresContent() {
         .eq('id', userId)
         .single() as { data: { plan: string | null; subscription_status: string | null } | null };
 
-      const paid =
-        !!(data?.plan && data.plan !== 'free' && data?.subscription_status === 'active');
+      // Public Beta: 모든 로그인 유저(free 포함) 전체 기능 접근 허용
+      const paid = !!(data?.plan);
       setIsPaid(paid);
       setAuthChecked(true);
     };
@@ -991,16 +991,16 @@ function DisclosuresContent() {
   return (
     <div className="bg-gray-950 text-white font-sans min-h-screen">
       <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+          <Link href="/" className="flex items-center space-x-2 shrink-0">
+            <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-lg">
               K
             </div>
-            <span className="text-xl font-bold">K-Market Insight</span>
+            <span className="text-lg font-bold hidden sm:block">K-Market Insight</span>
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 flex-1 justify-end">
             {/* 검색 드롭다운 */}
-            <div className="w-48 md:w-80">
+            <div className="w-36 sm:w-64 md:w-80">
               <SearchDropdown
                 onSelectStock={(stockCode) => {
                   const stock = groupedStocksRef.current.find(s => s.stock_code === stockCode);
@@ -1021,8 +1021,9 @@ function DisclosuresContent() {
                 placeholder="Search company..."
               />
             </div>
-            <Link href="/dashboard" className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition">
-              Dashboard
+            <Link href="/dashboard" className="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap shrink-0">
+              <span className="hidden sm:inline">Dashboard</span>
+              <span className="sm:hidden">Home</span>
             </Link>
           </div>
         </div>
