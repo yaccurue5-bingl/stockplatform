@@ -79,7 +79,7 @@ export default function ApiAccessPage() {
         <div className="max-w-[1100px] mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
             { val: '2,800+', label: 'Listed companies covered' },
-            { val: '6mo+', label: 'Historical depth' },
+            { val: 'Since 2026', label: 'Historical depth' },
             { val: '8', label: 'Signal event types' },
             { val: 'Daily', label: 'Data refresh' },
           ].map(({ val, label }) => (

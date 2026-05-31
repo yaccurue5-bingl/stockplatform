@@ -61,7 +61,7 @@ const cfg: EventLandingConfig = {
     {
       icon: 'zap',
       title: 'Historical Reaction Patterns',
-      body: 'Aggregate return statistics for each dilution subtype show average 5-day and 20-day market reactions based on Korean market data since Nov 2025.',
+      body: 'Aggregate return statistics for each dilution subtype show average 5-day and 20-day market reactions based on Korean market data since 2026.',
     },
   ],
 
@@ -103,7 +103,7 @@ const cfg: EventLandingConfig = {
     },
     {
       title: 'Compliance & Due Diligence',
-      body: 'Track CB and BW issuance history for companies under review. Filing data available from Nov 2025 for due diligence workflows.',
+      body: 'Track CB and BW issuance history for companies under review. Filing data available from 2026 for due diligence workflows.',
     },
   ],
 };

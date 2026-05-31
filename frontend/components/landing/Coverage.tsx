@@ -2,7 +2,7 @@ import Section from './ui/Section';
 
 const stats = [
   { value: '2,400+', label: 'Listed Companies', sub: 'KOSPI + KOSDAQ' },
-  { value: '50,000+', label: 'Disclosures Analyzed', sub: 'Since Nov 2025' },
+  { value: '50,000+', label: 'Disclosures Analyzed', sub: 'Since 2026' },
   { value: '18',      label: 'Sector Classifications', sub: 'KSIC-based' },
   { value: '18,000+', label: 'Earnings Signals', sub: 'AI-scored' },
 ];

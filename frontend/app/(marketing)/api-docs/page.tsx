@@ -892,9 +892,9 @@ export default function ApiDocsPage() {
                   </thead>
                   <tbody>
                     {[
-                      { plan: 'Starter',    rpm: '60',     rpd: '5,000',   hist: 'Since Nov 2025' },
-                      { plan: 'Pro',        rpm: '300',    rpd: '50,000',  hist: 'Since Nov 2025' },
-                      { plan: 'Enterprise', rpm: 'Custom', rpd: 'Custom',  hist: 'Since Nov 2025' },
+                      { plan: 'Starter',    rpm: '60',     rpd: '5,000',   hist: 'Since 2026' },
+                      { plan: 'Pro',        rpm: '300',    rpd: '50,000',  hist: 'Since 2026' },
+                      { plan: 'Enterprise', rpm: 'Custom', rpd: 'Custom',  hist: 'Since 2026' },
                     ].map((row, i) => (
                       <tr key={row.plan} className={`border-t border-gray-800 ${i % 2 !== 0 ? 'bg-[#121821]/40' : ''}`}>
                         <td className="px-4 py-3 text-sm font-medium text-white">{row.plan}</td>
