@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
+import BetaBanner from '@/components/landing/BetaBanner';
 import Hero from '@/components/landing/Hero';
 import Problem from '@/components/landing/Problem';
 import HotStocks from '@/components/landing/HotStocks';
@@ -20,6 +21,7 @@ export default function LandingPage() {
   return (
     <div className="bg-[#0B0F14] text-gray-200 font-sans min-h-screen overflow-x-hidden">
       <Navbar />
+      <BetaBanner />
       <Hero />
       <Problem />
       <HotStocks />

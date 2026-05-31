@@ -12,10 +12,10 @@
  *   Query:  ?api_key=<key>  (legacy)
  *
  * Plans (rank order):
- *   free       → no API access
- *   starter    → $99/mo  — 7-day history, core endpoints
- *   pro        → $299/mo — 30-day history, all endpoints
- *   enterprise → contact — 90-day history, all endpoints (manual onboarding)
+ *   free       → Public Beta: 50 calls/day, 7-day history, all endpoints
+ *   starter    → $99/mo  — 10,000 calls/mo, 7-day history
+ *   pro        → $299/mo — 100,000 calls/mo, 30-day history
+ *   enterprise → contact — 1M calls/mo, 90-day history
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -29,7 +29,7 @@ export const PLAN_RANK: Record<string, number> = {
 }
 
 export const PLAN_HISTORY_DAYS: Record<string, number> = {
-  free:       0,
+  free:       7,   // Public Beta: same as starter
   starter:    7,
   pro:        30,
   enterprise: 90,

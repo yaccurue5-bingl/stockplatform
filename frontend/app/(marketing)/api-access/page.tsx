@@ -4,7 +4,7 @@ import RequestAccessModal from './RequestAccessModal';
 
 export const metadata = {
   title: 'API Access | K-Market Insight',
-  description: 'Enterprise & institutional access to structured Korean market data — AI-derived disclosure signals, price data, and event analytics.',
+  description: 'Structured Korean market data API — AI-derived disclosure signals, price data, and event analytics. Public Beta, free to start.',
   alternates: {
     canonical: 'https://k-marketinsight.com/api-access',
   },
@@ -54,7 +54,7 @@ export default function ApiAccessPage() {
       {/* Hero */}
       <section className="max-w-[1100px] mx-auto px-6 pt-28 pb-20">
         <div className="inline-flex items-center gap-2 text-xs font-medium text-[#00D4A6] bg-[#00D4A6]/10 border border-[#00D4A6]/20 rounded-full px-3 py-1 mb-6">
-          Enterprise & Institutional
+          Public Beta
         </div>
         <h1 className="text-4xl md:text-5xl font-bold text-white mb-5 leading-tight">
           Korean market signals,<br />
@@ -93,7 +93,7 @@ export default function ApiAccessPage() {
 
       {/* Use cases */}
       <section className="max-w-[1100px] mx-auto px-6 py-20">
-        <h2 className="text-2xl font-bold text-white mb-10">Built for institutional workflows</h2>
+        <h2 className="text-2xl font-bold text-white mb-10">What you can build with it</h2>
         <div className="grid md:grid-cols-2 gap-5">
           {useCases.map(({ icon: Icon, title, desc }) => (
             <div key={title} className="bg-[#121821] border border-gray-800 rounded-xl p-6 hover:border-gray-700 transition">
@@ -185,7 +185,7 @@ export default function ApiAccessPage() {
         <div className="max-w-[600px] mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">Ready to integrate?</h2>
           <p className="text-gray-400 mb-2 leading-relaxed">
-            We work with quant funds, fintech platforms, and institutional data teams.
+            Sign up free to get your API key and start integrating Korean market signals.
           </p>
           <p className="text-gray-500 text-sm mb-10">
             Pricing is customized based on volume, history depth, and use case.

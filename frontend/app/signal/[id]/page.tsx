@@ -3,7 +3,7 @@
  *
  * - 로그인 불필요, 구글 인덱싱 대상
  * - 공개: headline, event_type, date, company, sentiment, financial_impact, key_numbers 일부, ai_summary
- * - 잠금(CTA): risk_factors (Pro), 추가 key_numbers (Starter+)
+ * - Public Beta: 모든 콘텐츠 공개 (플랜 잠금 없음)
  * - generateMetadata: 신호별 동적 title/description
  * - JSON-LD: NewsArticle 스키마 (per-signal)
  */
@@ -12,7 +12,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
-import { TrendingUp, TrendingDown, Minus, Lock, ArrowLeft } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ArrowLeft } from 'lucide-react';
 import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
@@ -327,25 +327,6 @@ function SignalScoreCard({ score }: { score: EventScore }) {
   );
 }
 
-function LockedSection({ title }: { title: string }) {
-  return (
-    <div className="relative rounded-xl border border-gray-800 bg-gray-900/50 p-5 overflow-hidden">
-      <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">{title}</p>
-      <div className="space-y-2 blur-sm select-none pointer-events-none" aria-hidden>
-        <div className="h-3 bg-gray-700 rounded w-full" />
-        <div className="h-3 bg-gray-700 rounded w-5/6" />
-        <div className="h-3 bg-gray-700 rounded w-4/6" />
-        <div className="h-3 bg-gray-700 rounded w-full" />
-        <div className="h-3 bg-gray-700 rounded w-3/4" />
-      </div>
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gray-950/60 backdrop-blur-[2px]">
-        <Lock size={16} className="text-gray-400" />
-        <p className="text-xs text-gray-400 font-medium">Pro plan</p>
-      </div>
-    </div>
-  );
-}
-
 // ── 페이지 ────────────────────────────────────────────────────────────────────
 
 export default async function SignalPage({
@@ -360,8 +341,6 @@ export default async function SignalPage({
   const dateStr    = formatDate(signal.rcept_dt);
   const eventKey   = (signal.event_type ?? 'OTHER').toUpperCase();
   const keyNums    = parseKeyNumbers(signal.key_numbers);
-  const publicNums = keyNums.slice(0, 2);   // 상위 2개만 공개
-  const hasMore    = keyNums.length > 2;
 
   // Capital Return 분류 (BUYBACK 이벤트 전용)
   const buybackSubtype =
@@ -515,27 +494,21 @@ export default async function SignalPage({
         {buybackSubtype && (
           <CapitalReturnCard
             subtype={buybackSubtype}
-            publicKeyNums={publicNums}
+            publicKeyNums={keyNums}
           />
         )}
 
-        {/* ── Key Numbers (상위 2개 공개) ── */}
-        {publicNums.length > 0 && (
+        {/* ── Key Numbers (전체 공개) ── */}
+        {keyNums.length > 0 && (
           <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">
               Key Numbers
             </p>
             <ul className="space-y-2">
-              {publicNums.map((item, i) => (
+              {keyNums.map((item, i) => (
                 <li key={i} className="text-sm text-gray-300 font-mono">{item}</li>
               ))}
             </ul>
-            {hasMore && (
-              <p className="text-xs text-gray-600 mt-3 flex items-center gap-1">
-                <Lock size={11} />
-                {keyNums.length - 2} more figures — Starter & Pro plans
-              </p>
-            )}
           </div>
         )}
 
@@ -549,26 +522,26 @@ export default async function SignalPage({
           </div>
         )}
 
-        {/* ── Risk Factors (잠금 — Pro) ── */}
-        <LockedSection title="Risk Factors" />
-
-        {/* ── CTA ── */}
-        <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
-          <p className="text-lg font-bold">Access Full Korean Market Signal Analytics</p>
-          <div className="text-sm text-gray-400 space-y-1">
-            <p>✔ AI-parsed DART filing classification &amp; scoring</p>
-            <p>✔ Real-time event impact indicators</p>
-            <p>✔ Price reaction &amp; historical pattern data</p>
+        {/* ── CTA (비로그인 유저만) ── */}
+        {!user && (
+          <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
+            <p className="text-lg font-bold">Track Korean Market Signals — Free</p>
+            <p className="text-sm text-gray-400">
+              Sign up free to access live disclosures, AI analysis, and event filters.
+            </p>
+            <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
+              <Link
+                href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
+                className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
+              >
+                Sign Up Free →
+              </Link>
+            </div>
+            <p className="text-xs text-gray-600">
+              Public Beta · No credit card required
+            </p>
           </div>
-          <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
-            <Link
-              href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
-              className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
-            >
-              Get Pro Access →
-            </Link>
-          </div>
-        </div>
+        )}
 
         {/* ── Disclaimer ── */}
         <p className="text-xs text-gray-600 text-center leading-relaxed">

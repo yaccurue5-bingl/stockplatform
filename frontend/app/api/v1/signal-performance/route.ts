@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   const { user, error: authError } = await resolveApiKey(req)
   if (authError) return authError
 
-  const planError = checkPlan(user, ['starter', 'pro', 'enterprise'])
+  const planError = checkPlan(user, ['free', 'starter', 'pro', 'enterprise'])
   if (planError) return planError
 
   const rateLimitError = await checkRateLimit(user.id, user.plan)

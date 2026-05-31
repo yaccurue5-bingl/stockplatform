@@ -11,7 +11,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createServiceClient, getUser } from '@/lib/supabase/server';
-import { Lock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import BackButton from '@/components/BackButton';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
 import SignalStrength from '@/components/disclosures/SignalStrength';
@@ -173,8 +173,7 @@ function BlurredSection({ title }: { title: string }) {
         <div className="h-3 bg-gray-700 rounded w-4/6" />
       </div>
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-950/60 backdrop-blur-[2px]">
-        <Lock size={18} className="text-gray-400" />
-        <p className="text-xs text-gray-400 font-medium">Available on Developer & Pro plans</p>
+        <p className="text-xs text-gray-400 font-medium">Sign in to view — free</p>
       </div>
     </div>
   );
