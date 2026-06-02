@@ -291,34 +291,9 @@ async function handleSubscriptionCreated(event: any) {
   }
   console.log(`🔑 API Key 생성 완료: user=${userId}`);
 
-  // 3. 사용자에게 API Key 발급 이메일 발송
+  // 이메일 발송은 관리자 확인 후 /api/admin/generate-api-key (send_email:true) 로 수동 트리거
   const email = data.customer?.email || data.email || null;
-  if (email) {
-    const resend = getResend();
-    if (resend) {
-      try {
-        const apiKeyPageUrl = 'https://k-marketinsight.com/api-key';
-        const { error: mailError } = await resend.emails.send({
-          from:    FROM_EMAIL,
-          to:      [email],
-          replyTo: 'support@k-marketinsight.com',
-          subject: '🔑 Your API Key is Ready — K-MarketInsight',
-          html:    buildApiKeyReadyHtml(plan, apiKeyPageUrl),
-        });
-        if (mailError) {
-          console.error('❌ API key 이메일 발송 실패:', mailError);
-        } else {
-          console.log(`📧 API Key 이메일 발송 완료: ${email}`);
-        }
-      } catch (mailErr) {
-        console.error('❌ API key 이메일 예외:', mailErr);
-      }
-    } else {
-      console.warn('⚠️ RESEND_API_KEY 없음 — 이메일 발송 스킵');
-    }
-  } else {
-    console.warn(`⚠️ [subscription.created] 이메일 추출 실패 — user=${userId}`);
-  }
+  console.log(`🔑 API Key 생성 완료 (이메일 대기 중): user=${userId} email=${email ?? 'unknown'} plan=${plan}`);
 }
 
 // 구독 업데이트 처리
