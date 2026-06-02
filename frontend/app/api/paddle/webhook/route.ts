@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { Resend } from 'resend';
+import { buildApproveUrl } from '@/app/api/admin/approve-api-key/route';
 
 const FROM_EMAIL = 'K-MarketInsight <support@k-marketinsight.com>';
+const ADMIN_EMAIL = process.env.CONTACT_RECIPIENT_EMAIL ?? '';
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -291,9 +293,42 @@ async function handleSubscriptionCreated(event: any) {
   }
   console.log(`🔑 API Key 생성 완료: user=${userId}`);
 
-  // 이메일 발송은 관리자 확인 후 /api/admin/generate-api-key (send_email:true) 로 수동 트리거
-  const email = data.customer?.email || data.email || null;
-  console.log(`🔑 API Key 생성 완료 (이메일 대기 중): user=${userId} email=${email ?? 'unknown'} plan=${plan}`);
+  // 3. 관리자에게 승인 링크 포함 알림 이메일 발송
+  const userEmail = data.customer?.email || data.email || null;
+  console.log(`🔑 API Key 생성 완료 (승인 대기): user=${userId} email=${userEmail ?? 'unknown'} plan=${plan}`);
+
+  const resend = getResend();
+  const secret = process.env.CRON_SECRET_TOKEN;
+  if (resend && ADMIN_EMAIL && secret) {
+    const approveUrl = buildApproveUrl(userId, secret);
+    try {
+      await resend.emails.send({
+        from:    FROM_EMAIL,
+        to:      [ADMIN_EMAIL],
+        subject: `[승인 필요] ${plan} 구독 — ${userEmail ?? userId}`,
+        html: `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;color:#333;">
+          <h2>🔑 새 구독 — API Key 발급 승인</h2>
+          <table style="border-collapse:collapse;width:100%;max-width:500px;">
+            <tr><td style="padding:8px;color:#888;">이메일</td><td style="padding:8px;"><strong>${userEmail ?? '—'}</strong></td></tr>
+            <tr><td style="padding:8px;color:#888;">플랜</td><td style="padding:8px;"><strong>${plan}</strong></td></tr>
+            <tr><td style="padding:8px;color:#888;">User ID</td><td style="padding:8px;font-size:12px;">${userId}</td></tr>
+          </table>
+          <div style="margin:32px 0;">
+            <a href="${approveUrl}"
+              style="background:#16a34a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;display:inline-block;font-weight:bold;font-size:16px;">
+              ✅ Send Key to User
+            </a>
+          </div>
+          <p style="font-size:12px;color:#999;">이 링크는 7일 후 만료됩니다.</p>
+        </body></html>`,
+      });
+      console.log(`📧 관리자 승인 이메일 발송 완료: ${ADMIN_EMAIL}`);
+    } catch (err) {
+      console.error('❌ 관리자 승인 이메일 발송 실패:', err);
+    }
+  } else {
+    console.warn('⚠️ 관리자 알림 스킵 (RESEND_API_KEY, CONTACT_RECIPIENT_EMAIL, 또는 CRON_SECRET_TOKEN 미설정)');
+  }
 }
 
 // 구독 업데이트 처리
