@@ -110,11 +110,27 @@ export async function GET(req: NextRequest) {
     return new NextResponse('User not found', { status: 404 })
   }
 
+  // ── 5. 키 없으면 자동 생성 ─────────────────────────────────────────────────
   if (!user.api_key) {
-    return new NextResponse('No API key found for this user — generate one first via /api/admin/generate-api-key', { status: 404 })
+    const newKey = crypto.randomBytes(32).toString('hex')
+    const { error: updateErr } = await sb
+      .from('users')
+      .update({
+        api_key: newKey,
+        api_key_created_at: new Date().toISOString(),
+        plan: user.plan ?? 'starter',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', uid)
+    if (updateErr) {
+      console.error('[approve-api-key] 키 생성 실패:', updateErr)
+      return new NextResponse('Failed to generate API key', { status: 500 })
+    }
+    user.api_key = newKey
+    console.log(`[approve-api-key] 🔑 키 신규 생성: user=${uid}`)
   }
 
-  // ── 5. 이메일 발송 ──────────────────────────────────────────────────────────
+  // ── 7. 이메일 발송 ──────────────────────────────────────────────────────────
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) {
     return new NextResponse('RESEND_API_KEY not configured', { status: 500 })
@@ -136,7 +152,7 @@ export async function GET(req: NextRequest) {
 
   console.log(`[approve-api-key] ✅ 이메일 발송 완료: ${user.email} (user=${uid})`)
 
-  // ── 6. 브라우저에서 클릭했을 때 보여줄 확인 페이지 ─────────────────────────
+  // ── 8. 브라우저 확인 페이지 ─────────────────────────────────────────────────
   return new NextResponse(
     `<!DOCTYPE html><html><body style="font-family:sans-serif;text-align:center;padding:60px;">
       <h2>✅ Key email sent</h2>
