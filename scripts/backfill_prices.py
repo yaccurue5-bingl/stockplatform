@@ -264,9 +264,21 @@ def fetch_disclosures(sb, days: int) -> list[dict]:
 
 def upsert_returns(sb, rows: list[dict], dry_run: bool) -> tuple[int, int]:
     """
+    # ── 중복 제거: 같은 배치 내 (stock_code, date, disclosure_id) 중복 시
+    #    PostgreSQL ON CONFLICT DO UPDATE가 동일 row를 두 번 업데이트하려 해서 에러 발생
     scores_log 에 future_return_3d / future_return_5d / future_return_20d upsert.
     rows: [{stock_code, date, disclosure_id, future_return_3d, future_return_5d, future_return_20d}, ...]
     """
+  seen: set[tuple] = set()
+    deduped: list[dict] = []
+    for r in rows:
+        key = (r["stock_code"], r["date"], r["disclosure_id"])
+        if key not in seen:
+            seen.add(key)
+            deduped.append(r)
+    if len(deduped) < len(rows):
+        logger.info(f"  → 중복 제거: {len(rows) - len(deduped)}건 ({len(deduped)}건 처리)")
+    rows = deduped
     if dry_run:
         logger.info(f"  [DRY] {len(rows)}건 수익률 저장 생략")
         for r in rows[:3]:
