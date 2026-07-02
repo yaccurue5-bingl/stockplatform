@@ -31,36 +31,9 @@ export default async function proxy(req: NextRequest) {
     return response;
   }
 
-  // ── Supabase 세션 초기화 ────────────────────────────────────────────────
+  // 응답 객체만 먼저 준비 — Supabase 클라이언트/getUser()는 실제로 세션이
+  // 필요한 protected 경로에서만 생성한다 (아래 참고).
   let supabaseResponse = NextResponse.next({ request: req });
-
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            req.cookies.set(name, value);
-            supabaseResponse.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-
-  // ⚠️ Must use getUser() not getSession() — getUser() validates the JWT
-  // with the Supabase auth server and refreshes the token if needed.
-  // getSession() only reads from cookies without server-side validation.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const session = user ? { user } : null;
 
   const { pathname } = req.nextUrl;
 
@@ -74,9 +47,10 @@ export default async function proxy(req: NextRequest) {
 
   // ── 4) Cron Job / Admin API 보안 ────────────────────────────────────────
   // /api/cron/trigger-batch 는 자체 ?secret= 쿼리 파라미터 인증을 사용하므로 제외
+  // /api/admin/approve-api-key 는 HMAC 토큰 자체 인증 (관리자 이메일 버튼 클릭)
   const isAdminRoute =
     (pathname.startsWith('/api/cron/') && pathname !== '/api/cron/trigger-batch') ||
-    pathname.startsWith('/api/admin/');
+    (pathname.startsWith('/api/admin/') && pathname !== '/api/admin/approve-api-key');
   if (isAdminRoute) {
     const authHeader = req.headers.get('authorization');
     const expectedToken = process.env.CRON_SECRET_TOKEN;
@@ -125,6 +99,7 @@ export default async function proxy(req: NextRequest) {
     '/api/contact',               // 문의 폼 — 비로그인 공개
     '/api/hot-stocks',            // 랜딩 위젯 — 공개
     '/api/cron/trigger-batch',    // 외부 cron relay — 자체 ?secret= 인증
+    '/api/admin/approve-api-key', // 관리자 이메일 버튼 클릭 — HMAC 토큰 자체 인증
     '/sitemap.xml',
     '/sitemap/',          // paginated sub-sitemaps: /sitemap/0.xml, /sitemap/1.xml, …
     '/robots.txt',
@@ -148,7 +123,35 @@ export default async function proxy(req: NextRequest) {
   if (isPublic) return supabaseResponse;
 
   // ── 6) Protected 경로: 로그인 필수 ─────────────────────────────────────
-  if (!session) {
+  // Supabase 세션 검증은 여기서만 필요 — public 경로는 익명 트래픽이 대부분이라
+  // 매 요청마다 Auth 서버 왕복(JWT 검증)을 태우지 않기 위해 지연 생성한다.
+  const supabase = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setAll(cookiesToSet: { name: string; value: string; options: any }[]) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            req.cookies.set(name, value);
+            supabaseResponse.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
+
+  // ⚠️ Must use getUser() not getSession() — getUser() validates the JWT
+  // with the Supabase auth server and refreshes the token if needed.
+  // getSession() only reads from cookies without server-side validation.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
     const loginUrl = new URL('/login', req.url);
     loginUrl.searchParams.set('redirectTo', pathname);
     return NextResponse.redirect(loginUrl);

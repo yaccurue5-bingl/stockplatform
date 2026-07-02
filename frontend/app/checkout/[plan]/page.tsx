@@ -14,6 +14,7 @@ import { notFound } from 'next/navigation';
 import { getUser, createServerClient } from '@/lib/supabase/server';
 import Navbar from '@/components/landing/Navbar';
 import CheckoutClient from '@/components/checkout/CheckoutClient';
+import CheckoutUnavailable from '@/components/checkout/CheckoutUnavailable';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
 
@@ -116,16 +117,7 @@ export default async function CheckoutPage({
             </a>
           </div>
         ) : configMissing ? (
-          <div className="text-center py-12">
-            <p className="text-red-400 text-sm mb-2">Checkout is temporarily unavailable.</p>
-            <p className="text-gray-500 text-xs">
-              Please{' '}
-              <a href="/api-access" className="text-[#00D4A6] hover:underline">
-                contact us
-              </a>{' '}
-              to complete your upgrade.
-            </p>
-          </div>
+          <CheckoutUnavailable />
         ) : (
           <CheckoutClient
             userId={user.id}

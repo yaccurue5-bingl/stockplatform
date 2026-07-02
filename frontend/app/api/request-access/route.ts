@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { buildApproveUrl } from '@/app/api/admin/approve-api-key/route';
 
 export const runtime = 'nodejs';
 
@@ -14,7 +15,7 @@ const FROM    = 'K-MarketInsight <support@k-marketinsight.com>';
 const ADMIN   = process.env.CONTACT_RECIPIENT_EMAIL ?? '';
 
 // ── 관리자 알림 HTML ──────────────────────────────────────────
-function adminHtml(email: string, plan: string, useCase: string) {
+function adminHtml(email: string, plan: string, useCase: string, approveUrl: string | null) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><title>New Lead</title></head>
@@ -47,6 +48,17 @@ function adminHtml(email: string, plan: string, useCase: string) {
                 <p style="margin:8px 0 0;font-size:14px;line-height:1.7;white-space:pre-wrap;">${useCase || '—'}</p>
               </td></tr>
             </table>
+            ${approveUrl ? `
+            <div style="margin-top:28px;text-align:center;">
+              <a href="${approveUrl}"
+                style="background:#16a34a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;display:inline-block;font-weight:bold;font-size:15px;">
+                ✅ Approve &amp; Issue API Key
+              </a>
+              <p style="margin:10px 0 0;font-size:11px;color:#999;">클릭 시 키 생성(없으면) + 유저에게 이메일 발송. 링크 7일 유효.</p>
+            </div>` : `
+            <div style="margin-top:28px;padding:16px;background:#fef9c3;border-radius:8px;">
+              <p style="margin:0;font-size:13px;color:#92400e;">⚠️ 이 이메일로 가입된 계정 없음 — 유저가 먼저 가입해야 키 발급 가능</p>
+            </div>`}
           </td>
         </tr>
         <tr>
@@ -131,10 +143,23 @@ export async function POST(req: Request) {
     ]);
     if (dbError) {
       console.error('[request-access] DB insert error:', dbError);
-      // DB 실패해도 이메일은 발송 (운영 연속성)
     }
 
-    // 2. 관리자 알림 + 3. 사용자 자동응답 — 병렬 발송
+    // 2. 가입 계정 조회 → approve URL 생성 (있을 때만)
+    let approveUrl: string | null = null;
+    const secret = process.env.CRON_SECRET_TOKEN;
+    if (secret) {
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+      if (existingUser?.id) {
+        approveUrl = buildApproveUrl(existingUser.id, secret);
+      }
+    }
+
+    // 3. 관리자 알림 + 4. 사용자 자동응답 — 병렬 발송
     const [adminResult, userResult] = await Promise.allSettled([
       ADMIN
         ? resend.emails.send({
@@ -142,7 +167,7 @@ export async function POST(req: Request) {
             to:      [ADMIN],
             replyTo: email,
             subject: `[Lead] ${plan} — ${email}`,
-            html:    adminHtml(email, plan, useCase),
+            html:    adminHtml(email, plan, useCase, approveUrl),
           })
         : Promise.resolve(null),
 

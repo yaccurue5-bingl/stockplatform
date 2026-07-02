@@ -22,6 +22,7 @@ import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
 import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard'
 import EventHistoricalReaction from '@/components/disclosures/EventHistoricalReaction';
+import { getEventMethodology } from '@/lib/config/event-methodology';
 
 export const revalidate = 3600; // 1h — 불변 데이터
 
@@ -59,7 +60,7 @@ export async function generateMetadata({
     .from('disclosure_insights')
     .select('id, corp_name, stock_code, report_nm, report_nm_en, headline, financial_impact, ai_summary, event_type, rcept_dt')
     .eq('id', id)
-    .eq('is_visible', true)
+    .eq('analysis_status', 'completed')
     .single();
 
   if (!raw) return { title: 'Disclosure Not Found | K-MarketInsight' };
@@ -135,7 +136,6 @@ async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
       'analysis_status, is_visible'
     )
     .eq('id', id)
-    .eq('is_visible', true)
     .eq('analysis_status', 'completed')
     .single();
 
@@ -180,6 +180,44 @@ function BlurredSection({ title }: { title: string }) {
 }
 
 // ── 페이지 ────────────────────────────────────────────────────────────────────
+
+function MethodologySection({
+  methodology,
+}: {
+  methodology: NonNullable<ReturnType<typeof getEventMethodology>>;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
+      <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">
+        How This Event Is Evaluated
+      </p>
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-white">{methodology.title}</h2>
+          <p className="mt-2 text-sm text-gray-300 leading-relaxed">{methodology.description}</p>
+        </div>
+        <div className="rounded-lg border border-gray-800 bg-gray-950/40 p-4 space-y-2">
+          <p className="text-xs text-gray-400 leading-relaxed">
+            AI is used to interpret disclosures and extract structured data.
+          </p>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Signal scores are generated using event-specific methodologies and quantitative models.
+          </p>
+        </div>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {methodology.factors.map((factor) => (
+            <li
+              key={factor}
+              className="rounded-lg bg-gray-800/50 px-3 py-2 text-xs text-gray-300"
+            >
+              {factor}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
 
 export default async function DisclosureDetailPage({
   params,
@@ -245,6 +283,7 @@ export default async function DisclosureDetailPage({
     eventKey === 'BUYBACK'
       ? classifyBuybackSubtype(disclosure.headline, keyNumLines)
       : null;
+  const methodology = getEventMethodology(disclosure.event_type);
   // 수치 표시: 로그인 유저는 전체, 비로그인은 빈 배열(카드 분류만 표시)
   const crPublicNums = isLoggedIn ? keyNumLines : [];
 
@@ -318,6 +357,8 @@ export default async function DisclosureDetailPage({
 
             {/* Historical Market Reaction — event_stats 기반 aggregate 통계 */}
             <EventHistoricalReaction eventType={disclosure.event_type ?? null} />
+
+            {methodology && <MethodologySection methodology={methodology} />}
 
             {/* Sector Context */}
             {sectorContext && <SectorContextCard data={sectorContext} />}
