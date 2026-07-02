@@ -299,20 +299,9 @@ function DisclosuresContent() {
   // groupedStocksRef 사용으로 stale closure 완전 차단
   // stockCodeParam === null  → ?stock 파라미터 없음 (목록 뷰 — 공개)
   // stockCodeParam === ''    → 빈 stock_code (무시)
-  // stockCodeParam === 'XXX' → 상세 뷰 (로그인 + 유료 필요)
+  // stockCodeParam === 'XXX' → 상세 뷰 (공개 — 랜딩 카드 클릭과 동일하게 로그인/결제 불필요)
   useEffect(() => {
     if (stockCodeParam) {
-      // 상세 뷰 진입: 인증 확인 후 처리
-      if (!authChecked) return; // auth 로딩 중 → 대기
-      if (!isLoggedIn) {
-        router.replace(`/login?redirectTo=${encodeURIComponent(`/disclosures?stock=${stockCodeParam}`)}`);
-        return;
-      }
-      if (!isPaid) {
-        router.replace('/pricing');
-        return;
-      }
-
       const existing = groupedStocksRef.current.find(s => s.stock_code === stockCodeParam);
       if (existing) {
         const targetDisclosure = disclosureParam
@@ -336,7 +325,7 @@ function DisclosuresContent() {
     }
     // stockCodeParam === '' → 빈 stock_code, 무시 (상태 유지)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockCodeParam, authChecked, isLoggedIn, isPaid]);
+  }, [stockCodeParam]);
 
   // search 파라미터가 있으면 검색 실행
   useEffect(() => {
@@ -351,16 +340,7 @@ function DisclosuresContent() {
   const navigateToStock = useCallback((stock: GroupedStock) => {
     if (!stock.stock_code) return; // 빈 stock_code는 무시
 
-    // 상세 뷰 진입: 비로그인 → 로그인, 무료 → 업그레이드 유도
-    if (!isLoggedIn) {
-      router.push(`/login?redirectTo=${encodeURIComponent(`/disclosures?stock=${stock.stock_code}`)}`);
-      return;
-    }
-    if (!isPaid) {
-      router.push('/pricing');
-      return;
-    }
-
+    // 상세 뷰 진입 — 랜딩 카드 클릭(/disclosures/{id})과 동일하게 로그인/결제 불필요
     setSavedScrollPosition(window.scrollY);
     // 상태 즉시 업데이트 → 깜빡임 없이 화면 전환
     setSelectedStock(stock);
@@ -371,7 +351,7 @@ function DisclosuresContent() {
     startTransition(() => {
       router.push(`/disclosures?stock=${stock.stock_code}`, { scroll: false });
     });
-  }, [router, startTransition, isLoggedIn, isPaid]);
+  }, [router, startTransition]);
 
   const navigateToDisclosure = useCallback((disclosure: Disclosure) => {
     // 현재 보던 공시를 이전으로 저장 → Back 시 복귀용

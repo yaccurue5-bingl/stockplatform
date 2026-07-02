@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { isSuperAdmin } from '@/lib/constants';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -127,27 +124,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const stockParam = searchParams.get('stock');
 
-    // ── 특정 종목 조회: 인증 필요 (AI 분석 상세 데이터) ──
+    // ── 특정 종목 조회: 공개 — 랜딩 카드(/disclosures/{id})와 동일 데이터, 로그인/결제 불필요 ──
     if (stockParam) {
-      const cookieStore = await cookies();
-      const authClient = createServerClient(
-        supabaseUrl,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-      );
-      const { data: { user } } = await authClient.auth.getUser();
-      if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-      const email = user.email ?? '';
-      if (!isSuperAdmin(email)) {
-        const { data: userData } = await authClient
-          .from('users')
-          .select('plan, subscription_status')
-          .eq('id', user.id)
-          .single() as { data: { plan: string | null; subscription_status: string | null } | null };
-        const isPaid = userData?.plan && userData.plan !== 'free' && userData?.subscription_status === 'active';
-        if (!isPaid) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
       const { data: rawDisclosures, error } = await supabase
         .from('disclosure_insights')
         .select('*')

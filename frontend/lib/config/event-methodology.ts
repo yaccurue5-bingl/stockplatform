@@ -71,6 +71,61 @@ export const EVENT_METHODOLOGY = {
       'Continuity of business strategy',
     ],
   },
+  MNA: {
+    title: 'M&A / Merger Evaluation',
+    description:
+      'M&A events are evaluated by assessing deal size relative to company scale, strategic rationale, financing structure, and integration risk.',
+    factors: [
+      'Deal size relative to market value',
+      'Strategic fit and synergy potential',
+      'Financing structure (cash, stock, debt)',
+      'Regulatory and integration risk',
+    ],
+  },
+  LEGAL: {
+    title: 'Legal / Regulatory Evaluation',
+    description:
+      'Legal and regulatory events are evaluated by estimating potential financial exposure, likelihood of adverse outcome, and business disruption.',
+    factors: [
+      'Potential financial exposure',
+      'Likelihood of adverse outcome',
+      'Business disruption risk',
+      'Precedent and regulatory context',
+    ],
+  },
+  CAPEX: {
+    title: 'Capital Investment Evaluation',
+    description:
+      'Capital investment events are evaluated by measuring investment size relative to company scale, expected return, and funding source.',
+    factors: [
+      'Investment size relative to company assets',
+      'Expected capacity or revenue impact',
+      'Funding source and balance sheet impact',
+      'Execution timeline',
+    ],
+  },
+  DISPOSAL: {
+    title: 'Treasury Share Disposal Evaluation',
+    description:
+      'Treasury share disposal events are evaluated by assessing supply impact, disposal method, and stated purpose.',
+    factors: [
+      'Disposal size relative to shares outstanding',
+      'Disposal method and timing',
+      'Stated purpose (funding, compensation, etc.)',
+      'Dilution / supply impact',
+    ],
+  },
+  OTHER: {
+    title: 'Corporate Disclosure Evaluation',
+    description:
+      'General corporate disclosures are evaluated using event-agnostic factors — materiality, financial relevance, and market impact.',
+    factors: [
+      'Materiality to company operations',
+      'Financial relevance',
+      'Historical market reaction to similar filings',
+      'Disclosure completeness',
+    ],
+  },
 } as const satisfies Record<string, EventMethodology>;
 
 export function getEventMethodology(eventType: string | null | undefined): EventMethodology | null {
