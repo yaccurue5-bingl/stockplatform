@@ -331,6 +331,26 @@ mcp__supabase__get_advisors(project_id: "ojzxvaojuglgqmvxhlzh", type: "security"
 | Supabase 직접호출 (랜딩 진입 시) | 6개 | 4개 | Navbar getUser() 제거, useTrack getSession() 교체 | 2026-05-23 |
 | Back 버튼 비로그인 리다이렉트 | ❌ /login?redirectTo=%2Fdisclosures | ✅ router.back() | BackButton.tsx 신규 생성 | 2026-05-23 |
 
+### disclosure_insights RPC 타임아웃 재발 (2026-07-02) — 3번째 재발, 근본 원인 조치
+
+**증상**: `/api/disclosures/latest` 기본 목록 조회가 Postgres `statement timeout`으로 실패 → 빈 결과 반환.
+2026-05-11, 2026-05-13에도 같은 증상(Heap Fetches 급증)이 있었고 매번 수동 VACUUM ANALYZE로만 임시 해결했었음 — 이번에 근본 원인(autovacuum이 이 테이블의 UPDATE 위주 워크로드를 못 따라감)을 찾아 테이블 레벨 설정으로 재발 방지 조치.
+
+| 항목 | Before | After | 방법 | 날짜 |
+|---|---|---|---|---|
+| get_disclosure_companies() 실행 시간 | 10,579ms (statement timeout으로 실패) | 310ms | VACUUM ANALYZE disclosure_insights | 2026-07-02 |
+| Heap Fetches (idx_di_stock_updated_visible) | 50,715 | 358 | 위와 동일 | 2026-07-02 |
+| autovacuum 재발 방지 | scale_factor 0.2 (기본값, 재발 3회) | scale_factor 0.02 + threshold 500 | migration 053_tune_disclosure_insights_autovacuum.sql | 2026-07-02 |
+| disclosure_insights dead tuple 비율 (VACUUM 전) | 15.89% (last manual VACUUM 2026-05-23 이후 5주 방치) | — | pg_stat_user_tables 확인 | 2026-07-02 |
+
+### user_events RLS — anon INSERT 정책 누락 (2026-07-02)
+
+**증상**: Postgres 로그에 `new row violates row-level security policy for table "user_events"` 반복 발생 (수 분 간격). `hooks/useTrack.ts`가 비로그인 방문자도 `user_events`에 INSERT하는데, 기존 정책은 `authenticated` 역할만 있고 `anon` 역할용 정책이 없어 익명 트래킹 이벤트가 전부 조용히 실패(`catch{}`로 무시)하고 있었음 — 익명 트래픽(랜딩 방문자 대부분) 분석 데이터가 유실되고 있었던 것.
+
+| 기능 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |
+|---|---|---|---|---|
+| anon INSERT 정책 | anon key로 user_events insert → 201 | curl PostgREST 직접 호출 | ✅ 201 Created, `WITH CHECK (user_id IS NULL)` | 2026-07-02 |
+
 ### /disclosures 신규 기능 (2026-05-13)
 
 | 기능 | 테스트 항목 | 확인 방법 | 결과 | 날짜 |

@@ -113,10 +113,29 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = createServiceClient() as any
 
-    // 1. event_stats
-    const { data: statsRows } = await sb
-      .from('event_stats')
-      .select('event_type, signal_score, signal_grade, sample_size_clean, median_5d_return')
+    // 1+2+6: 서로 독립적인 쿼리 — 순차 실행 시 왕복 지연이 누적되므로 병렬 실행
+    const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+    const [
+      { data: statsRows },
+      { data: discRows },
+      { data: flowRows },
+    ] = await Promise.all([
+      sb
+        .from('event_stats')
+        .select('event_type, signal_score, signal_grade, sample_size_clean, median_5d_return'),
+      sb
+        .from('disclosure_insights')
+        .select('id, corp_name, corp_name_en, stock_code, event_type, headline, final_score, sentiment_score, rcept_dt')
+        .eq('analysis_status', 'completed')
+        .eq('is_visible', true)
+        .gte('created_at', since)
+        .not('event_type', 'is', null)
+        .order('final_score', { ascending: false })
+        .limit(300),
+      sb
+        .from('daily_indicators').select('date, foreign_net_buy_kospi')
+        .order('date', { ascending: false }).limit(25),
+    ])
 
     type EventMeta = { e_score: number; grade: string | null; median_return: number | null; sample_size: number }
 
@@ -134,18 +153,6 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
         sample_size:   row.sample_size_clean ?? 0,
       })
     }
-
-    // 2. 최근 3일 공시
-    const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-    const { data: discRows } = await sb
-      .from('disclosure_insights')
-      .select('id, corp_name, corp_name_en, stock_code, event_type, headline, final_score, sentiment_score, rcept_dt')
-      .eq('analysis_status', 'completed')
-      .eq('is_visible', true)
-      .gte('created_at', since)
-      .not('event_type', 'is', null)
-      .order('final_score', { ascending: false })
-      .limit(300)
 
     if (!discRows?.length) return []
 
@@ -167,7 +174,7 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
     const pool   = strict.length >= 3 ? strict : qualify(discRows as DiscRow[], 30, 10)
     if (!pool.length) return []
 
-    // 4. price_history
+    // 4+5: stockCodes 확정 후 서로 독립적인 쿼리 2개 병렬 실행
     const stockCodes = [...new Set(pool.map(r => r.stock_code).filter(Boolean))]
     const d1DateMap = new Map<string, string>()
     for (const r of pool) {
@@ -176,12 +183,18 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
     }
 
     const minDate = new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const { data: priceRows } = await sb
-      .from('price_history')
-      .select('stock_code, date, open, close, volume')
-      .in('stock_code', stockCodes)
-      .gte('date', minDate)
-      .order('date', { ascending: false })
+    const [{ data: priceRows }, { data: finRows }] = await Promise.all([
+      sb
+        .from('price_history')
+        .select('stock_code, date, open, close, volume')
+        .in('stock_code', stockCodes)
+        .gte('date', minDate)
+        .order('date', { ascending: false }),
+      sb
+        .from('financials').select('stock_code, fiscal_year, f_score')
+        .in('stock_code', stockCodes)
+        .order('fiscal_year', { ascending: false }),
+    ])
 
     type PriceEntry = { open: number | null; close: number | null; volume: number | null }
     const priceIndex = new Map<string, Map<string, PriceEntry>>()
@@ -190,22 +203,12 @@ async function fetchHotStocks(): Promise<HotStockItem[]> {
       priceIndex.get(p.stock_code)!.set(p.date, { open: p.open, close: p.close, volume: p.volume })
     }
 
-    // 5. financials (f_score)
-    const { data: finRows } = await sb
-      .from('financials').select('stock_code, fiscal_year, f_score')
-      .in('stock_code', stockCodes)
-      .order('fiscal_year', { ascending: false })
-
     const finMap = new Map<string, number | null>()
     for (const f of (finRows ?? []) as Array<{ stock_code: string; f_score: number | null }>) {
       if (!finMap.has(f.stock_code)) finMap.set(f.stock_code, f.f_score ?? null)
     }
 
-    // 6. 시장 외국인 수급 → M_score (market-wide, tanh)
-    const { data: flowRows } = await sb
-      .from('daily_indicators').select('date, foreign_net_buy_kospi')
-      .order('date', { ascending: false }).limit(25)
-
+    // 시장 외국인 수급 → M_score (market-wide, tanh)
     const flowVals  = (flowRows ?? []).map((r: { foreign_net_buy_kospi: number | null }) => r.foreign_net_buy_kospi ?? 0)
     const todayFlow = flowVals[0] ?? 0
     const flowMean  = flowVals.length > 0

@@ -83,6 +83,9 @@ function DisclosuresContent() {
   // popstate / useEffect stale closure 방지용 ref
   const selectedStockRef   = useRef<GroupedStock | null>(null);
   const groupedStocksRef   = useRef<GroupedStock[]>([]);
+  // 마운트 시 이 effect와 아래 stockCodeParam effect가 동시에 fetchDisclosures를
+  // 호출해 중복 요청이 발생하던 것을 막기 위한 가드 (최초 1회는 stockCodeParam effect에 위임)
+  const didInitialFetchRef = useRef(false);
   // router.push/back을 transition으로 감싸 Suspense fallback 깜빡임 방지
   const [, startTransition] = useTransition();
   // 인증 상태 (목록은 공개 — 비로그인도 접근 가능, 상세는 유료만 허용)
@@ -278,6 +281,14 @@ function DisclosuresContent() {
   // 페이지/필터 변경 시 새 데이터 로드 (목록 뷰 — 공개)
   useEffect(() => {
     if (stockCodeParam === null && !searchQuery) {
+      // 최초 마운트 시엔 아래 stockCodeParam effect가 fetchDisclosures를 전담한다.
+      // 여기서도 같이 호출하면 마운트 시 동일 요청이 중복 발생해, 두 응답이
+      // 도착하는 순서에 따라 "잠깐 빈 목록(No disclosures found) → 실제 데이터"
+      // 깜빡임이 생기는 원인이었음. 이후 페이지/필터 변경 시엔 정상적으로 fetch.
+      if (!didInitialFetchRef.current) {
+        didInitialFetchRef.current = true;
+        return;
+      }
       fetchDisclosures(undefined, currentPage);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
