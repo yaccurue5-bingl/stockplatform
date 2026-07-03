@@ -61,10 +61,7 @@ export async function generateMetadata({
     .from('disclosure_insights')
     .select('id, corp_name, stock_code, report_nm, report_nm_en, headline, financial_impact, ai_summary, event_type, rcept_dt')
     .eq('id', id)
-    .eq('analysis_status', 'completed')
     .single();
-
-  if (!raw) return { title: 'Disclosure Not Found | K-MarketInsight' };
 
   const data = raw as unknown as {
     id: string;
@@ -77,7 +74,13 @@ export async function generateMetadata({
     ai_summary: string | null;
     event_type: string | null;
     rcept_dt: string | null;
-  };
+  } | null;
+
+  // analysis_status는 재처리 중 completed → skipped 등으로 바뀔 수 있어 필터에서 뺐다
+  // (GSC 404 반복 원인 — 한 번 인덱싱된 URL이 재분류 후 사라짐). 실제 콘텐츠 유무로 판단.
+  if (!data || (!data.headline && !data.ai_summary)) {
+    return { title: 'Disclosure Not Found | K-MarketInsight' };
+  }
 
   const title = (data.headline ?? data.report_nm_en ?? data.report_nm ?? 'Corporate Disclosure') +
     ` — ${data.corp_name ?? ''} | K-MarketInsight`;
@@ -137,11 +140,16 @@ async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
       'analysis_status, is_visible'
     )
     .eq('id', id)
-    .eq('analysis_status', 'completed')
     .single();
 
   if (error || !data) return null;
-  return data as unknown as DisclosureRow;
+  const disclosure = data as unknown as DisclosureRow;
+
+  // analysis_status는 재처리 중 completed → skipped 등으로 바뀔 수 있어 필터에서 뺐다
+  // (GSC 404 반복 원인 — 한 번 인덱싱된 URL이 재분류 후 사라짐). 실제 콘텐츠 유무로 판단 —
+  // 애초에 분석된 적 없는 행(진짜 skipped/pending)은 여전히 not found 처리된다.
+  if (!disclosure.headline && !disclosure.ai_summary) return null;
+  return disclosure;
 }
 
 // ── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
