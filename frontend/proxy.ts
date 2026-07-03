@@ -91,6 +91,7 @@ export default async function proxy(req: NextRequest) {
     '/api-access',    // B2B 랜딩 페이지 공개
     '/api-docs',
     '/datasets',
+    '/methodology',   // 스코어링 방법론 설명 페이지 — 공개
     '/terms',
     '/privacy',
     '/refund-policy',

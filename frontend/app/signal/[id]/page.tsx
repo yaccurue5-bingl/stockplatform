@@ -19,6 +19,8 @@ import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
 import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard';
 import BookmarkButton from '@/components/BookmarkButton';
+import MethodologySection from '@/components/MethodologySection';
+import { getEventMethodology } from '@/lib/config/event-methodology';
 
 export const revalidate = 3600;
 
@@ -351,6 +353,9 @@ export default async function SignalPage({
   // Signal Score (event_stats 조회)
   const eventScore = signal.event_type ? await fetchEventScore(signal.event_type) : null;
 
+  // Methodology (이벤트 타입별 스코어링 근거)
+  const methodology = getEventMethodology(signal.event_type);
+
   // Sector Context
   const sectorContext = signal.sector ? await fetchSectorContext(signal.sector) : null;
 
@@ -521,6 +526,9 @@ export default async function SignalPage({
             <p className="text-sm text-gray-300 leading-relaxed">{signal.ai_summary}</p>
           </div>
         )}
+
+        {/* ── Methodology (스코어는 로직 기반, AI는 요약만) ── */}
+        {methodology && <MethodologySection methodology={methodology} />}
 
         {/* ── CTA (비로그인 유저만) ── */}
         {!user && (
