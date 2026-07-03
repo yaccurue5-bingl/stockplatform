@@ -131,11 +131,17 @@ async function fetchSignal(id: string): Promise<SignalRow | null> {
       'ai_summary, key_numbers, risk_factors, financial_impact'
     )
     .eq('id', id)
-    .eq('analysis_status', 'completed')
     .single();
 
   if (error || !data) return null;
-  return data as unknown as SignalRow;
+  const signal = data as unknown as SignalRow;
+
+  // analysis_status는 재처리 과정에서 completed → skipped 등으로 바뀔 수 있어
+  // (GSC 404 반복 원인 — 한 번 인덱싱된 URL이 재분류 후 사라짐) 필터에서 뺐다.
+  // 대신 실제 콘텐츠(headline/ai_summary) 유무로만 판단 — 애초에 분석된 적 없는
+  // 행(진짜 skipped/pending)은 여전히 not found 처리된다.
+  if (!signal.headline && !signal.ai_summary) return null;
+  return signal;
 }
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────

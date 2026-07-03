@@ -275,6 +275,54 @@ def transform(items: list[dict]) -> tuple[list[dict], list[dict]]:
 
 # ── Supabase 저장 ─────────────────────────────────────────────────────────────
 
+def _filter_changed_rows(
+    sb,
+    table: str,
+    key_cols: list[str],
+    rows: list[dict],
+    compare_cols: list[str],
+) -> list[dict]:
+    """
+    실제로 값이 바뀐 행만 반환 — 변경 없는 행은 upsert에서 제외한다.
+
+    이 스크립트는 전일 확정 데이터(bas_dt 기준)를 다루는데, 15분마다 도는
+    COLLECT 배치에서 매번 companies/price_history 전체를 조건 없이 upsert하면서
+    Supabase Disk IO Budget을 소진시키는 원인이 됐다 — 같은 값을 하루 수십~수백 번
+    다시 써서 WAL/dead tuple만 쌓임 (companies 테이블: 하루 평균 2만 건 UPDATE,
+    autovacuum 1,037회). 기존 값과 비교해 실제 변경분만 써서 이 문제를 없앤다.
+    """
+    if not rows:
+        return []
+
+    key_set = {tuple(row[k] for k in key_cols) for row in rows}
+    existing: dict[tuple, dict] = {}
+
+    key_list = list(key_set)
+    for i in range(0, len(key_list), BATCH_SIZE):
+        chunk = key_list[i:i + BATCH_SIZE]
+        query = sb.table(table).select(",".join(key_cols + compare_cols))
+        if len(key_cols) == 1:
+            query = query.in_(key_cols[0], [k[0] for k in chunk])
+        else:
+            # 복합키: PostgREST or 필터로 조합 조건 구성
+            or_filter = ",".join(
+                "and(" + ",".join(f"{col}.eq.{val}" for col, val in zip(key_cols, k)) + ")"
+                for k in chunk
+            )
+            query = query.or_(or_filter)
+        result = query.execute()
+        for r in (result.data or []):
+            existing[tuple(r[k] for k in key_cols)] = r
+
+    changed = []
+    for row in rows:
+        key = tuple(row[k] for k in key_cols)
+        prev = existing.get(key)
+        if prev is None or any(row.get(c) != prev.get(c) for c in compare_cols):
+            changed.append(row)
+    return changed
+
+
 def save_to_db(
     company_rows: list[dict],
     price_rows:   list[dict],
@@ -307,8 +355,19 @@ def save_to_db(
         seen_sc[row["stock_code"]] = row
     deduped_company_rows = list(seen_sc.values())
 
-    for i in range(0, len(deduped_company_rows), BATCH_SIZE):
-        batch = deduped_company_rows[i:i + BATCH_SIZE]
+    # 실제 값이 바뀐 행만 upsert (updated_at 제외 — 항상 다르므로 비교 대상에서 뺀다)
+    company_compare_cols = [
+        "corp_name", "market_type", "market_cap",
+        "listed_shares", "foreign_hold_shares", "foreign_ratio",
+    ]
+    changed_company_rows = _filter_changed_rows(
+        sb, "companies", ["stock_code"], deduped_company_rows, company_compare_cols
+    )
+    skipped_companies = len(deduped_company_rows) - len(changed_company_rows)
+    print(f"  [companies] 변경분 {len(changed_company_rows)}건 / 변경 없어 skip {skipped_companies}건")
+
+    for i in range(0, len(changed_company_rows), BATCH_SIZE):
+        batch = changed_company_rows[i:i + BATCH_SIZE]
         bn = i // BATCH_SIZE + 1
         try:
             sb.table("companies").upsert(
@@ -327,9 +386,15 @@ def save_to_db(
         row["date"]       = date_str
         row["updated_at"] = datetime.now().isoformat()
 
+    changed_price_rows = _filter_changed_rows(
+        sb, "price_history", ["stock_code", "date"], price_rows, ["close", "open", "volume"]
+    )
+    skipped_prices = len(price_rows) - len(changed_price_rows)
+    print(f"  [price_history] 변경분 {len(changed_price_rows)}건 / 변경 없어 skip {skipped_prices}건")
+
     ph_success = ph_failure = 0
-    for i in range(0, len(price_rows), BATCH_SIZE):
-        batch = price_rows[i:i + BATCH_SIZE]
+    for i in range(0, len(changed_price_rows), BATCH_SIZE):
+        batch = changed_price_rows[i:i + BATCH_SIZE]
         bn = i // BATCH_SIZE + 1
         try:
             sb.table("price_history").upsert(
