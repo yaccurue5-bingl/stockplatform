@@ -576,3 +576,19 @@ sb.table('disclosure_insights').update({'tweeted_at': 'now()'}).eq('id', 'PASTE-
 print('done')
 "
 ```
+
+### Reddit 수동 게시 워크플로우 (2026-07-07 추가)
+
+X와 달리 Reddit은 해시태그/이모지 위주 홍보체를 스팸으로 간주해 삭제/밴 위험이 있어 별도 포맷 사용.
+디스커션 스타일(제목 + 본문: 무슨 일 → 핵심 수치 → 출처)로 작성하며, **주 2회(화/목)** 가장 눈에 띄는 시그널 1건만 발송.
+`tweeted_at`과 독립적인 `reddit_posted_at` 컬럼으로 추적 — 같은 공시가 X/Reddit 양쪽에 뽑혀도 무방.
+
+`scripts/run_daily_batch.py --eod`에 Step 13으로 포함되어 매일 자동 실행되지만, 스크립트 내부에서 화/목 요일 게이트를 걸어 그 외 요일엔 자동 스킵.
+
+**수동 미리보기/발송**:
+```bash
+cd ~/stockplatform && python scripts/send_reddit_digest.py --dry-run --force  # 요일 무관 미리보기
+python scripts/send_reddit_digest.py --force   # 요일 무관 강제 발송 (테스트용)
+```
+
+이메일(yaccurue5@gmail.com)에서 Title/Body 각각 복사 → **서브레딧 규칙(특히 self-promotion) 먼저 확인** 후 게시 → 게시 후 이메일에 포함된 "Mark as Posted" 명령 실행하여 `reddit_posted_at` 갱신 (중복 방지).
