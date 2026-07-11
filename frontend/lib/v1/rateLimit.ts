@@ -5,7 +5,8 @@
  *
  * 플랜 quota:
  *   free       → 50 calls / day
- *   starter    → 10,000 calls / month  ($99/mo)
+ *   starter    → 5,000 calls / month   (pricing 페이지 없는 현재는 beta 기본 플랜 —
+ *                                        가격 정책 재도입 시 10,000/월로 복원 예정)
  *   pro        → 100,000 calls / month ($299/mo)
  *   enterprise → 1,000,000 calls / month (contact)
  *
@@ -22,8 +23,8 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 export const PLAN_QUOTA = {
   free:       { window: 'daily',   limit: 50 },
-  starter:    { window: 'monthly', limit: 10_000 },
-  developer:  { window: 'monthly', limit: 10_000 },   // silent DB alias
+  starter:    { window: 'monthly', limit: 5_000 },
+  developer:  { window: 'monthly', limit: 5_000 },   // silent DB alias
   pro:        { window: 'monthly', limit: 100_000 },
   enterprise: { window: 'monthly', limit: 1_000_000 },
 } as const
