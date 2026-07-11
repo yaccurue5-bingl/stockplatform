@@ -880,6 +880,10 @@ export default function ApiDocsPage() {
               <SectionLead>
                 Rate limits are enforced per API key. If you exceed your limit, the API returns HTTP 429 with a <code className="text-[#00D4A6] text-xs">Retry-After</code> header indicating seconds until the next window.
               </SectionLead>
+              {/* Public Beta 기간: pricing 페이지 없음, Request Access 승인 시 전부 starter로 발급됨
+                  (lib/v1/rateLimit.ts 참고 — 실제 시행 한도: 5,000 calls/month, per-minute 제한 없음).
+                  아래 예전 플랜별 표(pricing 정책 있던 시절 카피, 실제 코드와 안 맞았음)는
+                  가격 정책 재도입 시 복원 예정이라 주석으로만 남겨둔다.
               <div className="overflow-x-auto mb-6">
                 <table className="w-full min-w-[480px] text-sm border border-gray-800 rounded-xl overflow-hidden">
                   <thead className="bg-[#121821]">
@@ -905,6 +909,10 @@ export default function ApiDocsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              */}
+              <div className="mb-6 max-w-xs">
+                <InfoCard label="Public Beta — all approved keys" value="5,000 requests / month" />
               </div>
 
               <Divider />

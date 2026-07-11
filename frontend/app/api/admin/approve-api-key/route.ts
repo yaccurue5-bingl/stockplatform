@@ -111,6 +111,9 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 5. 키 없으면 자동 생성 ─────────────────────────────────────────────────
+  // Request Access 승인 = starter 플랜으로 발급 (가입 시 기본값 'free'를 덮어씀).
+  // pricing 페이지가 없는 현재는 starter가 사실상 beta 플랜 — quota는
+  // lib/v1/rateLimit.ts에서 5,000/월로 낮춰둠 (가격 정책 재도입 시 10,000/월로 복원).
   if (!user.api_key) {
     const newKey = crypto.randomBytes(32).toString('hex')
     const { error: updateErr } = await sb
@@ -118,7 +121,7 @@ export async function GET(req: NextRequest) {
       .update({
         api_key: newKey,
         api_key_created_at: new Date().toISOString(),
-        plan: user.plan ?? 'starter',
+        plan: 'starter',
         updated_at: new Date().toISOString(),
       })
       .eq('id', uid)
@@ -127,6 +130,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse('Failed to generate API key', { status: 500 })
     }
     user.api_key = newKey
+    user.plan = 'starter'
     console.log(`[approve-api-key] 🔑 키 신규 생성: user=${uid}`)
   }
 
