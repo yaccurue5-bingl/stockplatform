@@ -387,6 +387,13 @@ def run_eod(args):
          "send_reddit_digest.py",
          ["--lookback-days", "5"] + (["--dry-run"] if args.dry_run else []),
          False),
+
+        # Step 14: content 컬럼 Storage 백업 + null 처리 (분석 완료 3일 경과 행 대상)
+        # grace_days 동안 backfill_scores.py/reprocess_db.py가 먼저 보정할 여유를 준 뒤 백업
+        ("공시 원문(content) 백업",
+         "archive_disclosure_content.py",
+         ["--limit", "500"] + (["--dry-run"] if args.dry_run else []),
+         False),
     ]
 
     return _execute_steps(steps)
