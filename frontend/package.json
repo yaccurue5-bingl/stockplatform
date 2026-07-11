@@ -2,7 +2,6 @@
   "name": "k-marketinsight-frontend",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "next dev",
     "backend": "cd .. && call .\\venv\\Scripts\\python -m uvicorn main:app --reload",
