@@ -81,6 +81,7 @@ export default async function proxy(req: NextRequest) {
     '/forgot-password',
     '/api/stripe/webhook',
     '/api/paddle/webhook',
+    '/api/webhooks/resend-inbound', // Resend inbound 웹훅 — 자체 Svix 서명 검증, 세션 없음
     '/api/market-radar-widget',   // 랜딩 위젯 (공개)
     '/api/v1/',
     '/api/disclosures/latest',
