@@ -1,6 +1,8 @@
 /**
- * playwright.config.ts
+ * playwright.config.mts
  * Production-grade Playwright config for K-MarketInsight
+ * (.mts — forces ESM regardless of frontend/package.json "type", since that
+ *  field was removed to fix a Next.js middleware ERR_REQUIRE_ESM prod outage)
  *
  * Auth flow:  global.setup.ts logs in once → saves e2e/.auth/user.json
  * All desktop/mobile projects depend on that session.
@@ -65,7 +67,7 @@ export default defineConfig({
     // 1) One-time auth setup
     {
       name: 'setup',
-      testMatch: '**/global.setup.ts',
+      testMatch: '**/global.setup.mts',
     },
 
     // 2) Desktop Chrome — authenticated

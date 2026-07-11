@@ -1,5 +1,5 @@
 /**
- * global.setup.ts
+ * global.setup.mts
  * Runs once before all test projects.
  * Authenticates via UI → saves browser storage state to e2e/.auth/user.json.
  * All subsequent tests reuse this session — no repeated logins.
