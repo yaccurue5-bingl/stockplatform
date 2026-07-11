@@ -125,10 +125,14 @@ def main():
     args = parser.parse_args()
 
     # content가 비어있는 completed 공시 조회
+    # ⚠️ content_archived_at IS NOT NULL인 행은 제외 — archive_disclosure_content.py가
+    #    의도적으로 Storage 백업 후 null 처리한 행이라 "재수집 필요"가 아님.
+    #    이 필터 없으면 백업된 행 전부를 "content 없음"으로 오인해 DART에 재요청함.
     query = sb.table('disclosure_insights') \
         .select('id,rcept_no,corp_name,report_nm') \
         .eq('analysis_status', 'completed') \
         .eq('is_visible', True) \
+        .is_('content_archived_at', 'null') \
         .or_('content.is.null,content.eq.')
 
     if args.days:
