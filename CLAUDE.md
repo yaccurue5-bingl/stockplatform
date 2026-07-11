@@ -362,6 +362,22 @@ mcp__supabase__get_advisors(project_id: "ojzxvaojuglgqmvxhlzh", type: "security"
 | 로딩 성능 (CDN 캐시 워밍 후) | 10개 카드 표시까지 시간 | DOM 상태 + 타이밍 | ✅ 419ms API 응답, ~2초 내 데이터 표시 | 2026-05-13 |
 | 로딩 성능 (콜드 스타트) | 첫 요청 (CDN 캐시 없음) | 콘솔 로그 | ⚠️ ~9초 (Supabase 다중 쿼리 + free tier 지연) | 2026-05-13 |
 
+### support@k-marketinsight.com Inbound 이메일 포워딩 (2026-07-11)
+
+Resend Inbound로 실제 수신 가능한 support@ 주소 구축. 웹훅(`/api/webhooks/resend-inbound`)이 Svix 서명 검증 후 `resend.emails.receiving.forward()`로 실제 받은편지함(`CONTACT_RECIPIENT_EMAIL`)에 그대로 전달.
+
+**과정 중 발견한 사고 및 원인**: 이 작업 도중 `frontend/package.json`의 `"type": "module"`이 Next.js 미들웨어 컴파일 산출물과 충돌해 **사이트 전체 500 장애**가 발생(PR #117부터 존재하던 기존 버그, 이번 세션 변경과 무관하게 처음 실제로 트리거됨). `"type": "module"` 제거로 해결 — 자세한 내용은 git log(PR #119~#121) 참고.
+
+| 항목 | 확인 방법 | 결과 | 날짜 |
+|---|---|---|---|
+| MX 레코드 전환 | Google MX 5개 → Resend 단일 MX 교체, DNS 조회 | ✅ `inbound-smtp.ap-northeast-1.amazonaws.com` 확인 | 2026-07-11 |
+| 미들웨어 사이트 전체 500 장애 | Vercel runtime 로그 (`ERR_REQUIRE_ESM`) | ✅ `package.json` `"type":"module"` 제거로 해결 (PR #121) | 2026-07-11 |
+| 웹훅 라우트 인증 우회 | proxy.ts `prefixPublicPaths`에 라우트 미등록 → 307 리다이렉트 | ✅ 경로 추가로 해결 (PR #123) | 2026-07-11 |
+| forward() 에러 스와핑 버그 | SDK가 throw 대신 `{error}` 반환하는데 미체크 → 가짜 성공 로그 | ✅ `response.error` 명시적 체크 추가 (PR #124) | 2026-07-11 |
+| API 키 권한 (send-only → 401) | `RESEND_API_KEY` 권한이 send-only라 `GET /emails/receiving/{id}` 내부 호출 401 | ✅ Resend 대시보드에서 Full access로 변경 | 2026-07-11 |
+| 최종 E2E 포워딩 | 테스트 메일 → support@ 수신 → 웹훅 200 → `yaccurue5@gmail.com` 도착 | ✅ 실제 수신 확인 완료 | 2026-07-11 |
+| foresay.io 실제 답장 | `reply-to: support@k-marketinsight.com`으로 발송 | ✅ 200 응답 (id: a011122c-...) | 2026-07-11 |
+
 ---
 
 ## 브랜치 정책 (필수)
