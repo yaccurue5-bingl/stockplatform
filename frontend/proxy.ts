@@ -1,5 +1,8 @@
 /**
  * Next.js Middleware (proxy.ts — Next.js 16+ 미들웨어 파일명)
+ * (2026-07-11: cache-bust — 이전 배포의 손상된 Turbopack 빌드 캐시로 인한
+ *  ERR_REQUIRE_ESM 미들웨어 크래시를 해결하기 위해 이 파일 자체를 변경해
+ *  미들웨어 번들을 강제로 재컴파일시킴)
  *
  * 처리 순서:
  * 1. SEO: vercel.app 도메인 → X-Robots-Tag: noindex
