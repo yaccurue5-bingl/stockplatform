@@ -46,17 +46,21 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await resend.emails.receiving.forward({
+    const { data, error } = await resend.emails.receiving.forward({
       emailId: event.data.email_id,
       to: FORWARD_TO,
       from: FROM_EMAIL,
       passthrough: true,
     });
+    if (error) {
+      console.error('[resend-inbound] forward API error:', error);
+      return NextResponse.json({ error: 'Forward failed', detail: error }, { status: 500 });
+    }
     console.log(
-      `[resend-inbound] forwarded email_id=${event.data.email_id} from=${event.data.from} subject=${event.data.subject}`
+      `[resend-inbound] forwarded email_id=${event.data.email_id} from=${event.data.from} subject=${event.data.subject} → sentId=${data?.id}`
     );
   } catch (err) {
-    console.error('[resend-inbound] forward failed:', err);
+    console.error('[resend-inbound] forward threw:', err);
     return NextResponse.json({ error: 'Forward failed' }, { status: 500 });
   }
 
