@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface Props {
@@ -16,14 +16,12 @@ export default function ContactModal({ isOpen, onClose }: Props) {
   const [message, setMessage] = useState('');
   const [status,  setStatus]  = useState<Status>('idle');
   const [errMsg,  setErrMsg]  = useState('');
-  const nameRef = useRef<HTMLInputElement>(null);
 
-  // 열릴 때 첫 번째 필드 포커스 + 상태 초기화
+  // 열릴 때 상태 초기화
   useEffect(() => {
     if (isOpen) {
       setStatus('idle');
       setErrMsg('');
-      setTimeout(() => nameRef.current?.focus(), 80);
     }
   }, [isOpen]);
 
@@ -66,11 +64,8 @@ export default function ContactModal({ isOpen, onClose }: Props) {
 
   return (
     /* Backdrop */
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
       <div className="relative w-full max-w-md bg-[#121821] border border-gray-800 rounded-2xl shadow-2xl overflow-hidden">
@@ -110,8 +105,8 @@ export default function ContactModal({ isOpen, onClose }: Props) {
               <div>
                 <label className="block text-xs text-gray-400 font-medium mb-1.5">Name</label>
                 <input
-                  ref={nameRef}
                   type="text"
+                  lang="en"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -125,6 +120,7 @@ export default function ContactModal({ isOpen, onClose }: Props) {
                 <label className="block text-xs text-gray-400 font-medium mb-1.5">Email</label>
                 <input
                   type="email"
+                  lang="en"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -141,6 +137,7 @@ export default function ContactModal({ isOpen, onClose }: Props) {
                   onChange={(e) => setMessage(e.target.value)}
                   required
                   rows={5}
+                  lang="en"
                   placeholder="How can we help you?"
                   className="w-full bg-[#0D1117] border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#00D4A6] transition resize-none"
                 />
