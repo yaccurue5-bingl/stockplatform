@@ -7,9 +7,10 @@ import { Menu, X, LogOut, LayoutDashboard } from 'lucide-react';
 import { getSupabase, signOut } from '@/lib/supabase/client';
 
 const navItems = [
-  { label: 'Datasets',   href: '/datasets'    },
-  { label: 'API Docs',   href: '/api-docs'    },
-  { label: 'API Access', href: '/api-access'  },
+  { label: 'Datasets',     href: '/datasets'     },
+  { label: 'API Docs',     href: '/api-docs'     },
+  { label: 'Methodology',  href: '/methodology'  },
+  { label: 'API Access',   href: '/api-access'   },
 ];
 
 type PlanType = 'free' | 'starter' | 'pro';

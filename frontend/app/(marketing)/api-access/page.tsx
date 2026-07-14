@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Database, Zap, Shield, Globe, BarChart2, FileText } from 'lucide-react';
+import Navbar from '@/components/landing/Navbar';
 import RequestAccessModal from './RequestAccessModal';
 
 export const metadata = {
@@ -51,6 +52,8 @@ const sampleResponse = `{
 export default function ApiAccessPage() {
   return (
     <main className="bg-[#0B0F14] text-gray-200 min-h-screen">
+      <Navbar />
+
       {/* Hero */}
       <section className="max-w-[1100px] mx-auto px-6 pt-28 pb-20">
         <div className="inline-flex items-center gap-2 text-xs font-medium text-[#00D4A6] bg-[#00D4A6]/10 border border-[#00D4A6]/20 rounded-full px-3 py-1 mb-6">
