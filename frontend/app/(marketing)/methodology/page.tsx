@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import Footer from '@/components/Footer';
+import Footer from '@/components/landing/Footer';
 import { EVENT_METHODOLOGY } from '@/lib/config/event-methodology';
 
 const SITE_URL = 'https://k-marketinsight.com';
