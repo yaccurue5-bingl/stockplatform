@@ -381,8 +381,7 @@ def run_eod(args):
          ["--limit", "5", "--lookback-days", "1"] + (["--dry-run"] if args.dry_run else []),
          False),
 
-        # Step 13: Reddit 초안 이메일 발송 (주 2회 화/목 — 스크립트 내부에서 요일 게이트)
-        # 매일 호출해도 화/목이 아니면 스크립트가 자체적으로 스킵 — 배치 스케줄 변경 불필요
+        # Step 13: Reddit 초안 이메일 발송 (매일 — X 다이제스트와 동일 주기)
         ("Reddit 다이제스트 이메일",
          "send_reddit_digest.py",
          ["--lookback-days", "5"] + (["--dry-run"] if args.dry_run else []),

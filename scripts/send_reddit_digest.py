@@ -1,22 +1,21 @@
 """
 scripts/send_reddit_digest.py
 ==============================
-Reddit용 초안(제목+본문) 이메일 다이제스트 — 주 2회(화, 목) 전용.
+Reddit용 초안(제목+본문) 이메일 다이제스트 — 매일 발송 (X 다이제스트와 동일 주기).
 
 X 트윗과 달리 Reddit은 해시태그/이모지 위주 홍보체를 스팸으로 간주해 자동 삭제되거나
 계정이 밴될 수 있어 (self-promotion 규정), 완전히 다른 포맷을 쓴다:
   - 해시태그 없음, 이모지 최소화
   - 디스커션 스타일 본문 (무슨 일이 있었는지 → 핵심 수치 → 왜 중요한지)
-  - 하루 1개가 아니라 주 2회, 가장 눈에 띄는 시그널 1건만 선정
+  - 가장 눈에 띄는 시그널 1건만 선정
 
 Reddit 게시 여부는 tweeted_at과 별개로 reddit_posted_at 컬럼으로 추적한다
 (같은 시그널이 X/Reddit 양쪽에 골라져도 무방 — 플랫폼이 다르므로 중복 게시 아님).
 
 Usage
 -----
-  python scripts/send_reddit_digest.py               # 화/목요일에만 실제 발송
-  python scripts/send_reddit_digest.py --dry-run     # 요일 무관하게 미리보기만
-  python scripts/send_reddit_digest.py --force       # 요일 게이트 무시하고 발송
+  python scripts/send_reddit_digest.py               # 매일 실제 발송
+  python scripts/send_reddit_digest.py --dry-run     # 미리보기만
   python scripts/send_reddit_digest.py --min-score 0.5 --lookback-days 5
 
 Required env vars (.env.local)
@@ -31,7 +30,7 @@ import sys
 import re
 import argparse
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from pathlib import Path
 
 # ── Path / env setup ─────────────────────────────────────────────────────────
@@ -71,10 +70,6 @@ RECIPIENT  = "yaccurue5@gmail.com"
 FROM_EMAIL = "KMI Signals <noreply@k-marketinsight.com>"
 SIGNAL_URL = "https://k-marketinsight.com/signal"
 DART_URL   = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo="
-KST        = timezone(timedelta(hours=9))
-
-# 화(1)/목(3) — Python weekday(): 월=0 ... 일=6
-POST_WEEKDAYS = {1, 3}
 
 EVENT_LABELS: dict[str, str] = {
     "EARNINGS":         "Earnings Release",
@@ -275,7 +270,7 @@ def build_email_body(row: dict) -> tuple[str, str]:
             👽 Reddit Draft Post — {today}
         </h1>
         <p style="margin:6px 0 0;color:#ffe4d1;font-size:13px;">
-            {corp} · {row.get('event_type')} · 화/목 주 2회
+            {corp} · {row.get('event_type')}
         </p>
     </div>
 
@@ -370,20 +365,11 @@ def send_email(subject: str, plain: str, html: str, api_key: str) -> bool:
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Reddit draft email digest sender (Tue/Thu only)")
+    parser = argparse.ArgumentParser(description="Reddit draft email digest sender (daily)")
     parser.add_argument("--dry-run",       action="store_true", help="Preview only, do not send")
-    parser.add_argument("--force",         action="store_true", help="화/목 요일 게이트 무시하고 발송")
     parser.add_argument("--min-score",     type=float, default=0.50, help="X(0.30)보다 높은 기본값 — Reddit은 가장 눈에 띄는 것 하나만")
     parser.add_argument("--lookback-days", type=int,   default=5)
     args = parser.parse_args()
-
-    today_kst = datetime.now(KST)
-    if not args.force and today_kst.weekday() not in POST_WEEKDAYS:
-        logger.info(
-            f"오늘({today_kst.strftime('%A')}, KST)은 Reddit 게시일(화/목)이 아님 — 스킵. "
-            f"강제 실행하려면 --force"
-        )
-        return
 
     api_key = os.environ.get("RESEND_API_KEY")
     if not api_key and not args.dry_run:
