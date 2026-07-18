@@ -192,10 +192,15 @@ function BlurredSection({ title }: { title: string }) {
 
 export default async function DisclosureDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
+  // 오픈 리다이렉트 방지 — 우리 사이트 내부 경로(/로 시작)만 허용
+  const backFallback = from && from.startsWith('/') && !from.startsWith('//') ? from : '/disclosures';
 
   const [disclosure, user] = await Promise.all([fetchDisclosure(id), getUser()]);
   if (!disclosure) notFound();
@@ -263,7 +268,7 @@ export default async function DisclosureDetailPage({
       {/* 상단 네비 */}
       <div className="border-b border-gray-800 px-4 py-3">
         <div className="max-w-5xl mx-auto">
-          <BackButton />
+          <BackButton fallback={backFallback} />
         </div>
       </div>
 

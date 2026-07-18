@@ -7,6 +7,7 @@ import { Menu, X, LogOut, LayoutDashboard } from 'lucide-react';
 import { getSupabase, signOut } from '@/lib/supabase/client';
 
 const navItems = [
+  { label: 'Disclosures',  href: '/disclosures'  },
   { label: 'Datasets',     href: '/datasets'     },
   { label: 'API Docs',     href: '/api-docs'     },
   { label: 'Methodology',  href: '/methodology'  },
