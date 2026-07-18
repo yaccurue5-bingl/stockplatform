@@ -7,10 +7,11 @@
  * Used by /signal/[id] and /disclosures/[id] to power SectorContextCard.
  */
 
+import { unstable_cache } from 'next/cache';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { SectorContextData } from '@/components/SectorContextCard';
 
-export async function fetchSectorContext(
+async function fetchSectorContextUncached(
   sector: string
 ): Promise<SectorContextData | null> {
   if (!sector) return null;
@@ -75,3 +76,9 @@ export async function fetchSectorContext(
     return null;
   }
 }
+
+export const fetchSectorContext = unstable_cache(
+  fetchSectorContextUncached,
+  ['sector-context'],
+  { revalidate: 3600 }
+);
