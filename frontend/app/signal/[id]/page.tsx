@@ -419,7 +419,7 @@ export default async function SignalPage({
             <ArrowLeft size={15} />
             K-MarketInsight
           </Link>
-          <SignalTopActions disclosureId={id} stockCode={signal.stock_code} />
+          <SignalTopActions disclosureId={id} />
         </div>
       </div>
 
@@ -511,7 +511,7 @@ export default async function SignalPage({
         {methodology && <MethodologySection methodology={methodology} />}
 
         {/* ── CTA (비로그인 유저만 — 클라이언트에서 판단) ── */}
-        <SignalBottomCTA stockCode={signal.stock_code} />
+        <SignalBottomCTA disclosureId={id} />
 
         {/* ── Disclaimer ── */}
         <p className="text-xs text-gray-600 text-center leading-relaxed">
