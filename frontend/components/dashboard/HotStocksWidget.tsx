@@ -237,7 +237,7 @@ export default async function HotStocksWidget() {
 
           return (
             <li key={item.id}>
-              <Link href={`/disclosures/${item.id}`} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-800/30 transition group">
+              <Link href={`/disclosures/${item.id}?from=${encodeURIComponent('/dashboard')}`} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-800/30 transition group">
                 {/* Hot Score + E_adj */}
                 <div className="shrink-0 w-12 text-center">
                   <span className="text-lg font-black tabular-nums text-[#00D4A6]">{item.hot_score.toFixed(0)}</span>
