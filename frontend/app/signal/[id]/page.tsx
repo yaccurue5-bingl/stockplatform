@@ -9,16 +9,18 @@
  */
 
 import { Metadata } from 'next';
+import { unstable_cache } from 'next/cache';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { createServiceClient, getUser } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { TrendingUp, TrendingDown, Minus, ArrowLeft } from 'lucide-react';
 import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
 import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard';
-import BookmarkButton from '@/components/BookmarkButton';
+import SignalTopActions from '@/components/SignalTopActions';
+import SignalBottomCTA from '@/components/SignalBottomCTA';
 import MethodologySection from '@/components/MethodologySection';
 import { getEventMethodology } from '@/lib/config/event-methodology';
 
@@ -85,7 +87,7 @@ interface EventScore {
 
 // ── 데이터 페칭 ───────────────────────────────────────────────────────────────
 
-async function fetchEventScore(eventType: string): Promise<EventScore | null> {
+const fetchEventScore = unstable_cache(async (eventType: string): Promise<EventScore | null> => {
   try {
     const sb = createServiceClient();
     const { data: raw, error } = await sb
@@ -119,9 +121,9 @@ async function fetchEventScore(eventType: string): Promise<EventScore | null> {
   } catch {
     return null;
   }
-}
+}, ['signal-event-score'], { revalidate: 3600 });
 
-async function fetchSignal(id: string): Promise<SignalRow | null> {
+const fetchSignal = unstable_cache(async (id: string): Promise<SignalRow | null> => {
   const sb = createServiceClient();
   const { data, error } = await sb
     .from('disclosure_insights')
@@ -142,7 +144,7 @@ async function fetchSignal(id: string): Promise<SignalRow | null> {
   // 행(진짜 skipped/pending)은 여전히 not found 처리된다.
   if (!signal.headline && !signal.ai_summary) return null;
   return signal;
-}
+}, ['signal-by-id'], { revalidate: 3600 });
 
 // ── 헬퍼 ─────────────────────────────────────────────────────────────────────
 
@@ -343,7 +345,7 @@ export default async function SignalPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [signal, user] = await Promise.all([fetchSignal(id), getUser()]);
+  const signal = await fetchSignal(id);
   if (!signal) notFound();
 
   const dateStr    = formatDate(signal.rcept_dt);
@@ -364,19 +366,6 @@ export default async function SignalPage({
 
   // Sector Context
   const sectorContext = signal.sector ? await fetchSectorContext(signal.sector) : null;
-
-  // 북마크 상태 (로그인 유저만)
-  let isBookmarked = false;
-  if (user) {
-    const sb = createServiceClient();
-    const { data: bk } = await sb
-      .from('bookmarks')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('disclosure_id', id)
-      .maybeSingle();
-    isBookmarked = !!bk;
-  }
 
   // per-signal JSON-LD  (Google NewsArticle 필수 필드 충족)
   const pubDate = signal.rcept_dt
@@ -430,22 +419,7 @@ export default async function SignalPage({
             <ArrowLeft size={15} />
             K-MarketInsight
           </Link>
-          <div className="flex items-center gap-3">
-            <BookmarkButton
-              disclosureId={id}
-              initialBookmarked={isBookmarked}
-              isLoggedIn={!!user}
-              size="sm"
-            />
-            {!user && (
-              <Link
-                href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
-                className="text-xs text-[#00D4A6] hover:underline shrink-0"
-              >
-                Sign in for full access →
-              </Link>
-            )}
-          </div>
+          <SignalTopActions disclosureId={id} stockCode={signal.stock_code} />
         </div>
       </div>
 
@@ -536,26 +510,8 @@ export default async function SignalPage({
         {/* ── Methodology (스코어는 로직 기반, AI는 요약만) ── */}
         {methodology && <MethodologySection methodology={methodology} />}
 
-        {/* ── CTA (비로그인 유저만) ── */}
-        {!user && (
-          <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
-            <p className="text-lg font-bold">Track Korean Market Signals — Free</p>
-            <p className="text-sm text-gray-400">
-              Sign up free to access live disclosures, AI analysis, and event filters.
-            </p>
-            <div className="flex items-center justify-center gap-3 flex-wrap pt-2">
-              <Link
-                href={`/login?redirectTo=${encodeURIComponent(signal.stock_code ? `/disclosures?stock=${signal.stock_code}` : '/disclosures')}`}
-                className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
-              >
-                Sign Up Free →
-              </Link>
-            </div>
-            <p className="text-xs text-gray-600">
-              Public Beta · No credit card required
-            </p>
-          </div>
-        )}
+        {/* ── CTA (비로그인 유저만 — 클라이언트에서 판단) ── */}
+        <SignalBottomCTA stockCode={signal.stock_code} />
 
         {/* ── Disclaimer ── */}
         <p className="text-xs text-gray-600 text-center leading-relaxed">
