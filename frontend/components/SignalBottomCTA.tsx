@@ -7,6 +7,9 @@
  * 비로그인 방문자에게만 노출 — 로그인 상태를 클라이언트에서 확인
  * (SignalTopActions와 동일한 이유: 서버에서 cookies()를 읽으면 페이지 캐싱이 깨짐).
  * 확인 전(loading)과 로그인 상태에서는 렌더링하지 않음.
+ *
+ * redirectTo는 항상 이 페이지 자기 자신(/signal/{id}) — 로그인 후 다른 화면으로
+ * 튕기지 않고 보고 있던 화면 그대로 이어짐 (구 UI로 분기되던 버그 방지).
  */
 
 import { useEffect, useState } from 'react';
@@ -14,10 +17,10 @@ import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase/client';
 
 interface Props {
-  stockCode: string | null;
+  disclosureId: string;
 }
 
-export default function SignalBottomCTA({ stockCode }: Props) {
+export default function SignalBottomCTA({ disclosureId }: Props) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -30,7 +33,7 @@ export default function SignalBottomCTA({ stockCode }: Props) {
 
   if (isLoggedIn !== false) return null;
 
-  const redirectTo = stockCode ? `/disclosures?stock=${stockCode}` : '/disclosures';
+  const redirectTo = `/signal/${disclosureId}`;
 
   return (
     <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">

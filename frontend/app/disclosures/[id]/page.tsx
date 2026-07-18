@@ -379,11 +379,7 @@ export default async function DisclosureDetailPage({
                   </p>
                   <div className="flex items-center justify-center gap-3 flex-wrap">
                     <Link
-                      href={`/login?redirectTo=${encodeURIComponent(
-                        disclosure.stock_code
-                          ? `/disclosures?stock=${disclosure.stock_code}&disclosure=${id}`
-                          : '/disclosures'
-                      )}`}
+                      href={`/login?redirectTo=${encodeURIComponent(`/disclosures/${id}`)}`}
                       className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
                     >
                       Sign in
