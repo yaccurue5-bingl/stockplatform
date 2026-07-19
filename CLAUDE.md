@@ -607,4 +607,8 @@ cd ~/stockplatform && python scripts/send_reddit_digest.py --dry-run  # 미리�
 python scripts/send_reddit_digest.py   # 강제 발송 (테스트용)
 ```
 
-이메일(yaccurue5@gmail.com)에서 Title/Body 각각 복사 → **서브레딧 규칙(특히 self-promotion) 먼저 확인** 후 게시 → 게시 후 이메일에 포함된 "Mark as Posted" 명령 실행하여 `reddit_posted_at` 갱신 (중복 방지).
+이메일(yaccurue5@gmail.com)에서 Title/Body 각각 복사 → **서브레딧 규칙(특히 self-promotion) 먼저 확인** 후 게시 → 게시 후 이메일의 **"✅ Mark as Posted" 버튼 클릭 한 번**으로 `reddit_posted_at` 갱신 (중복 방지).
+
+(2026-07-19 변경: 터미널에서 python 명령을 매번 수동 실행해야 했던 방식 → 클릭 한 번으로 대체.
+매번 실행을 깜빡해 같은 종목이 재선정되는 문제가 있어서, `approve-api-key`와 동일한 HMAC 토큰
+링크 패턴(`/api/admin/mark-reddit-posted`)으로 전환. `CRON_SECRET_TOKEN` 재사용, 7일 유효.)
