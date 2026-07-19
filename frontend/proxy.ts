@@ -50,10 +50,15 @@ export default async function proxy(req: NextRequest) {
 
   // ── 4) Cron Job / Admin API 보안 ────────────────────────────────────────
   // /api/cron/trigger-batch 는 자체 ?secret= 쿼리 파라미터 인증을 사용하므로 제외
-  // /api/admin/approve-api-key 는 HMAC 토큰 자체 인증 (관리자 이메일 버튼 클릭)
+  // /api/admin/approve-api-key, /api/admin/mark-reddit-posted 는 HMAC 토큰
+  // 자체 인증 (관리자 이메일 버튼 클릭)
+  const ADMIN_ROUTE_SELF_AUTH = new Set([
+    '/api/admin/approve-api-key',
+    '/api/admin/mark-reddit-posted',
+  ]);
   const isAdminRoute =
     (pathname.startsWith('/api/cron/') && pathname !== '/api/cron/trigger-batch') ||
-    (pathname.startsWith('/api/admin/') && pathname !== '/api/admin/approve-api-key');
+    (pathname.startsWith('/api/admin/') && !ADMIN_ROUTE_SELF_AUTH.has(pathname));
   if (isAdminRoute) {
     const authHeader = req.headers.get('authorization');
     const expectedToken = process.env.CRON_SECRET_TOKEN;
@@ -104,7 +109,8 @@ export default async function proxy(req: NextRequest) {
     '/api/contact',               // 문의 폼 — 비로그인 공개
     '/api/hot-stocks',            // 랜딩 위젯 — 공개
     '/api/cron/trigger-batch',    // 외부 cron relay — 자체 ?secret= 인증
-    '/api/admin/approve-api-key', // 관리자 이메일 버튼 클릭 — HMAC 토큰 자체 인증
+    '/api/admin/approve-api-key',    // 관리자 이메일 버튼 클릭 — HMAC 토큰 자체 인증
+    '/api/admin/mark-reddit-posted', // Reddit 다이제스트 이메일 버튼 클릭 — HMAC 토큰 자체 인증
     '/sitemap.xml',
     '/sitemap/',          // paginated sub-sitemaps: /sitemap/0.xml, /sitemap/1.xml, …
     '/robots.txt',

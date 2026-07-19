@@ -28,6 +28,9 @@ Required env vars (.env.local)
 import os
 import sys
 import re
+import time
+import hmac
+import hashlib
 import argparse
 import logging
 from datetime import date, timedelta
@@ -202,17 +205,19 @@ def build_reddit_post(row: dict) -> tuple[str, str]:
     return title, body
 
 
-# ── Mark-as-posted command ────────────────────────────────────────────────────
+# ── Mark-as-posted link (클릭 한 번 — 터미널 명령 수동 실행 대신) ──────────────
+# approve-api-key와 동일한 HMAC 토큰 링크 패턴. CRON_SECRET_TOKEN 재사용.
 
-def mark_reddit_posted_cmd(sig_id: str) -> str:
-    return (
-        f"python -c \""
-        f"from supabase import create_client; from dotenv import load_dotenv; import os; "
-        f"load_dotenv('.env.local'); "
-        f"sb = create_client(os.environ['NEXT_PUBLIC_SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY']); "
-        f"sb.table('disclosure_insights').update({{'reddit_posted_at': 'now()'}}).eq('id', '{sig_id}').execute(); "
-        f"print('✅ marked {sig_id[:8]}...')\""
-    )
+MARK_POSTED_TTL_MS = 7 * 24 * 60 * 60 * 1000  # 7일
+
+def build_mark_posted_url(sig_id: str) -> str | None:
+    secret = os.environ.get("CRON_SECRET_TOKEN")
+    if not secret:
+        logger.warning("CRON_SECRET_TOKEN not set — Mark as Posted 링크 생성 불가")
+        return None
+    exp = str(int(time.time() * 1000) + MARK_POSTED_TTL_MS)
+    token = hmac.new(secret.encode(), f"{sig_id}:{exp}".encode(), hashlib.sha256).hexdigest()
+    return f"https://k-marketinsight.com/api/admin/mark-reddit-posted?id={sig_id}&exp={exp}&token={token}"
 
 
 # ── Build email body ──────────────────────────────────────────────────────────
@@ -222,7 +227,7 @@ def build_email_body(row: dict) -> tuple[str, str]:
     corp = (row.get("corp_name_en") or row.get("corp_name") or "?")
     today = date.today().strftime("%Y-%m-%d")
     sig_id = row["id"]
-    mark_cmd = mark_reddit_posted_cmd(sig_id)
+    mark_url = build_mark_posted_url(sig_id)
 
     # ── Plain text ────────────────────────────────────────────────────────────
     plain = "\n".join([
@@ -239,8 +244,8 @@ def build_email_body(row: dict) -> tuple[str, str]:
         "-" * 60,
         body,
         "",
-        "Mark as Posted (run after posting to Reddit):",
-        mark_cmd,
+        "Mark as Posted (click after posting to Reddit):",
+        mark_url or "(CRON_SECRET_TOKEN not set — mark manually in Supabase)",
         "",
     ])
 
@@ -250,7 +255,6 @@ def build_email_body(row: dict) -> tuple[str, str]:
         body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         .replace("\n", "<br>")
     )
-    mark_cmd_html = mark_cmd.replace('"', "&quot;").replace("'", "&#39;")
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -322,16 +326,16 @@ def build_email_body(row: dict) -> tuple[str, str]:
             ">{body}</textarea>
         </details>
 
-        <details style="margin-top:10px;">
-            <summary style="font-size:11px;color:#6b7280;cursor:pointer;list-style:none;padding:4px 0;">
-                ✅ Mark as Posted (run after posting) ▾
-            </summary>
-            <div style="
-                margin-top:6px;background:#f1f5f9;border-radius:6px;padding:10px 12px;
-                font-size:11px;font-family:'Courier New',monospace;color:#334155;
-                word-break:break-all;white-space:pre-wrap;
-            ">{mark_cmd_html}</div>
-        </details>
+        <div style="margin-top:14px;text-align:center;">
+            {f'''<a href="{mark_url}" style="
+                display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;
+                padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;
+                font-family:-apple-system,sans-serif;
+            ">✅ Mark as Posted</a>
+            <p style="margin:8px 0 0;font-size:11px;color:#9ca3af;font-family:-apple-system,sans-serif;">
+                Click after posting to Reddit — prevents this signal from being re-selected.
+            </p>''' if mark_url else '<p style="font-size:11px;color:#ef4444;">CRON_SECRET_TOKEN not set — mark manually in Supabase</p>'}
+        </div>
     </div>
 
     <div style="text-align:center;font-size:12px;color:#9ca3af;margin-top:24px;padding-bottom:32px;font-family:-apple-system,sans-serif;">
