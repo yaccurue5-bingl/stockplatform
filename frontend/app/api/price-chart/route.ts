@@ -1,26 +1,14 @@
 /**
  * GET /api/price-chart?stock=005930&date=2026-05-01
  * price_history에서 공시일 ±15 거래일 주가 반환
+ * 공개 — 공시 상세 자체가 비로그인으로 열람 가능해서 Price Reaction도 동일하게 공개.
  */
 import { NextResponse } from 'next/server';
-import { createServiceClient, getUser } from '@/lib/supabase/server';
-import { isSuperAdmin } from '@/lib/constants';
+import { createServiceClient } from '@/lib/supabase/server';
 
 export const revalidate = 3600;
 
 export async function GET(request: Request) {
-  const user = await getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  if (!isSuperAdmin(user.email ?? '')) {
-    const sb = createServiceClient();
-    const { data: ud } = await sb
-      .from('users').select('plan, subscription_status').eq('id', user.id).single() as
-      { data: { plan: string | null; subscription_status: string | null } | null };
-    const isPaid = ud?.plan && ud.plan !== 'free' && ud?.subscription_status === 'active';
-    if (!isPaid) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
   const { searchParams } = new URL(request.url);
   const stock = searchParams.get('stock');
   const date  = searchParams.get('date'); // YYYY-MM-DD
