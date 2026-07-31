@@ -8,9 +8,10 @@
  */
 
 import { Metadata } from 'next';
+import { unstable_cache } from 'next/cache';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { createServiceClient, getUser } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import BackButton from '@/components/BackButton';
 import FinancialRatios from '@/components/disclosures/FinancialRatios';
@@ -20,7 +21,8 @@ import DataSourceNote from '@/components/DataSourceNote';
 import SectorContextCard from '@/components/SectorContextCard';
 import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
-import CapitalReturnCard, { classifyBuybackSubtype } from '@/components/CapitalReturnCard'
+import { classifyBuybackSubtype } from '@/components/CapitalReturnCard'
+import GatedContent from '@/components/disclosures/GatedContent';
 import EventHistoricalReaction from '@/components/disclosures/EventHistoricalReaction';
 import { getEventMethodology } from '@/lib/config/event-methodology';
 import MethodologySection from '@/components/MethodologySection';
@@ -122,21 +124,23 @@ interface DisclosureRow {
   sentiment_score: number | null;
   ai_summary: string | null;
   key_numbers: unknown;
-  risk_factors: string | null;
   financial_impact: string | null;
   analysis_status: string | null;
   is_visible: boolean | null;
   sector: string | null;
 }
 
-async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
+// ai_summary/key_numbers는 "not found" 판정과 buybackSubtype 분류(카드 종류 결정, 실제
+// 수치 아님)에만 서버에서 쓰인다 — 실 수치·요약 본문은 GatedContent가 클라이언트에서
+// /api/disclosures/[id]/full로 로그인 유저에게만 별도로 받아온다.
+const fetchDisclosure = unstable_cache(async (id: string): Promise<DisclosureRow | null> => {
   const sb = createServiceClient();
   const { data, error } = await sb
     .from('disclosure_insights')
     .select(
       'id, corp_name, corp_name_en, stock_code, rcept_dt, report_nm, report_nm_en, ' +
       'headline, event_type, sentiment_score, sector, ' +
-      'ai_summary, key_numbers, risk_factors, financial_impact, ' +
+      'ai_summary, key_numbers, financial_impact, ' +
       'analysis_status, is_visible'
     )
     .eq('id', id)
@@ -150,7 +154,7 @@ async function fetchDisclosure(id: string): Promise<DisclosureRow | null> {
   // 애초에 분석된 적 없는 행(진짜 skipped/pending)은 여전히 not found 처리된다.
   if (!disclosure.headline && !disclosure.ai_summary) return null;
   return disclosure;
-}
+}, ['disclosure-by-id'], { revalidate: 3600 });
 
 // ── 서브 컴포넌트 ─────────────────────────────────────────────────────────────
 
@@ -172,22 +176,6 @@ function SentimentBadge({ sentiment, score }: { sentiment: string; score: number
   );
 }
 
-function BlurredSection({ title }: { title: string }) {
-  return (
-    <div className="relative rounded-xl border border-gray-800 bg-gray-900/50 p-5 overflow-hidden">
-      <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">{title}</p>
-      <div className="space-y-2 blur-sm select-none pointer-events-none" aria-hidden>
-        <div className="h-3 bg-gray-700 rounded w-full" />
-        <div className="h-3 bg-gray-700 rounded w-5/6" />
-        <div className="h-3 bg-gray-700 rounded w-4/6" />
-      </div>
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gray-950/60 backdrop-blur-[2px]">
-        <p className="text-xs text-gray-400 font-medium">Sign in to view — free</p>
-      </div>
-    </div>
-  );
-}
-
 // ── 페이지 ────────────────────────────────────────────────────────────────────
 
 export default async function DisclosureDetailPage({
@@ -202,12 +190,10 @@ export default async function DisclosureDetailPage({
   // 오픈 리다이렉트 방지 — 우리 사이트 내부 경로(/로 시작)만 허용
   const backFallback = from && from.startsWith('/') && !from.startsWith('//') ? from : '/disclosures';
 
-  const [disclosure, user] = await Promise.all([fetchDisclosure(id), getUser()]);
+  const disclosure = await fetchDisclosure(id);
   if (!disclosure) notFound();
 
   const sectorContext = disclosure.sector ? await fetchSectorContext(disclosure.sector) : null;
-
-  const isLoggedIn = !!user;
 
   const score = disclosure.sentiment_score ?? 0;
   const sentiment = score >= 0.3 ? 'POSITIVE' : score <= -0.3 ? 'NEGATIVE' : 'NEUTRAL';
@@ -260,8 +246,6 @@ export default async function DisclosureDetailPage({
       ? classifyBuybackSubtype(disclosure.headline, keyNumLines)
       : null;
   const methodology = getEventMethodology(disclosure.event_type);
-  // 수치 표시: 로그인 유저는 전체, 비로그인은 빈 배열(카드 분류만 표시)
-  const crPublicNums = isLoggedIn ? keyNumLines : [];
 
   return (
     <main className="min-h-screen bg-[#0D1117] text-white">
@@ -317,14 +301,6 @@ export default async function DisclosureDetailPage({
               </div>
             )}
 
-            {/* Capital Return (BUYBACK 이벤트 전용) */}
-            {buybackSubtype && (
-              <CapitalReturnCard
-                subtype={buybackSubtype}
-                publicKeyNums={crPublicNums}
-              />
-            )}
-
             {/* Financial Ratios YoY */}
             <FinancialRatios
               stockCode={disclosure.stock_code ?? ''}
@@ -339,73 +315,10 @@ export default async function DisclosureDetailPage({
             {/* Sector Context */}
             {sectorContext && <SectorContextCard data={sectorContext} />}
 
-            {/* ── 로그인 유저: 전체 공개 ── */}
-            {isLoggedIn ? (
-              <>
-                {disclosure.ai_summary && (
-                  <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">AI Summary</p>
-                    <p className="text-sm text-gray-300 leading-relaxed">{disclosure.ai_summary}</p>
-                  </div>
-                )}
-
-                {keyNums && Object.keys(keyNums).length > 0 && (
-                  <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">Key Numbers</p>
-                    <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {Object.entries(keyNums).map(([k, v]) => (
-                        <div key={k} className="bg-gray-800/50 rounded-lg px-4 py-3">
-                          <dt className="text-xs text-gray-500 mb-1">{k}</dt>
-                          <dd className="text-sm font-semibold text-white">{String(v)}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-                )}
-
-                {disclosure.risk_factors && (
-                  <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-5">
-                    <p className="text-xs text-gray-500 font-semibold uppercase tracking-widest mb-3">Risk Factors</p>
-                    <p className="text-sm text-gray-300 leading-relaxed">{disclosure.risk_factors}</p>
-                  </div>
-                )}
-              </>
-            ) : (
-              /* ── 비로그인: 블러 + CTA ── */
-              <>
-                <BlurredSection title="AI Summary" />
-                <BlurredSection title="Key Numbers" />
-                <BlurredSection title="Risk Factors" />
-
-                <div className="rounded-2xl border border-[#00D4A6]/20 bg-[#00D4A6]/5 p-8 text-center space-y-4">
-                  <p className="text-lg font-bold">Get full AI analysis</p>
-                  <p className="text-sm text-gray-400">
-                    Access AI summaries, key financial figures, and risk assessments for every DART disclosure.
-                  </p>
-                  <div className="flex items-center justify-center gap-3 flex-wrap">
-                    <Link
-                      href={`/login?redirectTo=${encodeURIComponent(`/disclosures/${id}`)}`}
-                      className="px-6 py-2.5 rounded-full bg-[#00D4A6] text-black text-sm font-semibold hover:bg-[#00bfa0] transition"
-                    >
-                      Sign in
-                    </Link>
-                    <Link
-                      href="/signup"
-                      className="px-6 py-2.5 rounded-full border border-gray-700 text-sm font-medium hover:border-gray-500 transition"
-                    >
-                      Create account
-                    </Link>
-                  </div>
-                </div>
-
-                <p className="text-center text-xs text-gray-600">
-                  Already have access?{' '}
-                  <Link href="/disclosures" className="text-[#00D4A6] hover:underline">
-                    View all disclosures →
-                  </Link>
-                </p>
-              </>
-            )}
+            {/* Capital Return + AI Summary/Key Numbers/Risk Factors — 로그인 전용.
+                서버는 항상 비로그인(블러) 버전으로 캐싱되고, GatedContent가 클라이언트에서
+                인증을 확인한 뒤 /api/disclosures/[id]/full로 실 콘텐츠를 받아온다. */}
+            <GatedContent disclosureId={id} buybackSubtype={buybackSubtype} />
 
             {/* Data Source Attribution */}
             <DataSourceNote

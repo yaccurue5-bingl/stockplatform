@@ -94,6 +94,7 @@ export default async function proxy(req: NextRequest) {
     '/api/short/',
     '/disclosures',   // trailing slash 없이 → /disclosures 목록 + /disclosures/* 모두 공개
     '/signal/',
+    '/stock/',         // 종목별 공시 분석 페이지 — 로그인 불필요, SEO 인덱싱 대상
     '/korea-earnings-signals',
     '/korea-dilution-filings',
     '/korea-contract-signals',
