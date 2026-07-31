@@ -103,7 +103,7 @@ export default async function LiveEvents() {
         {displayEvents.map((e) => (
           <Link
             key={e.id || `${e.company}-${e.ticker}`}
-            href={e.id ? `/disclosures/${e.id}?from=${encodeURIComponent('/')}` : '/disclosures'}
+            href={e.id ? `/disclosures?stock=${e.ticker}&disclosure=${e.id}` : '/disclosures'}
             className="block"
           >
           <Card hover className="flex items-center justify-between px-6 py-5 cursor-pointer">
