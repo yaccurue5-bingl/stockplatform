@@ -637,12 +637,14 @@ function DisclosuresContent() {
     if (!isHighSignal) {
       return (
         <div className="bg-gray-950 text-white font-sans min-h-screen">
-          <header className="bg-black border-b border-gray-800 sticky top-0 z-40">
-            <div className="max-w-full mx-auto px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button onClick={navigateBack} className="text-gray-400 hover:text-white transition">← Back</button>
-                <span className="text-lg font-semibold">Disclosure Detail</span>
-              </div>
+          <header className="bg-black/95 border-b border-gray-800 sticky top-0 z-40 backdrop-blur">
+            <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4">
+              <button onClick={navigateBack} className="text-gray-400 hover:text-white transition shrink-0">
+                ← Back
+              </button>
+              <span className="text-sm text-gray-500 truncate hidden sm:block">
+                {selectedStock.corp_name_en || selectedStock.corp_name} · {selectedDisclosure.report_name}
+              </span>
             </div>
           </header>
 
@@ -718,6 +720,13 @@ function DisclosuresContent() {
                 </div>
               </div>
             )}
+
+            {/* 스코어링 비대상 분류 안내 */}
+            <p className="text-xs text-gray-600 text-center mt-8 leading-relaxed">
+              This filing is classified as a routine/administrative disclosure and is not evaluated
+              by our signal-scoring model. Only material market-moving events (contracts, buybacks,
+              M&amp;A, earnings, dilution, etc.) receive a Signal Score.
+            </p>
           </div>
         </div>
       );
@@ -917,7 +926,7 @@ function DisclosuresContent() {
 
               <DataSourceNote
                 source="DART"
-                reportName={selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
+                reportName={selectedDisclosure.report_name || selectedDisclosure.report_name_ko}
               />
             </div>
 
@@ -928,9 +937,9 @@ function DisclosuresContent() {
                 <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
                   <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Source Document</p>
                   <p className="text-sm text-gray-300 font-medium leading-snug mb-1 line-clamp-2">
-                    {selectedDisclosure.report_name_ko || selectedDisclosure.report_name}
+                    {selectedDisclosure.report_name || selectedDisclosure.report_name_ko}
                   </p>
-                  <p className="text-xs text-gray-600 font-mono mb-3">접수번호 {selectedDisclosure.rcept_no}</p>
+                  <p className="text-xs text-gray-600 font-mono mb-3">Receipt No. {selectedDisclosure.rcept_no}</p>
                   <a
                     href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
                     target="_blank"
@@ -940,7 +949,7 @@ function DisclosuresContent() {
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
-                    DART 원문 보기
+                    View on DART
                   </a>
                 </div>
               )}

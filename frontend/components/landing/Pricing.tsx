@@ -20,18 +20,18 @@ export default function Pricing() {
 
         {/* Badge */}
         <div className="inline-flex items-center gap-2 text-xs font-semibold text-[#00D4A6] bg-[#00D4A6]/10 border border-[#00D4A6]/20 rounded-full px-3 py-1 mb-6 uppercase tracking-widest">
-          Early Access
+          API Access
         </div>
 
         {/* Heading */}
         <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 leading-tight">
-          Get early access to<br />
+          Get access to<br />
           <span className="text-[#00D4A6]">Korean market signals</span>
         </h2>
 
         <p className="text-gray-400 text-base mb-10 leading-relaxed max-w-lg mx-auto">
-          We&apos;re building structured intelligence on Korean corporate disclosures.
-          Join early access — tell us how you&apos;d use it and we&apos;ll be in touch.
+          Structured intelligence on Korean corporate disclosures.
+          Tell us how you&apos;d use it and we&apos;ll follow up with access details.
         </p>
 
         {/* Feature list */}
@@ -52,7 +52,7 @@ export default function Pricing() {
           className="inline-flex items-center gap-2 bg-[#00D4A6] hover:bg-[#00bfa0] text-[#0B0F14] font-bold px-8 py-3.5 rounded-xl transition text-sm"
         >
           <Mail size={15} />
-          Request Early Access
+          Request Access
         </button>
 
         <p className="text-gray-600 text-xs mt-5">
@@ -61,7 +61,7 @@ export default function Pricing() {
       </div>
 
       {modalOpen && (
-        <PricingModal plan="Early Access" onClose={() => setModalOpen(false)} />
+        <PricingModal plan="API Access" onClose={() => setModalOpen(false)} />
       )}
     </section>
   );

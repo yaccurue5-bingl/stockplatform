@@ -93,6 +93,7 @@ export default async function proxy(req: NextRequest) {
     '/api/financials/',
     '/api/short/',
     '/api/price-chart',   // Price Reaction 차트 — 공시 상세와 동일하게 공개
+    '/api/search',         // /disclosures 검색창 — 목록 자체가 공개라 검색도 공개여야 함
     '/disclosures',   // trailing slash 없이 → /disclosures 목록 + /disclosures/* 모두 공개
     '/signal/',
     '/stock/',         // 종목별 공시 분석 페이지 — 로그인 불필요, SEO 인덱싱 대상
