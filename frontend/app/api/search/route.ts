@@ -56,11 +56,14 @@ export async function GET(request: Request) {
     const stockCodes = candidates.map(c => c.stock_code).filter(Boolean);
     let disclosures: DisclosureRow[] = [];
     if (stockCodes.length > 0) {
+      // is_visible=true를 명시해야 idx_di_stock_updated_visible 커버링 인덱스를 탄다 —
+      // 빠지면 plain idx_disclosure_insights_stock_code로 떨어져 훨씬 느려짐 (955ms → 465ms 실측).
       const { data } = await supabase
         .from('disclosure_insights')
         .select('id, stock_code, report_nm, sentiment, importance, updated_at, rcept_dt')
         .in('stock_code', stockCodes)
         .eq('analysis_status', 'completed')
+        .eq('is_visible', true)
         .order('updated_at', { ascending: false })
         .limit(stockCodes.length * 5); // 종목당 여러 건 확보 — 최신 1건 + 활동량 집계용
       disclosures = (data as DisclosureRow[]) || [];
