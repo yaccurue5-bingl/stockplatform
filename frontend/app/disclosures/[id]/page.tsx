@@ -23,6 +23,7 @@ import { fetchSectorContext } from '@/lib/fetchSectorContext';
 import { generateTicker } from '@/lib/generateTicker';
 import { classifyBuybackSubtype } from '@/components/CapitalReturnCard'
 import GatedContent from '@/components/disclosures/GatedContent';
+import DisclosureSearchBar from '@/components/disclosures/DisclosureSearchBar';
 import EventHistoricalReaction from '@/components/disclosures/EventHistoricalReaction';
 import { getEventMethodology } from '@/lib/config/event-methodology';
 import MethodologySection from '@/components/MethodologySection';
@@ -251,8 +252,11 @@ export default async function DisclosureDetailPage({
     <main className="min-h-screen bg-[#0D1117] text-white">
       {/* 상단 네비 */}
       <div className="border-b border-gray-800 px-4 py-3">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           <BackButton fallback={backFallback} />
+          <div className="w-40 sm:w-64 md:w-80 shrink-0">
+            <DisclosureSearchBar />
+          </div>
         </div>
       </div>
 
