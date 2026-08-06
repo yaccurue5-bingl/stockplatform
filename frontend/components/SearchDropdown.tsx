@@ -19,7 +19,7 @@ interface SearchResult {
 }
 
 interface SearchDropdownProps {
-  onSelectStock?: (stockCode: string) => void;
+  onSelectStock?: (stockCode: string, result: SearchResult) => void;
   onSearch?: (query: string) => void;  // 검색어로 전체 검색 시 호출
   isSuperUser?: boolean;
   placeholder?: string;
@@ -124,7 +124,7 @@ export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, p
     setTimeout(() => {
       if (onSelectStock) {
         console.log('[SearchDropdown] calling onSelectStock with:', result.stock_code);
-        onSelectStock(result.stock_code);
+        onSelectStock(result.stock_code, result);
       } else if (isSuperUser) {
         console.log('[SearchDropdown] navigating to /stock/' + result.stock_code);
         router.push(`/stock/${result.stock_code}`);
@@ -145,7 +145,7 @@ export default function SearchDropdown({ onSelectStock, onSearch, isSuperUser, p
     setTimeout(() => {
       if (onSelectStock) {
         console.log('[SearchDropdown] calling onSelectStock with:', result.stock_code);
-        onSelectStock(result.stock_code);
+        onSelectStock(result.stock_code, result);
       } else if (isSuperUser) {
         console.log('[SearchDropdown] navigating to /stock/' + result.stock_code);
         router.push(`/stock/${result.stock_code}`);
