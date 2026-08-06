@@ -416,6 +416,29 @@ frontend/middleware.ts  ❌ deprecated — 경고만 발생, 실행 안 됨
 - 인증, Cron 보안, Pro 플랜 체크 등 모든 미들웨어 로직은 반드시 `proxy.ts` 하나에만 작성.
 - 세부 내용: `frontend/MIDDLEWARE.md` 참조.
 
+### 새 공개(비로그인) API 라우트 추가 시 `proxy.ts` 등록 필수 (반복 발생 버그 — 필수 체크)
+
+**새 API route를 "로그인 없이 공개로 접근 가능"하게 만들 의도라면, 라우트 코드 자체가 맞아도 `proxy.ts`의
+`prefixPublicPaths`에 등록 안 하면 미들웨어 단계에서 무조건 `/login`으로 리다이렉트된다.**
+
+재발 이력 (같은 클래스의 버그가 한 세션에서만 5번 발견됨):
+`/api/webhooks/resend-inbound`, `/api/admin/mark-reddit-posted`, `/stock/[code]`, `/api/price-chart`, `/api/search`
+— 전부 라우트 핸들러 로직·DB 데이터는 멀쩡했는데 `prefixPublicPaths` 누락으로 조용히 막혀 있었음.
+증상은 다양하게 나타난다: 페이지가 통째로 로그인 화면으로 튕기거나(`/stock/[code]`), 클라이언트가 에러를
+삼켜서 "데이터 없음"처럼만 보이거나(`/api/price-chart`, `/api/search` — fetch가 307 리다이렉트를 따라가
+HTML을 받고 `.json()` 파싱 실패 → catch로 조용히 빈 결과 처리), 관리자 이메일 버튼이 아예 안 먹히거나
+(`/api/admin/mark-reddit-posted`).
+
+**체크리스트 — 새 페이지/API 라우트를 "로그인 불필요"로 설계했다면:**
+```
+□ frontend/proxy.ts의 prefixPublicPaths 배열에 경로 추가했는가?
+□ (관리자 라우트라면) ADMIN_ROUTE_SELF_AUTH Set에도 별도로 추가했는가? — 두 목록 다 확인 필요
+□ 로컬 dev 서버에서 curl -sI 로 실제 302/307 리다이렉트가 없는지 확인했는가?
+   (브라우저 fetch는 리다이렉트를 자동으로 따라가서 겉으로는 "이상 없이 로딩되다 빈 결과"처럼 보임 —
+   curl -I 로 응답 헤더의 Location을 직접 봐야 확실히 드러남)
+□ 프론트엔드 fetch 콜의 .catch()가 진짜 에러를 삼키고 있지 않은지 확인했는가?
+```
+
 ### Supabase TypeScript 타입 갱신
 
 새 테이블/컬럼 추가 후 반드시 `types/database.ts`를 재생성해야 빌드 에러가 사라진다:
