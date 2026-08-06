@@ -93,7 +93,11 @@ export default async function LiveEvents() {
         <Zap size={16} className="text-[#00D4A6]" />
         <span className="text-xs text-[#00D4A6] font-semibold uppercase tracking-widest">Real-time</span>
       </div>
-      <h2 className="text-3xl font-bold text-white mb-2">See What You&apos;re Missing</h2>
+      <h2 className="text-3xl font-bold text-white mb-2">
+        <Link href="/disclosures" className="hover:text-[#00D4A6] transition">
+          See What You&apos;re Missing
+        </Link>
+      </h2>
       <p className="text-gray-400 mb-2">Real-time signals from official Korean corporate filings.</p>
       <p className="text-xs text-gray-600 mb-10">
         Source: Financial Supervisory Service (DART) · Original filings available for verification

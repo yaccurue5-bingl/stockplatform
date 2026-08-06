@@ -350,7 +350,7 @@ export default async function HotStocks() {
           return (
             <Link
               key={item.id}
-              href={`/disclosures?stock=${item.stock_code}&disclosure=${item.id}`}
+              href={`/disclosures/${item.id}?from=${encodeURIComponent('/')}`}
               className="group block bg-[#0d1117] border border-gray-800 hover:border-gray-600 rounded-xl p-5 transition-all hover:bg-gray-900/60"
             >
               {/* 회사명 + 배지 행 */}
