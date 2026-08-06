@@ -19,7 +19,12 @@ export default function DisclosureSearchBar() {
 
   return (
     <SearchDropdown
-      onSelectStock={(stockCode) => router.push(`/disclosures?stock=${stockCode}`)}
+      onSelectStock={(stockCode, result) => {
+        // 여기(High-Signal Events 개별 페이지)에서 검색했으면 같은 스타일의
+        // 개별 페이지로 이동 — /disclosures?stock= (목록+패널 UI)로 튀지 않게.
+        const targetId = result.latest_disclosure?.id;
+        router.push(targetId ? `/disclosures/${targetId}` : `/disclosures?stock=${stockCode}`);
+      }}
       onSearch={(query) => router.push(`/disclosures?search=${encodeURIComponent(query)}`)}
       placeholder="Search company..."
     />

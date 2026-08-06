@@ -160,18 +160,20 @@ function DisclosuresContent() {
   }, [isLoggedIn, isPaid]);
 
   // URL 파라미터를 수동으로 관리 (useSearchParams 제거 → Suspense fallback 깜빡임 완전 차단)
-  const [stockCodeParam, setStockCodeParam]     = useState<string | null>(null);
-  const [disclosureParam, setDisclosureParam]   = useState<string | null>(null);
-  const [searchQueryParam, setSearchQueryParam] = useState<string | null>(null);
-
-  // 최초 마운트 시 URL에서 파라미터 읽기
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    setStockCodeParam(p.get('stock'));
-    setDisclosureParam(p.get('disclosure'));
-    setSearchQueryParam(p.get('search'));
-    // eventFilter / scoreFilter는 useState lazy init에서 이미 설정 — 여기선 생략
-  }, []);
+  // ⚠️ eventFilter/scoreFilter처럼 반드시 lazy init으로 첫 렌더에 즉시 읽어야 한다 — 마운트
+  // 후 별도 effect로 세팅하면, stockCodeParam이 아직 null인 첫 effect flush 순간에 아래
+  // stockCodeParam effect가 "파라미터 없음" 분기로 잘못 들어가 전체 목록을 한 번 더 fetch해
+  // (재현 확인: "Fetching page 1" 로그가 "Fetching stock: X" 로그보다 먼저 찍힘) 상세 페이지로
+  // 들어와도 전체 목록 화면이 잠깐 보였다가 전환되는 깜빡임이 발생했다.
+  const [stockCodeParam, setStockCodeParam] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('stock') : null
+  );
+  const [disclosureParam, setDisclosureParam] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('disclosure') : null
+  );
+  const [searchQueryParam, setSearchQueryParam] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('search') : null
+  );
 
   // 서버 사이드 검색 함수
   const searchFromServer = useCallback(async (query: string) => {
