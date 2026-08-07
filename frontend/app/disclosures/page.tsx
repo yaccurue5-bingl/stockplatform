@@ -83,6 +83,10 @@ function DisclosuresContent() {
   // popstate / useEffect stale closure 방지용 ref
   const selectedStockRef   = useRef<GroupedStock | null>(null);
   const groupedStocksRef   = useRef<GroupedStock[]>([]);
+  // stockCodeParam effect가 마지막으로 처리한 종목 — 종목이 실제로 바뀐 경우에만
+  // previousDisclosure를 초기화하기 위한 추적용 (Back 버튼이 이전 종목의 이전 공시로
+  // 잘못 튀는 버그 방지)
+  const lastStockCodeRef = useRef<string | null>(null);
   // 마운트 시 이 effect와 아래 stockCodeParam effect가 동시에 fetchDisclosures를
   // 호출해 중복 요청이 발생하던 것을 막기 위한 가드 (최초 1회는 stockCodeParam effect에 위임)
   const didInitialFetchRef = useRef(false);
@@ -304,6 +308,10 @@ function DisclosuresContent() {
   // stockCodeParam === 'XXX' → 상세 뷰 (공개 — 랜딩 카드 클릭과 동일하게 로그인/결제 불필요)
   useEffect(() => {
     if (stockCodeParam) {
+      if (lastStockCodeRef.current !== null && lastStockCodeRef.current !== stockCodeParam) {
+        setPreviousDisclosure(null);
+      }
+      lastStockCodeRef.current = stockCodeParam;
       const existing = groupedStocksRef.current.find(s => s.stock_code === stockCodeParam);
       if (existing) {
         const targetDisclosure = disclosureParam
@@ -650,85 +658,127 @@ function DisclosuresContent() {
             </div>
           </header>
 
-          <div className="max-w-2xl mx-auto px-4 py-10">
-            {/* 회사 헤더 */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center text-sm font-bold">
-                {generateTicker(selectedStock.corp_name_en)}
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">{selectedStock.corp_name_en || selectedStock.corp_name}</h2>
-                <p className="text-sm text-gray-500">{selectedStock.stock_code} · {selectedStock.market}</p>
-              </div>
-            </div>
+          <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
 
-            {/* Routine Notice */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-5">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-500 font-medium uppercase tracking-wide">
-                  Routine Filing
-                </span>
-                <span className="text-xs text-gray-600">{formatDateTime(selectedDisclosure.updated_at)}</span>
-              </div>
-              <h3 className="text-base font-semibold text-gray-200 mb-2">
-                {selectedDisclosure.report_name}
-              </h3>
-              {selectedDisclosure.report_name_ko && selectedDisclosure.report_name !== selectedDisclosure.report_name_ko && (
-                <p className="text-xs text-gray-600 mb-3">{selectedDisclosure.report_name_ko}</p>
-              )}
-              <p className="text-sm text-gray-500 italic">
-                No material market-moving signal detected for this filing.
-              </p>
-            </div>
-
-            {/* Summary (있으면 간략 표시) */}
-            {selectedDisclosure.summary && (
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
-                <h4 className="text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wide">Filing Summary</h4>
-                <p className="text-sm text-gray-400 leading-relaxed">{selectedDisclosure.summary}</p>
-              </div>
-            )}
-
-            {/* DART 원문 링크 */}
-            {selectedDisclosure.rcept_no && (
-              <a
-                href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium py-3 rounded-xl transition"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                View Original Filing on DART
-              </a>
-            )}
-
-            {/* Related Disclosures */}
+            {/* ── 왼쪽: 공시 목록 사이드바 — Full 레이아웃과 동일한 쉘을 재사용해서
+                같은 회사 안에서 항목을 옮겨다닐 때 전체 구조가 안 바뀌게 한다. ── */}
             {selectedStock.disclosures.length > 1 && (
-              <div className="mt-8">
-                <h4 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">Other Disclosures</h4>
-                <div className="space-y-2">
-                  {selectedStock.disclosures.filter(d => d.id !== selectedDisclosure.id).slice(0, 3).map(d => (
-                    <button
-                      key={d.id}
-                      onClick={() => navigateToDisclosure(d)}
-                      className="w-full text-left px-4 py-3 bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-600 transition text-sm text-gray-400"
-                    >
-                      <span className="text-gray-600 text-xs mr-2">{formatDate(d.updated_at)}</span>
-                      {d.report_name}
-                    </button>
-                  ))}
+              <div className="w-52 shrink-0 hidden lg:block">
+                <div className="sticky top-16">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3 px-1">
+                    Filings ({selectedStock.disclosures.length})
+                  </p>
+                  <div className="space-y-1">
+                    {selectedStock.disclosures.map(d => {
+                      const isActive = d.id === selectedDisclosure.id;
+                      const dot = d.sentiment?.toUpperCase() === 'POSITIVE' ? 'bg-green-500'
+                        : d.sentiment?.toUpperCase() === 'NEGATIVE' ? 'bg-red-500' : 'bg-gray-500';
+                      return (
+                        <button
+                          key={d.id}
+                          onClick={() => navigateToDisclosure(d)}
+                          className={`w-full text-left px-3 py-2.5 rounded-lg transition ${
+                            isActive
+                              ? 'bg-blue-600/20 border border-blue-500/30 text-white'
+                              : 'hover:bg-gray-900 text-gray-500 hover:text-gray-300 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${dot}`} />
+                            <div className="min-w-0">
+                              <p className="text-xs text-gray-500 mb-0.5">{formatDate(d.updated_at)}</p>
+                              <p className="text-xs leading-snug line-clamp-2">{d.report_name}</p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* 스코어링 비대상 분류 안내 */}
-            <p className="text-xs text-gray-600 text-center mt-8 leading-relaxed">
-              This filing is classified as a routine/administrative disclosure and is not evaluated
-              by our signal-scoring model. Only material market-moving events (contracts, buybacks,
-              M&amp;A, earnings, dilution, etc.) receive a Signal Score.
-            </p>
+            {/* ── 오른쪽: 메인 콘텐츠 — 스코어링 비대상이라 본문만 간단 버전 ── */}
+            <div className="flex-1 min-w-0 max-w-2xl">
+              {/* 회사 헤더 */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center text-sm font-bold">
+                  {generateTicker(selectedStock.corp_name_en)}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">{selectedStock.corp_name_en || selectedStock.corp_name}</h2>
+                  <p className="text-sm text-gray-500">{selectedStock.stock_code} · {selectedStock.market}</p>
+                </div>
+              </div>
+
+              {/* Routine Notice */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-500 font-medium uppercase tracking-wide">
+                    Routine Filing
+                  </span>
+                  <span className="text-xs text-gray-600">{formatDateTime(selectedDisclosure.updated_at)}</span>
+                </div>
+                <h3 className="text-base font-semibold text-gray-200 mb-2">
+                  {selectedDisclosure.report_name}
+                </h3>
+                {selectedDisclosure.report_name_ko && selectedDisclosure.report_name !== selectedDisclosure.report_name_ko && (
+                  <p className="text-xs text-gray-600 mb-3">{selectedDisclosure.report_name_ko}</p>
+                )}
+                <p className="text-sm text-gray-500 italic">
+                  No material market-moving signal detected for this filing.
+                </p>
+              </div>
+
+              {/* Summary (있으면 간략 표시) */}
+              {selectedDisclosure.summary && (
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-5">
+                  <h4 className="text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wide">Filing Summary</h4>
+                  <p className="text-sm text-gray-400 leading-relaxed">{selectedDisclosure.summary}</p>
+                </div>
+              )}
+
+              {/* DART 원문 링크 */}
+              {selectedDisclosure.rcept_no && (
+                <a
+                  href={`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${selectedDisclosure.rcept_no}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium py-3 rounded-xl transition"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  View Original Filing on DART
+                </a>
+              )}
+
+              {/* 모바일 전용(lg 미만) — 사이드바가 숨겨지는 화면에서도 다른 공시로 이동 가능하게 */}
+              {selectedStock.disclosures.length > 1 && (
+                <div className="mt-8 lg:hidden">
+                  <h4 className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wide">Other Disclosures</h4>
+                  <div className="space-y-2">
+                    {selectedStock.disclosures.filter(d => d.id !== selectedDisclosure.id).slice(0, 3).map(d => (
+                      <button
+                        key={d.id}
+                        onClick={() => navigateToDisclosure(d)}
+                        className="w-full text-left px-4 py-3 bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-600 transition text-sm text-gray-400"
+                      >
+                        <span className="text-gray-600 text-xs mr-2">{formatDate(d.updated_at)}</span>
+                        {d.report_name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 스코어링 비대상 분류 안내 */}
+              <p className="text-xs text-gray-600 text-center mt-8 leading-relaxed">
+                This filing is classified as a routine/administrative disclosure and is not evaluated
+                by our signal-scoring model. Only material market-moving events (contracts, buybacks,
+                M&amp;A, earnings, dilution, etc.) receive a Signal Score.
+              </p>
+            </div>
           </div>
         </div>
       );
@@ -1010,6 +1060,11 @@ function DisclosuresContent() {
                     navigateToStock(stock);
                   } else {
                     // 현재 페이지에 없는 종목 → stockCodeParam state 업데이트해야 effect 발화
+                    // navigateToStock과 동일하게 이전 종목의 previousDisclosure/disclosureParam을
+                    // 초기화해야 함 — 안 하면 Back 버튼이 새 종목이 아닌 이전 종목의 이전 공시로
+                    // 튀는 버그 발생 (재현 확인됨).
+                    setPreviousDisclosure(null);
+                    setDisclosureParam(null);
                     setStockCodeParam(stockCode);
                     startTransition(() => {
                       router.push(`/disclosures?stock=${stockCode}`);
