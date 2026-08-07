@@ -53,9 +53,10 @@ export async function GET(req: NextRequest) {
   const signal = p.get('signal') || ''
   const limit  = Math.min(Math.max(parseInt(p.get('limit') || '50', 10), 1), 200)
 
-  if (signal && !['Bullish', 'Bearish', 'Neutral'].includes(signal)) {
+  const ALLOWED_SIGNALS = ['HIGH_CONVICTION', 'CONSTRUCTIVE', 'NEUTRAL', 'NEGATIVE', 'HIGH_RISK']
+  if (signal && !ALLOWED_SIGNALS.includes(signal)) {
     return NextResponse.json(
-      { error: 'signal must be Bullish, Bearish, or Neutral' },
+      { error: `signal must be one of: ${ALLOWED_SIGNALS.join(', ')}` },
       { status: 400 }
     )
   }
