@@ -16,8 +16,8 @@
  *     <date_to>2026-04-10</date_to>
  *     <data>
  *       <item>
- *         <corp_name>삼성전자</corp_name>
- *         <signal_tag>Bullish</signal_tag>
+ *         <corp_name>Samsung Electronics</corp_name>
+ *         <signal_tag>🔥 High Conviction</signal_tag>
  *       </item>
  *     </data>
  *   </response>
@@ -36,10 +36,13 @@ export function getFormat(req: NextRequest): 'json' | 'xml' {
   return 'json'
 }
 
-/** 임의의 값을 XML 노드 문자열로 직렬화 */
+/** 임의의 값을 XML 노드 문자열로 직렬화. undefined 필드는 키 자체를 생략 (JSON.stringify와 동일 동작) */
 function valueToXml(value: unknown, tag: string): string {
-  if (value === null || value === undefined) {
+  if (value === null) {
     return `<${tag}/>`
+  }
+  if (value === undefined) {
+    return ''
   }
 
   if (Array.isArray(value)) {
@@ -49,6 +52,7 @@ function valueToXml(value: unknown, tag: string): string {
 
   if (typeof value === 'object') {
     const children = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
       .map(([k, v]) => valueToXml(v, sanitizeTag(k)))
       .join('')
     return `<${tag}>${children}</${tag}>`
@@ -73,6 +77,7 @@ function sanitizeTag(key: string): string {
 /** 데이터 객체를 XML 문자열로 변환 */
 export function toXml(data: Record<string, unknown>): string {
   const body = Object.entries(data)
+    .filter(([, v]) => v !== undefined)
     .map(([k, v]) => valueToXml(v, sanitizeTag(k)))
     .join('')
   return `<?xml version="1.0" encoding="UTF-8"?>\n<response>${body}</response>`

@@ -44,61 +44,74 @@ interface ExampleScenario {
 
 const sections: Section[] = ['Introduction', 'Authentication', 'Errors', 'Endpoints', 'Examples'];
 
+const BASE_URL = 'https://k-marketinsight.com/api/v1';
+
 const endpoints: Endpoint[] = [
   {
-    id: 'events',
+    id: 'disclosures',
     method: 'GET',
-    path: '/v1/events',
-    desc: 'Returns AI-classified corporate events sourced from DART regulatory filings. Each event includes an impact score (0–1), sentiment label, and an AI-generated English summary. Results are sorted by published_at descending.',
+    path: '/v1/disclosures',
+    desc: 'Corporate disclosures with AI-generated analysis: sentiment, event classification, and composite signal scores. Company/report names are returned in English where available. Pro plan additionally returns headline, financial_impact, and risk_factors. Cache: 5 min.',
     queryParams: [
-      { name: 'ticker',     type: 'string',  required: false, desc: 'KRX 6-digit stock ticker (e.g. 005930). Filters to one company.' },
-      { name: 'sector',     type: 'string',  required: false, desc: 'KSIC sector name (e.g. Semiconductors). See /v1/sector-signals for the full sector list.' },
-      { name: 'event_type', type: 'string',  required: false, desc: 'One of: earnings, capital_raise, contract, dilution, insider_trading, lawsuit.' },
-      { name: 'date',       type: 'string',  required: false, desc: 'Exact filing date (YYYY-MM-DD). Cannot be combined with from / to.' },
-      { name: 'from',       type: 'string',  required: false, desc: 'Start of date range (YYYY-MM-DD, inclusive).' },
-      { name: 'to',         type: 'string',  required: false, desc: 'End of date range (YYYY-MM-DD, inclusive). Defaults to today.' },
-      { name: 'limit',      type: 'integer', required: false, desc: 'Results per page. Range: 1–100. Default: 20.' },
-      { name: 'cursor',     type: 'string',  required: false, desc: "Pagination cursor from a previous response's next_cursor field." },
+      { name: 'date_from',      type: 'string',  required: false, desc: 'Start date (YYYY-MM-DD). Clamped to your plan’s history window.' },
+      { name: 'date_to',        type: 'string',  required: false, desc: 'End date (YYYY-MM-DD). Defaults to today.' },
+      { name: 'stock_code',     type: 'string',  required: false, desc: 'KRX 6-digit stock code (e.g. 005930). Filters to one company.' },
+      { name: 'sentiment',      type: 'string',  required: false, desc: 'POSITIVE | NEGATIVE | NEUTRAL' },
+      { name: 'event_type',     type: 'string',  required: false, desc: 'e.g. EARNINGS, CONTRACT, DILUTION, BUYBACK, DISPOSAL, RIGHTS, MERGER, SPINOFF, EQUITY' },
+      { name: 'signal_tag',     type: 'string',  required: false, desc: 'One of: 🔥 High Conviction, 📉 Earnings Miss, ⚖️ Legal Alert, ⛔ High Risk, ⚠️ Dilution Risk, ⚠️ Dilution Watch, 🔄 Buyback Signal' },
+      { name: 'alpha_score_min', type: 'number', required: false, desc: 'Minimum alpha_score (inclusive).' },
+      { name: 'sort_by',        type: 'string',  required: false, desc: 'rcept_dt | final_score | base_score | alpha_score. Default: rcept_dt.' },
+      { name: 'limit',          type: 'integer', required: false, desc: 'Results returned. Range: 1–200. Default: 50.' },
     ],
     responseFields: [
-      { field: 'events',                type: 'array',   desc: 'Ordered list of corporate event objects.' },
-      { field: 'events[].id',           type: 'string',  desc: 'Unique event ID (prefix: evt_).' },
-      { field: 'events[].ticker',       type: 'string',  desc: 'KRX 6-digit stock ticker.' },
-      { field: 'events[].company',      type: 'string',  desc: 'Company name in English.' },
-      { field: 'events[].event_type',   type: 'string',  desc: 'AI-assigned event classification.' },
-      { field: 'events[].impact_score', type: 'number',  desc: 'Estimated market impact from 0 (negligible) to 1 (high impact).' },
-      { field: 'events[].sentiment',    type: 'string',  desc: 'positive | negative | neutral' },
-      { field: 'events[].summary',      type: 'string',  desc: 'AI-generated English summary of the DART filing (2–4 sentences).' },
-      { field: 'events[].published_at', type: 'string',  desc: 'ISO 8601 UTC timestamp of the DART filing.' },
-      { field: 'events[].dart_url',     type: 'string',  desc: 'Direct URL to the original DART filing.' },
-      { field: 'next_cursor',           type: 'string',  desc: 'Pass as cursor param for the next page. null on the last page.' },
-      { field: 'total',                 type: 'integer', desc: 'Total number of events matching your filters.' },
+      { field: 'data',                       type: 'array',   desc: 'List of disclosure objects.' },
+      { field: 'data[].id',                  type: 'string',  desc: 'Internal disclosure ID.' },
+      { field: 'data[].rcept_no',            type: 'string',  desc: 'DART receipt number.' },
+      { field: 'data[].corp_name',           type: 'string',  desc: 'Company name (English where available, otherwise Korean).' },
+      { field: 'data[].stock_code',          type: 'string',  desc: 'KRX 6-digit stock code.' },
+      { field: 'data[].report_name',         type: 'string',  desc: 'Filing type (English where available).' },
+      { field: 'data[].rcept_dt',            type: 'string',  desc: 'Filing date (YYYYMMDD).' },
+      { field: 'data[].sentiment_score',     type: 'number',  desc: 'AI sentiment score, roughly -1 (negative) to 1 (positive).' },
+      { field: 'data[].event_type',          type: 'string',  desc: 'AI-assigned event classification.' },
+      { field: 'data[].ai_summary',          type: 'string',  desc: 'AI-generated summary of the filing.' },
+      { field: 'data[].final_score',         type: 'number',  desc: 'Composite signal score.' },
+      { field: 'data[].alpha_score',         type: 'number',  desc: 'Score component estimating expected excess return.' },
+      { field: 'data[].signal_tag',          type: 'string',  desc: 'Emoji-prefixed signal label, e.g. "🔥 High Conviction".' },
+      { field: 'data[].risk_factors',        type: 'string',  desc: 'Pro plan only. AI-identified risk factors.' },
+      { field: 'total',                      type: 'integer', desc: 'Number of rows in this response (not the total match count).' },
+      { field: 'date_from',                  type: 'string',  desc: 'Resolved start date after plan clamping.' },
+      { field: 'date_to',                    type: 'string',  desc: 'Resolved end date.' },
     ],
     response: `{
-  "events": [
+  "data": [
     {
-      "id": "evt_9k2mxp4r",
-      "ticker": "005930",
-      "company": "Samsung Electronics",
-      "event_type": "earnings",
-      "impact_score": 0.83,
-      "sentiment": "positive",
-      "summary": "Samsung reported Q1 2026 operating profit of ₩6.8T, beating consensus by 12%. Strong HBM3E chip demand cited as the primary growth driver.",
-      "published_at": "2026-03-10T06:38:00Z",
-      "dart_url": "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=20260310000123"
+      "id": "d3f1a2b4-...",
+      "rcept_no": "20260310000123",
+      "corp_name": "Samsung Electronics",
+      "stock_code": "005930",
+      "report_name": "Quarterly Report",
+      "rcept_dt": "20260310",
+      "sentiment_score": 0.42,
+      "event_type": "EARNINGS",
+      "ai_summary": "Q1 operating profit beat consensus, driven by HBM demand.",
+      "base_score": 61.2,
+      "final_score": 74.8,
+      "alpha_score": 0.83,
+      "signal_tag": "🔥 High Conviction"
     }
   ],
-  "next_cursor": "eyJpZCI6ImV2dF85azJteHA0ciIsImRhdGUiOiIyMDI2LTAzLTEwIn0",
-  "total": 142
+  "total": 1,
+  "date_from": "2026-03-07",
+  "date_to": "2026-03-10"
 }`,
     examples: [
       {
         label: 'curl',
         language: 'bash',
-        code: `curl -G https://api.k-marketinsight.com/v1/events \\
-  -H "Authorization: Bearer YOUR_API_KEY" \\
-  -d ticker=005930 \\
-  -d from=2026-03-01 \\
+        code: `curl -G ${BASE_URL}/disclosures \\
+  -H "X-API-Key: YOUR_API_KEY" \\
+  -d stock_code=005930 \\
+  -d date_from=2026-03-01 \\
   -d limit=5`,
       },
       {
@@ -107,29 +120,111 @@ const endpoints: Endpoint[] = [
         code: `import requests
 
 res = requests.get(
-    "https://api.k-marketinsight.com/v1/events",
-    headers={"Authorization": "Bearer YOUR_API_KEY"},
-    params={"ticker": "005930", "from": "2026-03-01", "limit": 5},
+    "${BASE_URL}/disclosures",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    params={"stock_code": "005930", "date_from": "2026-03-01", "limit": 5},
 )
 res.raise_for_status()
 
-for e in res.json()["events"]:
-    print(f"{e['company']} | {e['event_type']} | impact={e['impact_score']:.2f}")`,
+for d in res.json()["data"]:
+    print(f"{d['corp_name']} | {d['event_type']} | signal={d['signal_tag']}")`,
       },
       {
         label: 'TypeScript',
         language: 'typescript',
         code: `const res = await fetch(
-  'https://api.k-marketinsight.com/v1/events?ticker=005930&from=2026-03-01&limit=5',
-  { headers: { Authorization: 'Bearer YOUR_API_KEY' } }
+  '${BASE_URL}/disclosures?stock_code=005930&date_from=2026-03-01&limit=5',
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
 );
 if (!res.ok) throw new Error(\`API error \${res.status}\`);
 
-const { events, next_cursor, total } = await res.json();
-console.log(\`\${total} events found\`);
-events.forEach((e: any) =>
-  console.log(\`\${e.company} | \${e.event_type} | impact=\${e.impact_score}\`)
+const { data, total } = await res.json();
+console.log(\`\${total} disclosures found\`);
+data.forEach((d: any) =>
+  console.log(\`\${d.corp_name} | \${d.event_type} | \${d.signal_tag}\`)
 );`,
+      },
+    ],
+  },
+
+  {
+    id: 'events',
+    method: 'GET',
+    path: '/v1/events',
+    desc: 'Historical return statistics per event type (event_stats), plus a list of recent classified events. Useful for gauging how a given event type has historically moved prices before acting on a live signal. Cache: 60 min.',
+    queryParams: [
+      { name: 'date_from',  type: 'string',  required: false, desc: 'Start date for recent_events (YYYY-MM-DD). Clamped to your plan’s history window.' },
+      { name: 'date_to',    type: 'string',  required: false, desc: 'End date for recent_events (YYYY-MM-DD). Defaults to today.' },
+      { name: 'stock_code', type: 'string',  required: false, desc: 'KRX 6-digit stock code. Filters recent_events to one company.' },
+      { name: 'event_type', type: 'string',  required: false, desc: 'Filters both statistics and recent_events, e.g. EARNINGS, CONTRACT, DILUTION.' },
+      { name: 'limit',      type: 'integer', required: false, desc: 'Max rows in recent_events. Range: 1–200. Default: 50.' },
+    ],
+    responseFields: [
+      { field: 'statistics',                  type: 'array',  desc: 'Historical return stats, one row per event_type.' },
+      { field: 'statistics[].event_type',     type: 'string', desc: 'Event type classification.' },
+      { field: 'statistics[].avg_5d_return',  type: 'number', desc: 'Average return 5 trading days after the event (%).' },
+      { field: 'statistics[].avg_20d_return', type: 'number', desc: 'Average return 20 trading days after the event (%).' },
+      { field: 'statistics[].sample_size',    type: 'integer', desc: 'Number of historical events behind this statistic.' },
+      { field: 'recent_events',               type: 'array',  desc: 'Recently filed, classified events (is_visible only).' },
+      { field: 'recent_events[].stock_code',  type: 'string', desc: 'KRX 6-digit stock code.' },
+      { field: 'recent_events[].corp_name',   type: 'string', desc: 'Company name (English where available).' },
+      { field: 'recent_events[].event_type',  type: 'string', desc: 'AI-assigned event classification.' },
+      { field: 'recent_events[].disclosure_date', type: 'string', desc: 'Filing date (YYYYMMDD).' },
+      { field: 'recent_events[].final_score', type: 'number', desc: 'Composite signal score.' },
+      { field: 'recent_events[].signal_tag',  type: 'string', desc: 'Emoji-prefixed signal label.' },
+      { field: 'date_from',                   type: 'string', desc: 'Resolved start date after plan clamping.' },
+      { field: 'date_to',                     type: 'string', desc: 'Resolved end date.' },
+    ],
+    response: `{
+  "statistics": [
+    { "event_type": "EARNINGS", "avg_5d_return": 1.8, "avg_20d_return": 3.1, "std_5d": 4.2, "sample_size": 1204 }
+  ],
+  "recent_events": [
+    {
+      "stock_code": "005930",
+      "corp_name": "Samsung Electronics",
+      "event_type": "EARNINGS",
+      "disclosure_date": "20260310",
+      "final_score": 74.8,
+      "signal_tag": "🔥 High Conviction"
+    }
+  ],
+  "date_from": "2026-03-07",
+  "date_to": "2026-03-10"
+}`,
+    examples: [
+      {
+        label: 'curl',
+        language: 'bash',
+        code: `curl -G ${BASE_URL}/events \\
+  -H "X-API-Key: YOUR_API_KEY" \\
+  -d event_type=EARNINGS \\
+  -d limit=5`,
+      },
+      {
+        label: 'Python',
+        language: 'python',
+        code: `import requests
+
+res = requests.get(
+    "${BASE_URL}/events",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    params={"event_type": "EARNINGS", "limit": 5},
+)
+data = res.json()
+
+for s in data["statistics"]:
+    print(f"{s['event_type']:<12} avg_5d={s['avg_5d_return']:+.2f}%  n={s['sample_size']}")`,
+      },
+      {
+        label: 'TypeScript',
+        language: 'typescript',
+        code: `const res = await fetch(
+  '${BASE_URL}/events?event_type=EARNINGS&limit=5',
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
+);
+const { statistics, recent_events } = await res.json();
+console.log(\`\${recent_events.length} recent events, \${statistics.length} event types\`);`,
       },
     ],
   },
@@ -138,49 +233,56 @@ events.forEach((e: any) =>
     id: 'sector-signals',
     method: 'GET',
     path: '/v1/sector-signals',
-    desc: 'Returns daily sector-level momentum and flow signals across 18 KSIC sectors. Useful for identifying sector rotation and building macro-aware equity strategies. Results are sorted by momentum_score descending.',
+    desc: 'Sector-level sentiment aggregation (Bullish / Bearish / Neutral) with a confidence score and disclosure counts driving each signal. Cache: 10 min.',
     queryParams: [
-      { name: 'date',   type: 'string',  required: false, desc: 'Signal date (YYYY-MM-DD). Defaults to the latest available trading day.' },
-      { name: 'sector', type: 'string',  required: false, desc: 'Filter to a single KSIC sector name.' },
-      { name: 'limit',  type: 'integer', required: false, desc: 'Max number of sectors returned (1–18). Default: 18.' },
+      { name: 'date_from', type: 'string',  required: false, desc: 'Start date (YYYY-MM-DD). Clamped to your plan’s history window.' },
+      { name: 'date_to',   type: 'string',  required: false, desc: 'End date (YYYY-MM-DD). Defaults to today.' },
+      { name: 'sector',    type: 'string',  required: false, desc: 'Filter to a single sector name.' },
+      { name: 'signal',    type: 'string',  required: false, desc: 'Bullish | Bearish | Neutral' },
+      { name: 'limit',     type: 'integer', required: false, desc: 'Results returned. Range: 1–200. Default: 50.' },
     ],
     responseFields: [
-      { field: 'date',                      type: 'string',  desc: 'Date the signals were calculated for.' },
-      { field: 'sectors',                   type: 'array',   desc: 'Sector signal objects, sorted by momentum_score descending.' },
-      { field: 'sectors[].sector_name',     type: 'string',  desc: 'KSIC sector name.' },
-      { field: 'sectors[].momentum_score',  type: 'number',  desc: 'Composite momentum score from 0 (weak) to 1 (strong).' },
-      { field: 'sectors[].flow_signal',     type: 'string',  desc: 'inflow | outflow | neutral — net foreign investor flow direction.' },
-      { field: 'sectors[].sentiment_score', type: 'number',  desc: 'Aggregate disclosure sentiment across all companies in the sector (0–1).' },
-      { field: 'sectors[].event_count',     type: 'integer', desc: 'Number of DART events in this sector on the given date.' },
-      { field: 'sectors[].top_movers',      type: 'string[]', desc: 'Up to 3 tickers with the highest impact_score in this sector.' },
+      { field: 'data',                     type: 'array',  desc: 'Sector signal rows, newest date first.' },
+      { field: 'data[].date',               type: 'string', desc: 'Signal date.' },
+      { field: 'data[].sector',             type: 'string', desc: 'Sector name (Korean source field).' },
+      { field: 'data[].sector_en',          type: 'string', desc: 'Sector name in English.' },
+      { field: 'data[].signal',             type: 'string', desc: 'Bullish | Bearish | Neutral' },
+      { field: 'data[].confidence',         type: 'number', desc: 'Confidence score for the signal.' },
+      { field: 'data[].disclosure_count',   type: 'integer', desc: 'Number of disclosures behind this signal.' },
+      { field: 'data[].positive_count',     type: 'integer', desc: 'Positive-sentiment disclosure count.' },
+      { field: 'data[].negative_count',     type: 'integer', desc: 'Negative-sentiment disclosure count.' },
+      { field: 'data[].neutral_count',      type: 'integer', desc: 'Neutral-sentiment disclosure count.' },
+      { field: 'data[].drivers',            type: 'string', desc: 'Short text description of what is driving the signal.' },
+      { field: 'total',                     type: 'integer', desc: 'Number of rows in this response.' },
+      { field: 'date_from',                 type: 'string', desc: 'Resolved start date.' },
+      { field: 'date_to',                   type: 'string', desc: 'Resolved end date.' },
     ],
     response: `{
-  "date": "2026-03-10",
-  "sectors": [
+  "data": [
     {
-      "sector_name": "Semiconductors",
-      "momentum_score": 0.74,
-      "flow_signal": "inflow",
-      "sentiment_score": 0.82,
-      "event_count": 7,
-      "top_movers": ["000660", "005930", "042700"]
-    },
-    {
-      "sector_name": "Biotech",
-      "momentum_score": 0.31,
-      "flow_signal": "outflow",
-      "sentiment_score": 0.42,
-      "event_count": 12,
-      "top_movers": ["207940", "145020", "068270"]
+      "date": "2026-03-10",
+      "sector": "반도체",
+      "sector_en": "Semiconductors",
+      "signal": "Bullish",
+      "confidence": 0.74,
+      "disclosure_count": 7,
+      "positive_count": 5,
+      "negative_count": 1,
+      "neutral_count": 1,
+      "drivers": "Strong earnings across 3 large-cap names"
     }
-  ]
+  ],
+  "total": 1,
+  "date_from": "2026-03-07",
+  "date_to": "2026-03-10"
 }`,
     examples: [
       {
         label: 'curl',
         language: 'bash',
-        code: `curl "https://api.k-marketinsight.com/v1/sector-signals?date=2026-03-10" \\
-  -H "Authorization: Bearer YOUR_API_KEY"`,
+        code: `curl -G ${BASE_URL}/sector-signals \\
+  -H "X-API-Key: YOUR_API_KEY" \\
+  -d date_to=2026-03-10`,
       },
       {
         label: 'Python',
@@ -188,28 +290,23 @@ events.forEach((e: any) =>
         code: `import requests
 
 res = requests.get(
-    "https://api.k-marketinsight.com/v1/sector-signals",
-    headers={"Authorization": "Bearer YOUR_API_KEY"},
-    params={"date": "2026-03-10"},
+    "${BASE_URL}/sector-signals",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    params={"date_to": "2026-03-10"},
 )
-data = res.json()
-
-# Top 3 sectors by momentum
-for s in data["sectors"][:3]:
-    print(f"{s['sector_name']:<25} momentum={s['momentum_score']:.2f}  flow={s['flow_signal']}")`,
+for s in res.json()["data"][:3]:
+    print(f"{s['sector_en']:<25} signal={s['signal']}  confidence={s['confidence']:.2f}")`,
       },
       {
         label: 'TypeScript',
         language: 'typescript',
         code: `const res = await fetch(
-  'https://api.k-marketinsight.com/v1/sector-signals?date=2026-03-10',
-  { headers: { Authorization: 'Bearer YOUR_API_KEY' } }
+  '${BASE_URL}/sector-signals?date_to=2026-03-10',
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
 );
-const { sectors } = await res.json();
-
-// Already sorted by momentum_score desc
-sectors.slice(0, 3).forEach((s: any) =>
-  console.log(\`\${s.sector_name.padEnd(25)} momentum=\${s.momentum_score}  flow=\${s.flow_signal}\`)
+const { data } = await res.json();
+data.slice(0, 3).forEach((s: any) =>
+  console.log(\`\${s.sector_en.padEnd(25)} signal=\${s.signal} confidence=\${s.confidence}\`)
 );`,
       },
     ],
@@ -219,42 +316,52 @@ sectors.slice(0, 3).forEach((s: any) =>
     id: 'market-radar',
     method: 'GET',
     path: '/v1/market-radar',
-    desc: 'Returns high-level Korean market indicators for a given trading day: KOSPI/KOSDAQ indices, foreign investor net flow, primary sector rotation signal, and overall market momentum.',
+    desc: 'Daily market snapshot: overall market signal, KOSPI/KOSDAQ change, foreign investor flow regime, top sector, and an AI summary. Cache: 15 min.',
     queryParams: [
-      { name: 'date', type: 'string', required: false, desc: 'Target trading date (YYYY-MM-DD). Defaults to the latest available day.' },
+      { name: 'date_from', type: 'string',  required: false, desc: 'Start date (YYYY-MM-DD). Clamped to your plan’s history window.' },
+      { name: 'date_to',   type: 'string',  required: false, desc: 'End date (YYYY-MM-DD). Defaults to today.' },
+      { name: 'limit',     type: 'integer', required: false, desc: 'Days returned. Range: 1–90. Default: 30.' },
     ],
     responseFields: [
-      { field: 'date',             type: 'string', desc: 'Date of the market snapshot.' },
-      { field: 'kospi',            type: 'object', desc: 'KOSPI composite index snapshot.' },
-      { field: 'kospi.index',      type: 'number', desc: 'Closing index value.' },
-      { field: 'kospi.change',     type: 'string', desc: 'Daily change as a percentage string (e.g. "+1.2%", "-0.4%").' },
-      { field: 'kosdaq',           type: 'object', desc: 'KOSDAQ index snapshot. Same fields as kospi.' },
-      { field: 'foreign_net_flow', type: 'string', desc: 'Foreign investor net buy/sell in KRW (e.g. "+₩1.2T", "-₩340B").' },
-      { field: 'sector_rotation',  type: 'string', desc: 'Primary sector rotation signal (e.g. "Semiconductors → Shipbuilding").' },
-      { field: 'market_momentum',  type: 'string', desc: 'bullish | bearish | neutral — composite market direction.' },
-      { field: 'updated_at',       type: 'string', desc: 'ISO 8601 UTC timestamp of last data refresh.' },
+      { field: 'data',                     type: 'array',  desc: 'One row per trading day, newest first.' },
+      { field: 'data[].date',              type: 'string', desc: 'Trading date.' },
+      { field: 'data[].market_signal',     type: 'string', desc: 'Overall market signal for the day.' },
+      { field: 'data[].top_sector_en',     type: 'string', desc: 'Top-performing sector, English name.' },
+      { field: 'data[].foreign_flow',      type: 'string', desc: 'Foreign investor net flow (e.g. "+8,300억원").' },
+      { field: 'data[].regime',            type: 'string', desc: 'RISK_ON | RISK_OFF | null — derived from the sign of foreign_flow.' },
+      { field: 'data[].kospi_change',      type: 'number', desc: 'KOSPI daily change, percent as a plain number (e.g. -4.9 means -4.9%, no % sign).' },
+      { field: 'data[].kosdaq_change',     type: 'number', desc: 'KOSDAQ daily change, percent as a plain number.' },
+      { field: 'data[].total_disclosures', type: 'integer', desc: 'Number of disclosures processed that day.' },
+      { field: 'data[].summary',           type: 'string', desc: 'AI-generated summary of the day’s market. Korean-language only — there is no English variant for this field.' },
+      { field: 'total',                    type: 'integer', desc: 'Number of rows in this response.' },
+      { field: 'date_from',                type: 'string', desc: 'Resolved start date.' },
+      { field: 'date_to',                  type: 'string', desc: 'Resolved end date.' },
     ],
     response: `{
-  "date": "2026-03-10",
-  "kospi": {
-    "index": 2748.32,
-    "change": "+1.2%"
-  },
-  "kosdaq": {
-    "index": 891.54,
-    "change": "+0.8%"
-  },
-  "foreign_net_flow": "+₩1.2T",
-  "sector_rotation": "Semiconductors → Shipbuilding",
-  "market_momentum": "bullish",
-  "updated_at": "2026-03-10T09:00:00Z"
+  "data": [
+    {
+      "date": "2026-03-10",
+      "market_signal": "Bullish",
+      "top_sector_en": "Semiconductors",
+      "foreign_flow": "+8,300억원",
+      "regime": "RISK_ON",
+      "kospi_change": 1.2,
+      "kosdaq_change": 0.8,
+      "total_disclosures": 142,
+      "summary": "2026-03-10 시장은 강세 흐름을 보였습니다. KOSPI ▲1.20%, KOSDAQ ▲0.80%. 외국인 순매수: +8,300억원. (Korean-language only)"
+    }
+  ],
+  "total": 1,
+  "date_from": "2026-02-08",
+  "date_to": "2026-03-10"
 }`,
     examples: [
       {
         label: 'curl',
         language: 'bash',
-        code: `curl https://api.k-marketinsight.com/v1/market-radar \\
-  -H "Authorization: Bearer YOUR_API_KEY"`,
+        code: `curl -G ${BASE_URL}/market-radar \\
+  -H "X-API-Key: YOUR_API_KEY" \\
+  -d limit=1`,
       },
       {
         label: 'Python',
@@ -262,106 +369,319 @@ sectors.slice(0, 3).forEach((s: any) =>
         code: `import requests
 
 data = requests.get(
-    "https://api.k-marketinsight.com/v1/market-radar",
-    headers={"Authorization": "Bearer YOUR_API_KEY"},
-).json()
+    "${BASE_URL}/market-radar",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    params={"limit": 1},
+).json()["data"][0]
 
-print(f"KOSPI : {data['kospi']['index']}  ({data['kospi']['change']})")
-print(f"KOSDAQ: {data['kosdaq']['index']}  ({data['kosdaq']['change']})")
-print(f"Foreign flow : {data['foreign_net_flow']}")
-print(f"Sector shift : {data['sector_rotation']}")
-print(f"Momentum     : {data['market_momentum']}")`,
+print(f"KOSPI {data['kospi_change']}  KOSDAQ {data['kosdaq_change']}  regime={data['regime']}")`,
       },
       {
         label: 'TypeScript',
         language: 'typescript',
-        code: `const data = await fetch(
-  'https://api.k-marketinsight.com/v1/market-radar',
-  { headers: { Authorization: 'Bearer YOUR_API_KEY' } }
+        code: `const { data } = await fetch(
+  '${BASE_URL}/market-radar?limit=1',
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
 ).then(r => r.json());
 
-console.log(\`KOSPI: \${data.kospi.index} (\${data.kospi.change})\`);
-console.log(\`Foreign flow: \${data.foreign_net_flow}\`);
-console.log(\`Momentum: \${data.market_momentum}\`);`,
+console.log(\`KOSPI \${data[0].kospi_change}  regime=\${data[0].regime}\`);`,
       },
     ],
   },
 
   {
-    id: 'company',
+    id: 'signal-performance',
     method: 'GET',
-    path: '/v1/company/{ticker}',
-    desc: 'Returns a full corporate profile for one company: recent event history, active risk flags, and a 30-day sentiment trend derived from DART filings.',
-    pathParams: [
-      { name: 'ticker', type: 'string', required: true, desc: 'KRX 6-digit stock ticker (e.g. 005930 for Samsung Electronics).' },
-    ],
+    path: '/v1/signal-performance',
+    desc: 'Forward-return performance statistics per event type, computed from historical outcomes (event_stats). Includes hit ratios, average/alpha returns, drawdown, and a letter grade. Cache: 60 min.',
     queryParams: [
-      { name: 'from',  type: 'string',  required: false, desc: 'Start date for event_history (YYYY-MM-DD). Defaults to 90 days ago.' },
-      { name: 'to',    type: 'string',  required: false, desc: 'End date for event_history (YYYY-MM-DD). Defaults to today.' },
-      { name: 'limit', type: 'integer', required: false, desc: 'Max events in event_history (1–100). Default: 20.' },
+      { name: 'event_type', type: 'string', required: false, desc: 'One of: EARNINGS, CONTRACT, DILUTION, BUYBACK, DISPOSAL, RIGHTS, MERGER, SPINOFF, EQUITY.' },
     ],
     responseFields: [
-      { field: 'ticker',                 type: 'string',   desc: 'KRX 6-digit ticker.' },
-      { field: 'company',                type: 'string',   desc: 'Company name in English.' },
-      { field: 'sector',                 type: 'string',   desc: 'KSIC sector name.' },
-      { field: 'market',                 type: 'string',   desc: 'KOSPI | KOSDAQ' },
-      { field: 'event_history',          type: 'array',    desc: 'Recent corporate events, newest first.' },
-      { field: 'event_history[].date',   type: 'string',   desc: 'Event date (YYYY-MM-DD).' },
-      { field: 'event_history[].event',  type: 'string',   desc: 'Event type classification.' },
-      { field: 'event_history[].impact', type: 'number',   desc: 'Impact score (0–1).' },
-      { field: 'risk_flags',             type: 'string[]', desc: 'Active risk signals. Empty array if none. Examples: dilution_risk, insider_sell, lawsuit_pending.' },
-      { field: 'sentiment_trend',        type: 'string',   desc: 'improving | deteriorating | stable — 30-day rolling trend.' },
-      { field: 'last_event_at',          type: 'string',   desc: 'ISO 8601 UTC timestamp of the most recent DART filing.' },
+      { field: 'data',                     type: 'array',  desc: 'One row per event type, sorted by signal_score descending.' },
+      { field: 'data[].event_type',        type: 'string', desc: 'Event type classification.' },
+      { field: 'data[].sample_size',       type: 'integer', desc: 'Number of historical events behind this row.' },
+      { field: 'data[].hit_ratio_5d',      type: 'number', desc: '% of events with a positive return 5 trading days out.' },
+      { field: 'data[].hit_ratio_20d',     type: 'number', desc: '% of events with a positive return 20 trading days out.' },
+      { field: 'data[].avg_5d_return',     type: 'number', desc: 'Average close-to-close return at 5 trading days (%).' },
+      { field: 'data[].avg_20d_return',    type: 'number', desc: 'Average close-to-close return at 20 trading days (%).' },
+      { field: 'data[].alpha_5d',          type: 'number', desc: '5-day return minus benchmark (KOSPI/KOSDAQ) return (%).' },
+      { field: 'data[].alpha_20d',         type: 'number', desc: '20-day alpha (%).' },
+      { field: 'data[].avg_mdd',           type: 'number', desc: 'Average maximum drawdown following the event (%).' },
+      { field: 'data[].signal_grade',      type: 'string', desc: 'Letter grade: A+ / A / B / C / D.' },
+      { field: 'data[].signal_score',      type: 'number', desc: 'Composite score, 0–100.' },
+      { field: 'data[].updated_at',        type: 'string', desc: 'Last EOD batch update (ISO 8601).' },
+      { field: 'notes',                    type: 'object', desc: 'Short definitions for alpha / trimmed / median fields.' },
     ],
     response: `{
-  "ticker": "005930",
-  "company": "Samsung Electronics",
-  "sector": "Semiconductors",
-  "market": "KOSPI",
-  "event_history": [
-    { "date": "2026-03-10", "event": "earnings",      "impact": 0.83 },
-    { "date": "2026-01-15", "event": "capital_raise", "impact": 0.61 }
+  "data": [
+    {
+      "event_type": "EARNINGS",
+      "sample_size": 1204,
+      "hit_ratio_5d": 58.3,
+      "hit_ratio_20d": 61.1,
+      "avg_5d_return": 1.8,
+      "avg_20d_return": 3.1,
+      "alpha_5d": 0.9,
+      "alpha_20d": 1.4,
+      "avg_mdd": -2.3,
+      "signal_grade": "A",
+      "signal_score": 82.4,
+      "updated_at": "2026-03-10T21:00:00Z"
+    }
   ],
-  "risk_flags": [],
-  "sentiment_trend": "improving",
-  "last_event_at": "2026-03-10T06:38:00Z"
+  "total": 1,
+  "notes": {
+    "alpha": "alpha = stock_return - benchmark_return (KOSPI for KOSPI-listed, KOSDAQ for KOSDAQ-listed)"
+  },
+  "updated_at": "2026-03-10T21:00:00Z"
 }`,
     examples: [
       {
         label: 'curl',
         language: 'bash',
-        code: `curl "https://api.k-marketinsight.com/v1/company/005930?from=2026-01-01" \\
-  -H "Authorization: Bearer YOUR_API_KEY"`,
+        code: `curl -G ${BASE_URL}/signal-performance \\
+  -H "X-API-Key: YOUR_API_KEY" \\
+  -d event_type=EARNINGS`,
       },
       {
         label: 'Python',
         language: 'python',
         code: `import requests
 
-ticker = "005930"
-data = requests.get(
-    f"https://api.k-marketinsight.com/v1/company/{ticker}",
-    headers={"Authorization": "Bearer YOUR_API_KEY"},
-    params={"from": "2026-01-01"},
-).json()
-
-print(f"{data['company']} ({data['market']}) — {data['sector']}")
-print(f"Sentiment: {data['sentiment_trend']}")
-print(f"Risk flags: {', '.join(data['risk_flags']) or 'None'}")
-print(f"Events in range: {len(data['event_history'])}")`,
+res = requests.get(
+    "${BASE_URL}/signal-performance",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    params={"event_type": "EARNINGS"},
+)
+for row in res.json()["data"]:
+    print(f"{row['event_type']}: grade={row['signal_grade']}  hit_5d={row['hit_ratio_5d']}%")`,
       },
       {
         label: 'TypeScript',
         language: 'typescript',
-        code: `const ticker = '005930';
-const data = await fetch(
-  \`https://api.k-marketinsight.com/v1/company/\${ticker}?from=2026-01-01\`,
-  { headers: { Authorization: 'Bearer YOUR_API_KEY' } }
+        code: `const res = await fetch(
+  '${BASE_URL}/signal-performance?event_type=EARNINGS',
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
+);
+const { data } = await res.json();
+console.log(data.map((r: any) => \`\${r.event_type}: \${r.signal_grade}\`));`,
+      },
+    ],
+  },
+
+  {
+    id: 'performance-summary',
+    method: 'GET',
+    path: '/v1/performance/summary',
+    desc: 'Summary statistics for a backtested trading strategy: total/annualized return, win rate, Sharpe ratio, max drawdown. Cache: 60 min (updated once per EOD batch).',
+    queryParams: [
+      { name: 'strategy', type: 'string', required: false, desc: 'Strategy name. Default: event_macro_v1.' },
+    ],
+    responseFields: [
+      { field: 'data',                    type: 'object', desc: 'Summary object, or null if the strategy has no data yet.' },
+      { field: 'data.total_return',       type: 'number', desc: 'Cumulative return over the backtest period (%).' },
+      { field: 'data.annualized_return',  type: 'number', desc: 'Annualized return (%).' },
+      { field: 'data.win_rate',           type: 'number', desc: 'Fraction of trades that were profitable.' },
+      { field: 'data.sharpe_ratio',       type: 'number', desc: 'Sharpe ratio over the backtest period.' },
+      { field: 'data.max_drawdown',       type: 'number', desc: 'Maximum peak-to-trough drawdown (%).' },
+      { field: 'data.total_trades',       type: 'integer', desc: 'Total number of trades in the backtest.' },
+      { field: 'data.period_start',       type: 'string', desc: 'Backtest start date.' },
+      { field: 'data.period_end',         type: 'string', desc: 'Backtest end date.' },
+      { field: 'strategy',                type: 'string', desc: 'The strategy name that was queried.' },
+    ],
+    response: `{
+  "data": {
+    "strategy_name": "event_macro_v1",
+    "total_return": 24.6,
+    "annualized_return": 11.2,
+    "win_rate": 0.57,
+    "avg_return": 1.3,
+    "max_drawdown": -8.9,
+    "sharpe_ratio": 1.14,
+    "total_trades": 842,
+    "risk_on_trades": 601,
+    "score_threshold": 60,
+    "holding_days": 5,
+    "period_start": "2024-01-02",
+    "period_end": "2026-03-10",
+    "updated_at": "2026-03-10T21:00:00Z"
+  },
+  "strategy": "event_macro_v1"
+}`,
+    examples: [
+      {
+        label: 'curl',
+        language: 'bash',
+        code: `curl ${BASE_URL}/performance/summary \\
+  -H "X-API-Key: YOUR_API_KEY"`,
+      },
+      {
+        label: 'Python',
+        language: 'python',
+        code: `import requests
+
+data = requests.get(
+    "${BASE_URL}/performance/summary",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+).json()["data"]
+
+print(f"Total return: {data['total_return']}%  Sharpe: {data['sharpe_ratio']}")`,
+      },
+      {
+        label: 'TypeScript',
+        language: 'typescript',
+        code: `const { data } = await fetch(
+  '${BASE_URL}/performance/summary',
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
 ).then(r => r.json());
 
-console.log(\`\${data.company} (\${data.market}) — \${data.sector}\`);
-console.log(\`Sentiment: \${data.sentiment_trend}\`);
-console.log(\`Risk flags: \${data.risk_flags.join(', ') || 'None'}\`);`,
+console.log(\`Total return: \${data.total_return}%  Sharpe: \${data.sharpe_ratio}\`);`,
+      },
+    ],
+  },
+
+  {
+    id: 'performance-equity-curve',
+    method: 'GET',
+    path: '/v1/performance/equity-curve',
+    desc: 'Cumulative equity curve for a backtested strategy, starting from an index value of 100. Points are 3-day-return trades ordered by event date. Cache: 60 min.',
+    queryParams: [
+      { name: 'strategy', type: 'string', required: false, desc: 'Strategy name. Default: event_macro_v1.' },
+      { name: 'regime',   type: 'string', required: false, desc: 'RISK_ON | RISK_OFF | all. Default: RISK_ON.' },
+    ],
+    responseFields: [
+      { field: 'strategy',            type: 'string',  desc: 'Strategy name queried.' },
+      { field: 'regime',              type: 'string',  desc: 'Regime filter applied.' },
+      { field: 'points',              type: 'array',   desc: 'Equity curve points ordered by date ascending.' },
+      { field: 'points[].date',       type: 'string',  desc: 'Trade event date.' },
+      { field: 'points[].equity',     type: 'number',  desc: 'Cumulative equity index (start = 100).' },
+      { field: 'points[].return_3d',  type: 'number',  desc: '3-day return for this trade (%).' },
+      { field: 'final_equity',        type: 'number',  desc: 'Equity index at the last point.' },
+      { field: 'total_trades',        type: 'integer', desc: 'Number of points returned.' },
+    ],
+    response: `{
+  "strategy": "event_macro_v1",
+  "regime": "RISK_ON",
+  "points": [
+    { "date": "2026-03-05", "equity": 121.4, "return_3d": 0.8 },
+    { "date": "2026-03-10", "equity": 122.9, "return_3d": 1.2 }
+  ],
+  "final_equity": 122.9,
+  "total_trades": 2
+}`,
+    examples: [
+      {
+        label: 'curl',
+        language: 'bash',
+        code: `curl -G ${BASE_URL}/performance/equity-curve \\
+  -H "X-API-Key: YOUR_API_KEY" \\
+  -d regime=RISK_ON`,
+      },
+      {
+        label: 'Python',
+        language: 'python',
+        code: `import requests
+
+data = requests.get(
+    "${BASE_URL}/performance/equity-curve",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    params={"regime": "RISK_ON"},
+).json()
+
+print(f"Final equity: {data['final_equity']} over {data['total_trades']} trades")`,
+      },
+      {
+        label: 'TypeScript',
+        language: 'typescript',
+        code: `const data = await fetch(
+  '${BASE_URL}/performance/equity-curve?regime=RISK_ON',
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
+).then(r => r.json());
+
+console.log(\`Final equity: \${data.final_equity} over \${data.total_trades} trades\`);`,
+      },
+    ],
+  },
+
+  {
+    id: 'performance-trades',
+    method: 'GET',
+    path: '/v1/performance/trades',
+    desc: 'Individual backtest trade records. Uses offset pagination (not date-range filtering) since full trade history is meaningful regardless of recency. Row count is capped per plan: starter 50, pro 500. Cache: 60 min.',
+    queryParams: [
+      { name: 'strategy', type: 'string',  required: false, desc: 'Strategy name. Default: event_macro_v1.' },
+      { name: 'regime',   type: 'string',  required: false, desc: 'RISK_ON | RISK_OFF | all. Default: all.' },
+      { name: 'limit',    type: 'integer', required: false, desc: 'Rows returned, capped by your plan (starter: 50, pro: 500).' },
+      { name: 'offset',   type: 'integer', required: false, desc: 'Pagination offset. Default: 0.' },
+    ],
+    responseFields: [
+      { field: 'data',                  type: 'array',   desc: 'Trade rows for this page.' },
+      { field: 'data[].stock_code',     type: 'string',  desc: 'KRX 6-digit stock code.' },
+      { field: 'data[].event_date',     type: 'string',  desc: 'Trade entry date.' },
+      { field: 'data[].final_score',    type: 'number',  desc: 'Composite signal score at entry.' },
+      { field: 'data[].return_3d',      type: 'number',  desc: '3-day trade return (%).' },
+      { field: 'data[].return_5d',      type: 'number',  desc: '5-day trade return (%).' },
+      { field: 'data[].market_regime',  type: 'string',  desc: 'RISK_ON | RISK_OFF at entry.' },
+      { field: 'page_summary',          type: 'object',  desc: 'Aggregates for the rows on this page only.' },
+      { field: 'page_summary.win_rate', type: 'number',  desc: 'Fraction of this page’s trades with return_3d > 0.' },
+      { field: 'total',                 type: 'integer', desc: 'Total matching trades across all pages.' },
+      { field: 'limit',                 type: 'integer', desc: 'Effective limit applied (≤ plan_limit).' },
+      { field: 'offset',                type: 'integer', desc: 'Offset applied.' },
+      { field: 'plan_limit',            type: 'integer', desc: 'Max rows your plan allows per request.' },
+    ],
+    response: `{
+  "data": [
+    {
+      "id": "t_8821",
+      "stock_code": "005930",
+      "event_date": "2026-03-10",
+      "final_score": 74.8,
+      "return_3d": 1.2,
+      "return_5d": 1.8,
+      "market_regime": "RISK_ON",
+      "created_at": "2026-03-11T02:00:00Z"
+    }
+  ],
+  "page_summary": { "count": 1, "win_rate": 1.0, "avg_r3": 1.2 },
+  "total": 842,
+  "limit": 50,
+  "offset": 0,
+  "strategy": "event_macro_v1",
+  "regime": "all",
+  "plan_limit": 50
+}`,
+    examples: [
+      {
+        label: 'curl',
+        language: 'bash',
+        code: `curl -G ${BASE_URL}/performance/trades \\
+  -H "X-API-Key: YOUR_API_KEY" \\
+  -d regime=RISK_ON \\
+  -d limit=20`,
+      },
+      {
+        label: 'Python',
+        language: 'python',
+        code: `import requests
+
+res = requests.get(
+    "${BASE_URL}/performance/trades",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    params={"regime": "RISK_ON", "limit": 20},
+)
+data = res.json()
+print(f"Page win rate: {data['page_summary']['win_rate']:.0%}  total={data['total']}")`,
+      },
+      {
+        label: 'TypeScript',
+        language: 'typescript',
+        code: `const res = await fetch(
+  '${BASE_URL}/performance/trades?regime=RISK_ON&limit=20',
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
+);
+const { data, page_summary, total } = await res.json();
+console.log(\`Page win rate: \${page_summary.win_rate}  total=\${total}\`);`,
       },
     ],
   },
@@ -377,55 +697,56 @@ const exampleScenarios: ExampleScenario[] = [
         label: 'curl',
         language: 'bash',
         code: `# 1. Check today's market snapshot
-curl https://api.k-marketinsight.com/v1/market-radar \\
-  -H "Authorization: Bearer YOUR_API_KEY"
+curl ${BASE_URL}/market-radar \\
+  -H "X-API-Key: YOUR_API_KEY"
 
-# 2. Fetch the 5 most recent DART events
-curl "https://api.k-marketinsight.com/v1/events?limit=5" \\
-  -H "Authorization: Bearer YOUR_API_KEY"`,
+# 2. Fetch the 5 most recent disclosures
+curl "${BASE_URL}/disclosures?limit=5" \\
+  -H "X-API-Key: YOUR_API_KEY"`,
       },
       {
         label: 'Python',
         language: 'python',
         code: `import requests
 
-BASE    = "https://api.k-marketinsight.com"
-HEADERS = {"Authorization": "Bearer YOUR_API_KEY"}
+BASE    = "${BASE_URL}"
+HEADERS = {"X-API-Key": "YOUR_API_KEY"}
 
-# 1. Market snapshot
-radar = requests.get(f"{BASE}/v1/market-radar", headers=HEADERS).json()
-print(f"KOSPI {radar['kospi']['index']}  momentum={radar['market_momentum']}")
+# 1. Market snapshot (most recent day)
+radar = requests.get(f"{BASE}/market-radar", headers=HEADERS, params={"limit": 1}).json()
+day = radar["data"][0]
+print(f"KOSPI {day['kospi_change']}  signal={day['market_signal']}")
 
-# 2. Top 5 recent events
-events = requests.get(f"{BASE}/v1/events", headers=HEADERS,
-                      params={"limit": 5}).json()["events"]
-for e in events:
-    print(f"[{e['ticker']}] {e['event_type']:<20} impact={e['impact_score']:.2f}")`,
+# 2. Top 5 recent disclosures
+disclosures = requests.get(f"{BASE}/disclosures", headers=HEADERS,
+                            params={"limit": 5}).json()["data"]
+for d in disclosures:
+    print(f"[{d['stock_code']}] {d['event_type']:<12} {d['signal_tag']}")`,
       },
       {
         label: 'TypeScript',
         language: 'typescript',
-        code: `const BASE    = 'https://api.k-marketinsight.com';
-const HEADERS = { Authorization: 'Bearer YOUR_API_KEY' };
+        code: `const BASE    = '${BASE_URL}';
+const HEADERS = { 'X-API-Key': 'YOUR_API_KEY' };
 
-// 1. Market snapshot
-const radar = await fetch(\`\${BASE}/v1/market-radar\`, { headers: HEADERS })
+// 1. Market snapshot (most recent day)
+const radar = await fetch(\`\${BASE}/market-radar?limit=1\`, { headers: HEADERS })
   .then(r => r.json());
-console.log(\`KOSPI \${radar.kospi.index}  momentum=\${radar.market_momentum}\`);
+console.log(\`KOSPI \${radar.data[0].kospi_change}  signal=\${radar.data[0].market_signal}\`);
 
-// 2. Top 5 recent events
-const { events } = await fetch(\`\${BASE}/v1/events?limit=5\`, { headers: HEADERS })
+// 2. Top 5 recent disclosures
+const { data } = await fetch(\`\${BASE}/disclosures?limit=5\`, { headers: HEADERS })
   .then(r => r.json());
-events.forEach((e: any) =>
-  console.log(\`[\${e.ticker}] \${e.event_type.padEnd(20)} impact=\${e.impact_score}\`)
+data.forEach((d: any) =>
+  console.log(\`[\${d.stock_code}] \${d.event_type.padEnd(12)} \${d.signal_tag}\`)
 );`,
       },
     ],
   },
   {
     id: 'event-signals',
-    title: 'Event-Driven Signal Generation',
-    desc: 'Scan today\'s high-impact positive events and build a ranked watchlist.',
+    title: 'High-Conviction Signal Scan',
+    desc: 'Scan today\'s disclosures for the highest-conviction signal tag and rank by score.',
     tabs: [
       {
         label: 'Python',
@@ -434,54 +755,47 @@ events.forEach((e: any) =>
 from datetime import date
 
 res = requests.get(
-    "https://api.k-marketinsight.com/v1/events",
-    headers={"Authorization": "Bearer YOUR_API_KEY"},
-    params={"date": str(date.today()), "limit": 100},
+    "${BASE_URL}/disclosures",
+    headers={"X-API-Key": "YOUR_API_KEY"},
+    params={
+        "date_from": str(date.today()),
+        "signal_tag": "🔥 High Conviction",
+        "sort_by": "final_score",
+        "limit": 20,
+    },
 )
-events = res.json()["events"]
+signals = res.json()["data"]
 
-# Filter: high-impact positive events only
-signals = [
-    e for e in events
-    if e["impact_score"] >= 0.65 and e["sentiment"] == "positive"
-]
-signals.sort(key=lambda e: e["impact_score"], reverse=True)
-
-print(f"{'Ticker':<10} {'Event Type':<22} {'Impact':>6}  Summary")
+print(f"{'Stock':<10} {'Event Type':<16} {'Score':>6}  Summary")
 print("-" * 80)
-for e in signals[:10]:
-    summary = e["summary"][:55] + "…" if len(e["summary"]) > 55 else e["summary"]
-    print(f"{e['ticker']:<10} {e['event_type']:<22} {e['impact_score']:>6.2f}  {summary}")`,
+for d in signals:
+    summary = (d["ai_summary"] or "")[:55]
+    print(f"{d['stock_code']:<10} {d['event_type']:<16} {d['final_score']:>6.1f}  {summary}")`,
       },
       {
         label: 'TypeScript',
         language: 'typescript',
-        code: `interface Event {
-  ticker: string; company: string; event_type: string;
-  impact_score: number; sentiment: string; summary: string;
+        code: `interface Disclosure {
+  stock_code: string; corp_name: string; event_type: string;
+  final_score: number; signal_tag: string; ai_summary: string;
 }
 
 const today = new Date().toISOString().split('T')[0];
-const { events }: { events: Event[] } = await fetch(
-  \`https://api.k-marketinsight.com/v1/events?date=\${today}&limit=100\`,
-  { headers: { Authorization: 'Bearer YOUR_API_KEY' } }
+const { data }: { data: Disclosure[] } = await fetch(
+  \`${BASE_URL}/disclosures?date_from=\${today}&signal_tag=\${encodeURIComponent('🔥 High Conviction')}&sort_by=final_score&limit=20\`,
+  { headers: { 'X-API-Key': 'YOUR_API_KEY' } }
 ).then(r => r.json());
 
-// High-impact positive events → ranked watchlist
-const signals = events
-  .filter(e => e.impact_score >= 0.65 && e.sentiment === 'positive')
-  .sort((a, b) => b.impact_score - a.impact_score);
-
-signals.slice(0, 10).forEach(e =>
-  console.log(\`[\${e.ticker}] \${e.event_type.padEnd(22)} \${e.impact_score.toFixed(2)}  \${e.summary.slice(0, 55)}…\`)
+data.forEach(d =>
+  console.log(\`[\${d.stock_code}] \${d.event_type.padEnd(16)} \${d.final_score.toFixed(1)}  \${d.ai_summary?.slice(0, 55)}\`)
 );`,
       },
     ],
   },
   {
     id: 'sector-rotation',
-    title: 'Sector Rotation Monitor',
-    desc: 'Compare two consecutive days of sector signals to detect rotation in real time.',
+    title: 'Sector Signal Monitor',
+    desc: 'Compare two consecutive days of sector signals to spot a shift in sentiment or confidence.',
     tabs: [
       {
         label: 'Python',
@@ -489,13 +803,13 @@ signals.slice(0, 10).forEach(e =>
         code: `import requests
 from datetime import date, timedelta
 
-BASE    = "https://api.k-marketinsight.com"
-HEADERS = {"Authorization": "Bearer YOUR_API_KEY"}
+BASE    = "${BASE_URL}"
+HEADERS = {"X-API-Key": "YOUR_API_KEY"}
 
 def get_sectors(d: str) -> dict:
-    r = requests.get(f"{BASE}/v1/sector-signals",
-                     headers=HEADERS, params={"date": d})
-    return {s["sector_name"]: s for s in r.json()["sectors"]}
+    r = requests.get(f"{BASE}/sector-signals",
+                     headers=HEADERS, params={"date_from": d, "date_to": d})
+    return {s["sector_en"]: s for s in r.json()["data"]}
 
 today     = str(date.today())
 yesterday = str(date.today() - timedelta(days=1))
@@ -503,25 +817,23 @@ yesterday = str(date.today() - timedelta(days=1))
 now  = get_sectors(today)
 prev = get_sectors(yesterday)
 
-print(f"Sector momentum shift  ({yesterday} → {today})")
+print(f"Sector signal shift  ({yesterday} → {today})")
 print("-" * 52)
 for name, data in now.items():
-    prev_score = prev.get(name, {}).get("momentum_score", 0)
-    delta = data["momentum_score"] - prev_score
-    arrow = "▲" if delta > 0.05 else "▼" if delta < -0.05 else "─"
-    flow  = data["flow_signal"]
-    print(f"  {arrow} {name:<28} {delta:+.2f}  ({flow})")`,
+    prev_signal = prev.get(name, {}).get("signal", "?")
+    changed = "→ CHANGED" if prev_signal != data["signal"] else ""
+    print(f"  {name:<25} {prev_signal:<8} → {data['signal']:<8} {changed}")`,
       },
       {
         label: 'TypeScript',
         language: 'typescript',
-        code: `const BASE    = 'https://api.k-marketinsight.com';
-const HEADERS = { Authorization: 'Bearer YOUR_API_KEY' };
+        code: `const BASE    = '${BASE_URL}';
+const HEADERS = { 'X-API-Key': 'YOUR_API_KEY' };
 
 const getSectors = async (date: string) => {
-  const { sectors } = await fetch(\`\${BASE}/v1/sector-signals?date=\${date}\`, { headers: HEADERS })
+  const { data } = await fetch(\`\${BASE}/sector-signals?date_from=\${date}&date_to=\${date}\`, { headers: HEADERS })
     .then(r => r.json());
-  return Object.fromEntries(sectors.map((s: any) => [s.sector_name, s]));
+  return Object.fromEntries(data.map((s: any) => [s.sector_en, s]));
 };
 
 const fmt = (d: Date) => d.toISOString().split('T')[0];
@@ -530,12 +842,11 @@ const yesterday = fmt(new Date(Date.now() - 86_400_000));
 
 const [now, prev] = await Promise.all([getSectors(today), getSectors(yesterday)]);
 
-console.log(\`Sector momentum shift  (\${yesterday} → \${today})\`);
-console.log('─'.repeat(52));
+console.log(\`Sector signal shift  (\${yesterday} → \${today})\`);
 Object.entries(now).forEach(([name, data]: [string, any]) => {
-  const delta = data.momentum_score - (prev[name]?.momentum_score ?? 0);
-  const arrow = delta > 0.05 ? '▲' : delta < -0.05 ? '▼' : '─';
-  console.log(\`  \${arrow} \${name.padEnd(28)} \${delta > 0 ? '+' : ''}\${delta.toFixed(2)}  (\${data.flow_signal})\`);
+  const prevSignal = prev[name]?.signal ?? '?';
+  const changed = prevSignal !== data.signal ? '→ CHANGED' : '';
+  console.log(\`  \${name.padEnd(25)} \${prevSignal} → \${data.signal}  \${changed}\`);
 });`,
       },
     ],
@@ -552,12 +863,12 @@ Object.entries(now).forEach(([name, data]: [string, any]) => {
 from requests.exceptions import HTTPError
 
 def call_api(url: str, params: dict = {}, retries: int = 3):
-    headers = {"Authorization": "Bearer YOUR_API_KEY"}
+    headers = {"X-API-Key": "YOUR_API_KEY"}
     for attempt in range(retries):
         r = requests.get(url, headers=headers, params=params)
 
         if r.status_code == 429:
-            # Respect Retry-After header
+            # Respect Retry-After header (seconds)
             wait = int(r.headers.get("Retry-After", 5))
             print(f"Rate limited. Retrying in {wait}s…")
             time.sleep(wait)
@@ -570,15 +881,15 @@ def call_api(url: str, params: dict = {}, retries: int = 3):
 
 try:
     data = call_api(
-        "https://api.k-marketinsight.com/v1/events",
-        params={"ticker": "005930", "limit": 20}
+        "${BASE_URL}/disclosures",
+        params={"stock_code": "005930", "limit": 20}
     )
-    print(f"Fetched {len(data['events'])} events")
+    print(f"Fetched {len(data['data'])} disclosures")
 
 except HTTPError as e:
     err = e.response.json()
-    # err = { "error": "…", "code": "UNAUTHORIZED", "status": 401 }
-    print(f"API error {err['status']}: {err['error']}  (code={err['code']})")
+    # err = { "error": "..." }  (429 responses also include plan/used/limit/reset)
+    print(f"API error {e.response.status_code}: {err['error']}")
 
 except RuntimeError as e:
     print(f"Retry exhausted: {e}")`,
@@ -586,16 +897,16 @@ except RuntimeError as e:
       {
         label: 'TypeScript',
         language: 'typescript',
-        code: `interface ApiError { error: string; code: string; status: number; }
+        code: `interface ApiError { error: string; [key: string]: unknown; }
 
 async function callApi<T>(url: string, retries = 3): Promise<T> {
   for (let i = 0; i < retries; i++) {
     const res = await fetch(url, {
-      headers: { Authorization: 'Bearer YOUR_API_KEY' },
+      headers: { 'X-API-Key': 'YOUR_API_KEY' },
     });
 
     if (res.status === 429) {
-      // Respect Retry-After header
+      // Respect Retry-After header (seconds)
       const wait = parseInt(res.headers.get('Retry-After') ?? '5') * 1_000;
       console.log(\`Rate limited. Retrying in \${wait / 1000}s…\`);
       await new Promise(r => setTimeout(r, wait));
@@ -604,7 +915,7 @@ async function callApi<T>(url: string, retries = 3): Promise<T> {
 
     if (!res.ok) {
       const err: ApiError = await res.json();
-      throw new Error(\`[\${err.code}] \${err.error} (HTTP \${err.status})\`);
+      throw new Error(\`\${err.error} (HTTP \${res.status})\`);
     }
 
     return res.json() as Promise<T>;
@@ -614,10 +925,10 @@ async function callApi<T>(url: string, retries = 3): Promise<T> {
 
 // Usage
 try {
-  const data = await callApi<{ events: unknown[]; total: number }>(
-    'https://api.k-marketinsight.com/v1/events?ticker=005930&limit=20'
+  const data = await callApi<{ data: unknown[]; total: number }>(
+    '${BASE_URL}/disclosures?stock_code=005930&limit=20'
   );
-  console.log(\`Fetched \${data.events.length} events (total \${data.total})\`);
+  console.log(\`Fetched \${data.data.length} disclosures (total \${data.total})\`);
 } catch (e) {
   console.error('API failed:', e);
 }`,
@@ -861,14 +1172,14 @@ export default function ApiDocsPage() {
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4">API Reference</h1>
               <SectionLead>
-                The K-Market Insight API provides structured Korean equity intelligence — corporate events, sector signals, and market radar — via a REST interface. All responses are JSON. Timestamps are ISO 8601 UTC.
+                The K-Market Insight API provides structured Korean equity intelligence — AI-analyzed disclosures, sector signals, market radar, and event-driven backtest performance — via a REST interface. Responses are JSON by default (XML available via <code className="text-[#00D4A6] text-xs">?format=xml</code>). Timestamps are ISO 8601 UTC.
               </SectionLead>
 
               <div className="grid sm:grid-cols-2 gap-3 mb-8">
-                <InfoCard label="Base URL"      value="https://api.k-marketinsight.com" />
+                <InfoCard label="Base URL"      value="https://k-marketinsight.com/api/v1" />
                 <InfoCard label="Current version" value="v1" />
-                <InfoCard label="Response format" value="JSON (application/json)" />
-                <InfoCard label="Authentication"  value="Bearer token (Authorization header)" />
+                <InfoCard label="Response format" value="JSON by default — pass ?format=xml or Accept: application/xml for XML" />
+                <InfoCard label="Authentication"  value="X-API-Key header" />
                 <InfoCard label="Timestamp format" value="ISO 8601 UTC  (e.g. 2026-03-10T06:38:00Z)" />
                 <InfoCard label="CORS"            value="Enabled — browser requests supported" />
               </div>
@@ -920,16 +1231,13 @@ export default function ApiDocsPage() {
               {/* Pagination */}
               <h2 className="text-lg font-semibold text-white mb-3">Pagination</h2>
               <SectionLead>
-                Endpoints that return lists use cursor-based pagination. Pass <code className="text-[#00D4A6] text-xs">limit</code> (max 100) to control page size. When more pages exist, the response includes a <code className="text-[#00D4A6] text-xs">next_cursor</code> string — pass it as the <code className="text-[#00D4A6] text-xs">cursor</code> parameter in your next request.
+                Most list endpoints are date-range filtered — pass <code className="text-[#00D4A6] text-xs">date_from</code> / <code className="text-[#00D4A6] text-xs">date_to</code> and <code className="text-[#00D4A6] text-xs">limit</code> to control the window and page size. <code className="text-[#00D4A6] text-xs">/v1/performance/trades</code> is the one exception — it uses <code className="text-[#00D4A6] text-xs">limit</code> + <code className="text-[#00D4A6] text-xs">offset</code> instead, since full trade history matters regardless of recency. There is no cursor field in any response.
               </SectionLead>
-              <CodeBlock language="typescript" code={`// Page 1
-const page1 = await fetch('/v1/events?limit=20', { headers }).then(r => r.json());
-// page1.next_cursor = "eyJpZCI6Im..."
+              <CodeBlock language="typescript" code={`// /v1/performance/trades — offset pagination
+const page1 = await fetch('/v1/performance/trades?limit=50&offset=0', { headers }).then(r => r.json());
+// page1.total = total matching rows across all pages
 
-// Page 2
-const page2 = await fetch(\`/v1/events?limit=20&cursor=\${page1.next_cursor}\`, { headers })
-  .then(r => r.json());
-// page2.next_cursor = null  →  last page`} />
+const page2 = await fetch('/v1/performance/trades?limit=50&offset=50', { headers }).then(r => r.json());`} />
 
               <div className="mt-8">
                 <button onClick={() => setActiveSection('Authentication')} className="text-sm text-[#00D4A6] hover:underline">
@@ -944,20 +1252,20 @@ const page2 = await fetch(\`/v1/events?limit=20&cursor=\${page1.next_cursor}\`, 
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4">Authentication</h1>
               <SectionLead>
-                All API requests require a valid API key. The recommended method is passing it as a Bearer token in the <code className="text-[#00D4A6] text-sm">Authorization</code> header. An alternative is the <code className="text-[#00D4A6] text-sm">x-api-key</code> header (useful for environments that restrict custom headers).
+                All API requests require a valid API key, sent as the <code className="text-[#00D4A6] text-sm">X-API-Key</code> header. A legacy <code className="text-[#00D4A6] text-sm">?api_key=</code> query parameter is also accepted, but the header is preferred so your key doesn’t end up in logs or browser history. Note: <code className="text-[#00D4A6] text-sm">Authorization: Bearer</code> is <span className="text-gray-300">not</span> supported.
               </SectionLead>
 
               {/* Method 1 */}
-              <h2 className="text-base font-semibold text-white mb-3">Method 1 — Authorization header (recommended)</h2>
+              <h2 className="text-base font-semibold text-white mb-3">Method 1 — X-API-Key header (recommended)</h2>
               <div className="bg-[#121821] border border-[#00D4A6]/20 rounded-xl p-5 mb-6 font-mono text-sm">
-                <span className="text-gray-500">Authorization: </span>
-                <span className="text-[#00D4A6]">Bearer YOUR_API_KEY</span>
+                <span className="text-gray-500">X-API-Key: </span>
+                <span className="text-[#00D4A6]">YOUR_API_KEY</span>
               </div>
 
               {/* Method 2 */}
-              <h2 className="text-base font-semibold text-white mb-3">Method 2 — x-api-key header</h2>
+              <h2 className="text-base font-semibold text-white mb-3">Method 2 — api_key query parameter (legacy)</h2>
               <div className="bg-[#121821] border border-gray-800 rounded-xl p-5 mb-6 font-mono text-sm">
-                <span className="text-gray-500">x-api-key: </span>
+                <span className="text-gray-500">?api_key=</span>
                 <span className="text-[#00D4A6]">YOUR_API_KEY</span>
               </div>
 
@@ -967,64 +1275,35 @@ const page2 = await fetch(\`/v1/events?limit=20&cursor=\${page1.next_cursor}\`, 
                 {
                   label: 'curl',
                   language: 'bash',
-                  code: `# Authorization header (recommended)
-curl https://api.k-marketinsight.com/v1/market-radar \\
-  -H "Authorization: Bearer YOUR_API_KEY"
+                  code: `# X-API-Key header (recommended)
+curl ${BASE_URL}/market-radar \\
+  -H "X-API-Key: YOUR_API_KEY"
 
-# x-api-key header (alternative)
-curl https://api.k-marketinsight.com/v1/market-radar \\
-  -H "x-api-key: YOUR_API_KEY"`,
+# api_key query param (legacy)
+curl "${BASE_URL}/market-radar?api_key=YOUR_API_KEY"`,
                 },
                 {
                   label: 'Python',
                   language: 'python',
                   code: `import requests
 
-# Authorization header (recommended)
+# X-API-Key header (recommended)
 res = requests.get(
-    "https://api.k-marketinsight.com/v1/market-radar",
-    headers={"Authorization": "Bearer YOUR_API_KEY"},
+    "${BASE_URL}/market-radar",
+    headers={"X-API-Key": "YOUR_API_KEY"},
 )
 print(res.json())`,
                 },
                 {
                   label: 'TypeScript',
                   language: 'typescript',
-                  code: `// Authorization header (recommended)
-const res = await fetch('https://api.k-marketinsight.com/v1/market-radar', {
-  headers: { Authorization: 'Bearer YOUR_API_KEY' },
+                  code: `// X-API-Key header (recommended)
+const res = await fetch('${BASE_URL}/market-radar', {
+  headers: { 'X-API-Key': 'YOUR_API_KEY' },
 });
 const data = await res.json();`,
                 },
               ]} />
-
-              <Divider />
-
-              {/* API key types */}
-              <h2 className="text-base font-semibold text-white mb-3">API Key Types</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[420px] text-sm border border-gray-800 rounded-xl overflow-hidden">
-                  <thead className="bg-[#121821]">
-                    <tr>
-                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Prefix</th>
-                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Environment</th>
-                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t border-gray-800">
-                      <td className="px-4 py-3"><code className="text-xs text-[#00D4A6]">kmi_live_</code></td>
-                      <td className="px-4 py-3 text-sm text-gray-400">Production</td>
-                      <td className="px-4 py-3 text-sm text-gray-400">Real DART data, counts against rate limits.</td>
-                    </tr>
-                    <tr className="border-t border-gray-800 bg-[#121821]/40">
-                      <td className="px-4 py-3"><code className="text-xs text-[#00D4A6]">kmi_test_</code></td>
-                      <td className="px-4 py-3 text-sm text-gray-400">Sandbox</td>
-                      <td className="px-4 py-3 text-sm text-gray-400">Synthetic data, no rate limit charges. Safe for testing.</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
 
               <Divider />
 
@@ -1048,15 +1327,22 @@ const data = await res.json();`,
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4">Errors</h1>
               <SectionLead>
-                The API uses standard HTTP status codes. All error responses share the same JSON body shape so you can handle them uniformly.
+                The API uses standard HTTP status codes. Error responses are a JSON object with at minimum an <code className="text-[#00D4A6] text-xs">error</code> string — there is no separate <code className="text-[#00D4A6] text-xs">code</code> field, so branch on the HTTP status code, not on any value in the body. 429 responses include a few extra fields (see below).
               </SectionLead>
 
               {/* Error format */}
               <h2 className="text-base font-semibold text-white mb-3">Error Response Format</h2>
-              <CodeBlock language="json" code={`{
-  "error": "Invalid API key.",
-  "code":  "UNAUTHORIZED",
-  "status": 401
+              <CodeBlock language="json" code={`// Standard error (401, 403, 500, ...)
+{ "error": "Invalid API key." }
+
+// 429 Rate limit — includes extra context
+{
+  "error": "Rate limit exceeded.",
+  "plan": "starter",
+  "used": 5000,
+  "limit": 5000,
+  "reset": "2026-04-01",
+  "upgrade_url": "https://k-marketinsight.com/login"
 }`} />
 
               <Divider />
@@ -1068,19 +1354,17 @@ const data = await res.json();`,
                   <thead className="bg-[#121821]">
                     <tr>
                       <th className="text-left text-xs text-gray-500 font-medium px-4 py-3 w-20">Status</th>
-                      <th className="text-left text-xs text-gray-500 font-medium px-4 py-3 w-44">Code</th>
                       <th className="text-left text-xs text-gray-500 font-medium px-4 py-3">Description</th>
                     </tr>
                   </thead>
                   <tbody>
                     {[
-                      { status: '400', code: 'BAD_REQUEST',    desc: 'A required parameter is missing or a value is invalid (e.g. malformed date).' },
-                      { status: '401', code: 'UNAUTHORIZED',   desc: 'API key is missing, invalid, or expired.' },
-                      { status: '403', code: 'FORBIDDEN',      desc: 'Your current plan does not include access to this endpoint.' },
-                      { status: '404', code: 'NOT_FOUND',      desc: 'The requested resource does not exist (e.g. unknown ticker).' },
-                      { status: '422', code: 'UNPROCESSABLE',  desc: 'Request was understood but contains a logical conflict (e.g. date and from/to used together).' },
-                      { status: '429', code: 'RATE_LIMITED',   desc: 'Rate limit exceeded. Check the Retry-After response header for the wait time in seconds.' },
-                      { status: '500', code: 'INTERNAL_ERROR', desc: 'Unexpected server error. Retry with exponential backoff. Contact support if it persists.' },
+                      { status: '400', desc: 'A query parameter has an invalid value — e.g. sentiment must be POSITIVE, NEGATIVE, or NEUTRAL; signal_tag must be one of the documented values.' },
+                      { status: '401', desc: 'API key is missing (no X-API-Key header or api_key param) or does not match any account.' },
+                      { status: '403', desc: 'Your current plan does not include access to this endpoint.' },
+                      { status: '429', desc: 'Rate limit exceeded for your plan. Check the Retry-After response header for the wait time in seconds.' },
+                      { status: '500', desc: 'Unexpected server error. Retry with exponential backoff. Contact support if it persists.' },
+                      { status: '503', desc: 'Authentication service temporarily unavailable. Retry after a short delay.' },
                     ].map((row, i) => (
                       <tr key={row.status} className={`border-t border-gray-800 ${i % 2 !== 0 ? 'bg-[#121821]/40' : ''}`}>
                         <td className="px-4 py-3">
@@ -1088,9 +1372,6 @@ const data = await res.json();`,
                             row.status.startsWith('4') ? 'text-yellow-400' :
                             row.status.startsWith('5') ? 'text-red-400' : 'text-gray-400'
                           }`}>{row.status}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <code className="text-xs text-[#00D4A6]">{row.code}</code>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-400">{row.desc}</td>
                       </tr>
@@ -1104,7 +1385,7 @@ const data = await res.json();`,
               {/* Rate limit guidance */}
               <h2 className="text-base font-semibold text-white mb-3">Handling 429 Rate Limits</h2>
               <SectionLead>
-                When you receive a 429, read the <code className="text-[#00D4A6] text-xs">Retry-After</code> header to know exactly how many seconds to wait. Use exponential backoff as a fallback when the header is absent.
+                When you receive a 429, read the <code className="text-[#00D4A6] text-xs">Retry-After</code> header (seconds) to know how long to wait. Free tier resets daily; starter/pro/enterprise reset on the 1st of the month.
               </SectionLead>
               <CodeBlock language="typescript" code={`if (res.status === 429) {
   const wait = parseInt(res.headers.get('Retry-After') ?? '5') * 1_000;
