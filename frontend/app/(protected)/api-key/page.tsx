@@ -89,8 +89,7 @@ export default async function ApiKeyPage() {
           <CodeBlock
             language="bash"
             code={`curl https://k-marketinsight.com/api/v1/market-radar \\
-  -H "Authorization: Bearer ${apiKey}" \\
-  -H "Content-Type: application/json"`}
+  -H "X-API-Key: ${apiKey}"`}
           />
           <p className="text-xs text-gray-600">
             Your API key is pre-filled above — click Copy to use immediately.

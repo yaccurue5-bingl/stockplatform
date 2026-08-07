@@ -7,50 +7,64 @@ import CodeBlock from './ui/CodeBlock';
 
 const endpoints = [
   { method: 'GET', path: '/v1/market-radar', response: `{
-  "date": "2026-03-10",
-  "kospi": { "index": 2748.32, "change": "+1.2%" },
-  "kosdaq": { "index": 891.54, "change": "+0.8%" },
-  "foreign_net_flow": "+₩1.2T",
-  "top_sectors": ["Semiconductors", "Shipbuilding"]
+  "data": [
+    {
+      "date": "2026-03-10",
+      "market_signal": "Bullish",
+      "top_sector_en": "Semiconductors",
+      "kospi_change": "+1.2%",
+      "kosdaq_change": "+0.8%",
+      "foreign_flow": "+8,300억원",
+      "regime": "RISK_ON"
+    }
+  ],
+  "total": 1
 }` },
   { method: 'GET', path: '/v1/sector-signals', response: `{
-  "date": "2026-03-10",
-  "sectors": [
-    { "name": "Semiconductors", "signal": "bullish", "change": "+2.4%" },
-    { "name": "Shipbuilding",   "signal": "bullish", "change": "+1.8%" },
-    { "name": "Biotech",        "signal": "bearish", "change": "-0.5%" }
-  ]
+  "data": [
+    { "sector_en": "Semiconductors", "signal": "Bullish", "confidence": 0.74 },
+    { "sector_en": "Shipbuilding",   "signal": "Bullish", "confidence": 0.61 },
+    { "sector_en": "Biotech",        "signal": "Bearish", "confidence": 0.42 }
+  ],
+  "total": 3
 }` },
   { method: 'GET', path: '/v1/events', response: `{
-  "events": [
+  "statistics": [
+    { "event_type": "EARNINGS", "avg_5d_return": 1.8, "sample_size": 1204 }
+  ],
+  "recent_events": [
     {
-      "ticker": "005930",
-      "company": "Samsung Electronics",
-      "event": "earnings",
-      "impact": "positive",
-      "confidence": 0.83,
-      "published_at": "2026-03-10"
+      "stock_code": "005930",
+      "corp_name": "Samsung Electronics",
+      "event_type": "EARNINGS",
+      "signal_tag": "🔥 High Conviction"
     }
   ]
 }` },
   { method: 'GET', path: '/v1/disclosures', response: `{
-  "disclosures": [
+  "data": [
     {
       "rcept_no": "20260310000123",
       "corp_name": "Samsung Electronics",
-      "report_nm": "분기보고서",
-      "rcept_dt": "2026-03-10",
-      "ai_summary": "Q4 revenue beat expectations..."
+      "report_name": "Quarterly Report",
+      "rcept_dt": "20260310",
+      "ai_summary": "Q4 revenue beat expectations...",
+      "signal_tag": "🔥 High Conviction"
     }
-  ]
+  ],
+  "total": 1
 }` },
-  { method: 'GET', path: '/v1/company/{ticker}', response: `{
-  "ticker": "005930",
-  "company": "Samsung Electronics",
-  "event": "earnings",
-  "impact": "positive",
-  "confidence": 0.83,
-  "published_at": "2026-03-10"
+  { method: 'GET', path: '/v1/signal-performance', response: `{
+  "data": [
+    {
+      "event_type": "EARNINGS",
+      "hit_ratio_5d": 58.3,
+      "avg_20d_return": 3.1,
+      "signal_grade": "A",
+      "signal_score": 82.4
+    }
+  ],
+  "total": 1
 }` },
 ];
 
